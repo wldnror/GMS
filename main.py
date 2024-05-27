@@ -29,7 +29,7 @@ SEGMENTS = {
 # Bit to segment mapping
 BIT_TO_SEGMENT = {
     0: 'E-10',  # E-10
-    1: 'E-22',  # E-22
+    1: 'E-220',  # E-22
     2: 'E-12',  # E-12
     3: 'E-23'  # E-23
 }
@@ -104,11 +104,11 @@ class IPInputGUI:
         box_frame = Frame(row_frame)
         box_frame.pack(side='left', padx=10, pady=10)
 
-        box_canvas = Canvas(box_frame, width=170, height=340)
+        box_canvas = Canvas(box_frame, width=166, height=336, highlightthickness=3, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, 170, 215, fill='grey', outline='grey')
-        box_canvas.create_rectangle(0, 215, 170, 340, fill='black', outline='black')
+        box_canvas.create_rectangle(0, 0, 170, 215, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 215, 170, 340, fill='black', outline='grey', tags='border')
 
         self.create_segment_display(box_canvas)  # 세그먼트 디스플레이 생성
         self.update_segment_display("0000", box_canvas)
@@ -174,10 +174,24 @@ class IPInputGUI:
 
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
+        outline_color_off = '#000000'
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+
+        if states[0]:  # Red top-left
+            outline_color = outline_colors[0]
+        elif states[1]:  # Red top-right
+            outline_color = outline_colors[1]
+        elif states[3]:  # Yellow bottom-right
+            outline_color = outline_colors[3]
+        else:  # Default grey outline
+            outline_color = outline_color_off
+
+        # 박스 테두리 업데이트
+        box_canvas.config(highlightbackground=outline_color)
 
     def create_segment_display(self, box_canvas):
         segment_canvas = Canvas(box_canvas, width=131, height=60, bg='#000000', highlightthickness=0)
@@ -379,15 +393,24 @@ class IPInputGUI:
                             formatted_value = f"{value_40005:04d}"
                             self.update_segment_display(formatted_value, self.box_frames[box_index][1])
                         else:
-                            segments_to_display = [BIT_TO_SEGMENT[n] if bit else ' ' for n, bit in enumerate(bits)]
-                            error_display = ''.join(segments_to_display)
+                            error_display = ""
+                            for i, bit in enumerate(bits):
+                                if bit:
+                                    error_display = BIT_TO_SEGMENT[i]
+                                    break
+
+                            error_display = error_display.ljust(4)  # 길이를 4로 맞춤
+
                             # 세그먼트 디스플레이 업데이트
                             if 'E' in error_display:  # 'E'가 포함된 에러 신호일 경우 깜빡이도록 설정
                                 self.blinking_error = True
                                 self.update_segment_display(error_display, self.box_frames[box_index][1], blink=True)
+                                self.update_circle_state([False, False, True, self.blink_state],
+                                                         box_index=box_index)  # 노란색 LED 깜빡임
                             else:
                                 self.blinking_error = False
                                 self.update_segment_display(error_display, self.box_frames[box_index][1])
+                                self.update_circle_state([False, False, True, False], box_index=box_index)  # 노란색 LED 끄기
                     else:
                         self.console.print(f"Error from {ip}: {result_40007}")
                 else:
