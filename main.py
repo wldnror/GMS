@@ -8,6 +8,7 @@ from rich.console import Console
 from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import mplcursors  # mplcursors 라이브러리 추가
 
 # 세그먼트 표시 매핑
 SEGMENTS = {
@@ -235,6 +236,22 @@ class IPInputGUI:
         ax.set_title(f'Box {box_index + 1} Segment Value History')
         ax.tick_params(axis='x', rotation=45)
         ax.figure.tight_layout()
+
+        # 주석 저장을 위한 변수
+        current_selection = None
+
+        # 마우스 오버 기능 추가
+        cursor = mplcursors.cursor(ax, hover=True)
+
+        @cursor.connect("add")
+        def on_add(sel):
+            nonlocal current_selection
+            if current_selection:
+                cursor.remove_selection(current_selection)
+            sel.annotation.set_text(f'Time: {timestamps[int(sel.index)]}\nValue: {values[int(sel.index)]}')
+            sel.annotation.get_bbox_patch().set(facecolor='white', alpha=0.6)
+            sel.annotation.set_visible(True)
+            current_selection = sel
 
         if self.graph_windows[box_index] is not None:
             self.root.after(1000, self.update_graph, box_index, ax)  # 1초 간격으로 업데이트
