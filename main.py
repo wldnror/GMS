@@ -1,13 +1,13 @@
-from tkinter import Tk, Label, Entry, Button, StringVar, Frame, Canvas, DISABLED, NORMAL
+from tkinter import Tk, Entry, Button, StringVar, Frame, Canvas, DISABLED, NORMAL, Toplevel
 import time
 import threading
 import queue
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
-import netifaces
 from PIL import Image, ImageTk
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # 세그먼트 표시 매핑
 SEGMENTS = {
@@ -29,7 +29,7 @@ SEGMENTS = {
 # Bit to segment mapping
 BIT_TO_SEGMENT = {
     0: 'E-10',  # E-10
-    1: 'E-220',  # E-22
+    1: 'E-22',  # E-22
     2: 'E-12',  # E-12
     3: 'E-23'  # E-23
 }
@@ -49,15 +49,17 @@ class IPInputGUI:
         self.data_queue = queue.Queue()
         self.console = Console()
 
-        self.blink_state = False  # 깜빡임 상태 추가
-        self.blinking_error = False  # 에러 상태에 따른 깜빡임 제어 변수 추가
-        self.previous_value_40011 = None  # 이전 값을 저장하기 위한 변수 추가
+        self.box_states = []
+        self.histories = [[] for _ in range(num_boxes)]  # 히스토리 저장을 위한 리스트 초기화
+        self.graph_windows = [None for _ in range(num_boxes)]  # 그래프 윈도우 저장을 위한 리스트 초기화
 
         self.box_frame = Frame(self.root)
         self.box_frame.pack()
 
         self.row_frames = []  # 각 행의 프레임을 저장할 리스트
         self.box_frames = []  # UI 상자를 저장할 리스트
+
+        self.gradient_bar = self.create_gradient_bar(131, 5)  # gradient_bar 초기화
 
         for _ in range(num_boxes):
             self.create_custom_box()
@@ -74,8 +76,8 @@ class IPInputGUI:
         entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치
         self.entries.append(entry)
 
-        action_button = Button(frame, text="🔗", command=lambda i=index: self.toggle_connection(i), width=1, height=1, bd=0,
-                               highlightthickness=0, borderwidth=0, relief='flat')
+        action_button = Button(frame, text="🔗", command=lambda i=index: self.toggle_connection(i), width=1, height=1,
+                               bd=0, highlightthickness=0, borderwidth=0, relief='flat')
         action_button.grid(row=0, column=1, padx=(0, 5))  # 버튼 배치
         self.action_buttons.append(action_button)
 
@@ -104,14 +106,23 @@ class IPInputGUI:
         box_frame = Frame(row_frame)
         box_frame.pack(side='left', padx=10, pady=10)
 
-        box_canvas = Canvas(box_frame, width=166, height=336, highlightthickness=3, highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=166, height=336, highlightthickness=3, highlightbackground="#000000",
+                            highlightcolor="#000000")
         box_canvas.pack()
 
         box_canvas.create_rectangle(0, 0, 170, 215, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 215, 170, 340, fill='black', outline='grey', tags='border')
 
         self.create_segment_display(box_canvas)  # 세그먼트 디스플레이 생성
-        self.update_segment_display("0000", box_canvas)
+        self.box_states.append({
+            "blink_state": False,
+            "blinking_error": False,
+            "previous_value_40011": None,
+            "previous_segment_display": None,  # 이전 세그먼트 값 저장
+            "last_history_time": None,  # 마지막 히스토리 기록 시간
+            "last_history_value": None  # 마지막 히스토리 기록 값
+        })
+        self.update_segment_display("    ", box_canvas, box_index=i)  # 초기화시 빈 상태로 설정
 
         control_frame = Frame(box_canvas, bg="black")
         control_frame.place(x=10, y=220)
@@ -146,9 +157,9 @@ class IPInputGUI:
         # 상자 세그먼트 아래에 "가스명" 글자 추가
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 20, "bold"), fill="#cccccc", anchor="center")
 
-
         # 상자 맨 아래에 "GDS SMS" 글자 추가
-        box_canvas.create_text(87, 295, text="GMS-1000", font=("Helvetica", 20, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(87, 295, text="GMS-1000", font=("Helvetica", 20, "bold"), fill="#cccccc",
+                               anchor="center")
 
         # 상자 맨 아래에 "GDS ENGINEERING CO.,LTD" 글자 추가
         box_canvas.create_text(87, 328, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 10, "bold"), fill="#cccccc",
@@ -159,11 +170,74 @@ class IPInputGUI:
         bar_canvas.place(x=23, y=84)  # 막대를 상자 안의 원하는 위치에 배치
 
         # 전체 그라데이션 막대를 생성
-        gradient_bar = self.create_gradient_bar(131, 5)
-        bar_image = ImageTk.PhotoImage(gradient_bar)
+        bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
         self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
+
+        # 무지개 바 초기 숨김 처리
+        self.show_bar(i, show=False)
+
+        # 세그먼트 클릭 시 히스토리를 그래프로 보여주는 이벤트 추가
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.show_history_graph(i))
+
+    def show_history_graph(self, box_index):
+        if self.graph_windows[box_index] is not None:
+            return  # 그래프 창이 이미 열려 있으면 새로 열지 않음
+
+        graph_window = Toplevel(self.root)
+        graph_window.title(f"Box {box_index + 1} Segment Value History")
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        self.graph_windows[box_index] = graph_window
+        self.update_graph(box_index, ax)
+
+        canvas = FigureCanvasTkAgg(fig, master=graph_window)
+        canvas.get_tk_widget().pack(side="top", fill="both", expand=1)
+        canvas.draw()
+
+        def on_close():
+            self.graph_windows[box_index] = None
+            graph_window.destroy()
+
+        graph_window.protocol("WM_DELETE_WINDOW", on_close)
+
+    def update_graph(self, box_index, ax):
+        timestamps = [record[0] for record in self.histories[box_index]]
+        values = []
+        labels = []
+        for record in self.histories[box_index]:
+            try:
+                value = int(record[1])
+                values.append(value)
+                labels.append('')
+            except ValueError:
+                if record[1] in ['A1', 'A2', 'E-23', 'E-10', 'E-22', 'E-12']:
+                    values.append(record[2])  # 기록된 값을 사용
+                    labels.append(record[1])
+                else:
+                    values.append(0)
+                    labels.append('')
+
+        # Ensure timestamps and values have the same length
+        min_length = min(len(timestamps), len(values))
+        timestamps = timestamps[:min_length]
+        values = values[:min_length]
+        labels = labels[:min_length]
+
+        ax.clear()
+        ax.plot(timestamps, values, marker='o')
+        for i, label in enumerate(labels):
+            if label:
+                ax.text(timestamps[i], values[i], label, fontsize=12, color='red')
+        ax.set_xlabel('Timestamp')
+        ax.set_ylabel('Value')
+        ax.set_title(f'Box {box_index + 1} Segment Value History')
+        ax.tick_params(axis='x', rotation=45)
+        ax.figure.tight_layout()
+
+        if self.graph_windows[box_index] is not None:
+            self.root.after(1000, self.update_graph, box_index, ax)  # 1초 간격으로 업데이트
 
     def update_circle_state(self, states, box_index=0):
         """
@@ -248,9 +322,16 @@ class IPInputGUI:
         box_canvas.segment_canvas = segment_canvas
         box_canvas.segment_items = segment_items
 
-    def update_segment_display(self, value, box_canvas, blink=False):
+    def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)  # Ensure the value is 4 characters long, padded with zeros if necessary
         leading_zero = True
+        blink_state = self.box_states[box_index]["blink_state"]
+        previous_segment_display = self.box_states[box_index]["previous_segment_display"]
+
+        if value != previous_segment_display:  # 값이 변했을 때만 기록
+            self.record_history(box_index, value)
+            self.box_states[box_index]["previous_segment_display"] = value
+
         for i, digit in enumerate(value):
             if leading_zero and digit == '0' and i < 3:
                 # 앞의 세 자릿수가 0이면 회색으로 설정
@@ -259,14 +340,25 @@ class IPInputGUI:
                 segments = SEGMENTS[digit]
                 leading_zero = False
 
-            if blink and self.blink_state:
+            if blink and blink_state:
                 segments = SEGMENTS[' ']  # 깜빡임 상태에서는 모든 세그먼트를 끕니다.
 
             for j, state in enumerate(segments):
                 color = '#fc0c0c' if state == '1' else '#424242'
                 box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
 
-        self.blink_state = not self.blink_state  # 깜빡임 상태 토글
+        self.box_states[box_index]["blink_state"] = not blink_state  # 깜빡임 상태 토글
+
+    def record_history(self, box_index, value):
+        if value.strip():  # 값이 공백이 아닌 경우에만 기록
+            last_history_value = self.box_states[box_index]["last_history_value"]
+            if value != last_history_value:
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+                last_value = self.box_states[box_index].get("last_value_40005", 0)
+                self.histories[box_index].append((timestamp, value, last_value))
+                self.box_states[box_index]["last_history_value"] = value
+                if len(self.histories[box_index]) > 100:  # 최대 기록 수를 제한
+                    self.histories[box_index].pop(0)
 
     def create_gradient_bar(self, width, height):
         gradient = Image.new('RGB', (width, height), color=0)
@@ -316,6 +408,7 @@ class IPInputGUI:
                 self.root.after(0, lambda: self.action_buttons[i].config(text="❌", relief='flat', borderwidth=0))  # 연결 성공 시 버튼을 연결 해제로 변경
                 self.root.after(0, lambda: self.entries[i].config(state=DISABLED))  # 연결 성공 시 IP 입력 필드 비활성화
                 self.update_circle_state([False, False, True, False], box_index=i)
+                self.show_bar(i, show=True)  # 무지개 바 보이기
             else:
                 self.console.print(f"Failed to connect to {ip}")
 
@@ -331,7 +424,8 @@ class IPInputGUI:
             self.action_buttons[i].config(text="🔗", relief='flat', borderwidth=0)  # 연결 해제 시 버튼을 연결로 변경
             self.root.after(0, lambda: self.entries[i].config(state=NORMAL))  # 연결 해제 시 IP 입력 필드 활성화
             self.update_circle_state([False, False, False, False], box_index=i)
-            self.update_segment_display("0000", self.box_frames[i][1])  # 연결 해제 시 세그먼트 디스플레이 초기화
+            self.update_segment_display("    ", self.box_frames[i][1], box_index=i)  # 연결 해제 시 세그먼트 디스플레이 초기화
+            self.show_bar(i, show=False)  # 무지개 바 숨기기
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -365,11 +459,13 @@ class IPInputGUI:
                         top_blink = blink_state_top
                         middle_fixed = True
                         middle_blink = True
+                        self.record_history(box_index, 'A2')
                     elif bit_6_on:
                         blink_state_middle = not blink_state_middle
                         top_blink = False
                         middle_fixed = True
                         middle_blink = blink_state_middle
+                        self.record_history(box_index, 'A1')
                     else:
                         top_blink = False
                         middle_blink = False
@@ -380,6 +476,7 @@ class IPInputGUI:
 
                 if not result_40005.isError():
                     value_40005 = result_40005.registers[0]
+                    self.box_states[box_index]["last_value_40005"] = value_40005
 
                     # 40008에 bit 0~3 신호가 없을 때 40005 표시
                     if not result_40007.isError():
@@ -391,25 +488,26 @@ class IPInputGUI:
                         # 40007에 신호가 없으면 40005 값을 세그먼트 디스플레이에 표시
                         if not any(bits):
                             formatted_value = f"{value_40005:04d}"
-                            self.update_segment_display(formatted_value, self.box_frames[box_index][1])
+                            self.update_segment_display(formatted_value, self.box_frames[box_index][1], box_index=box_index)
                         else:
                             error_display = ""
                             for i, bit in enumerate(bits):
                                 if bit:
                                     error_display = BIT_TO_SEGMENT[i]
+                                    self.record_history(box_index, error_display)
                                     break
 
                             error_display = error_display.ljust(4)  # 길이를 4로 맞춤
 
                             # 세그먼트 디스플레이 업데이트
                             if 'E' in error_display:  # 'E'가 포함된 에러 신호일 경우 깜빡이도록 설정
-                                self.blinking_error = True
-                                self.update_segment_display(error_display, self.box_frames[box_index][1], blink=True)
-                                self.update_circle_state([False, False, True, self.blink_state],
+                                self.box_states[box_index]["blinking_error"] = True
+                                self.update_segment_display(error_display, self.box_frames[box_index][1], blink=True, box_index=box_index)
+                                self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]],
                                                          box_index=box_index)  # 노란색 LED 깜빡임
                             else:
-                                self.blinking_error = False
-                                self.update_segment_display(error_display, self.box_frames[box_index][1])
+                                self.box_states[box_index]["blinking_error"] = False
+                                self.update_segment_display(error_display, self.box_frames[box_index][1], box_index=box_index)
                                 self.update_circle_state([False, False, True, False], box_index=box_index)  # 노란색 LED 끄기
                     else:
                         self.console.print(f"Error from {ip}: {result_40007}")
@@ -418,8 +516,9 @@ class IPInputGUI:
 
                 if not result_40011.isError():
                     value_40011 = result_40011.registers[0]
+                    self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])  # 40011 값에 따라 막대 업데이트
 
-                time.sleep(0.2)  # 200ms 간격으로 데이터 읽기 및 LED 깜빡이기
+                time.sleep(0.2)  # 200ms 간격으로 데이터 읽기 및 히스토리 기록
 
             except ConnectionException:
                 self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
@@ -429,6 +528,23 @@ class IPInputGUI:
                     self.console.print(f"Failed to reconnect to {ip}. Exiting thread.")
                     stop_flag.set()  # 재연결 실패 시 스레드 종료
                     break
+
+    def update_bar(self, value, bar_canvas, bar_item):
+        percentage = value / 100.0
+        bar_length = int(131 * percentage)
+
+        # 잘라내어 새로운 이미지를 생성
+        cropped_image = self.gradient_bar.crop((0, 0, bar_length, 5))
+        bar_image = ImageTk.PhotoImage(cropped_image)
+        bar_canvas.itemconfig(bar_item, image=bar_image)
+        bar_canvas.bar_image = bar_image  # 이미지가 GC에 의해 수집되지 않도록 참조를 유지
+
+    def show_bar(self, box_index, show):
+        bar_canvas, _, bar_item = self.box_frames[box_index][3:6]
+        if show:
+            bar_canvas.itemconfig(bar_item, state='normal')
+        else:
+            bar_canvas.itemconfig(bar_item, state='hidden')
 
 def connect_to_server(ip, client):
     retries = 5
@@ -448,6 +564,9 @@ if __name__ == "__main__":
     ip_input_gui = IPInputGUI(root, num_boxes=num_boxes)
 
     root.mainloop()
+
+    for _, client in ip_input_gui.clients.items():
+        client.close()
 
     for _, client in ip_input_gui.clients.items():
         client.close()
