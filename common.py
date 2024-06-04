@@ -2,6 +2,7 @@ from tkinter import Canvas, Toplevel
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import numpy as np
 
 # 세그먼트 표시 매핑
 SEGMENTS = {
@@ -28,6 +29,7 @@ BIT_TO_SEGMENT = {
     3: 'E-23'  # E-23
 }
 
+
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
     for i in range(width):
@@ -53,6 +55,7 @@ def create_gradient_bar(width, height):
             gradient.putpixel((i, j), (r, g, b))
 
     return gradient
+
 
 def create_segment_display(box_canvas):
     segment_canvas = Canvas(box_canvas, width=131, height=60, bg='#000000', highlightthickness=0)
@@ -109,6 +112,7 @@ def create_segment_display(box_canvas):
     box_canvas.segment_canvas = segment_canvas
     box_canvas.segment_items = segment_items
 
+
 def show_history_graph(root, box_index, histories, graph_windows):
     if graph_windows[box_index] is not None:
         return  # 그래프 창이 이미 열려 있으면 새로 열지 않음
@@ -133,23 +137,29 @@ def show_history_graph(root, box_index, histories, graph_windows):
         if graph_windows[box_index] is not None:
             update_graph(box_index, ax, histories)
             canvas.draw()
-            graph_window.after(1000, periodic_update)
+            graph_window.after(100, periodic_update)
 
     periodic_update()
+
 
 def update_graph(box_index, ax, histories):
     timestamps = [record[0] for record in histories[box_index]]
     values = []
     labels = []
+    errors = {'E-10': [], 'E-22': [], 'E-12': [], 'E-23': []}
+    alarms = {'A1': [], 'A2': []}
+    disconnects = []
+
     for record in histories[box_index]:
         try:
             value = int(record[1])
             values.append(value)
             labels.append('')
         except ValueError:
-            if record[1] in ['A1', 'A2', 'E-23', 'E-10', 'E-22', 'E-12']:
-                values.append(record[2])  # 기록된 값을 사용
-                labels.append(record[1])
+            if record[1] in errors:
+                errors[record[1]].append((record[0], record[2]))
+            elif record[1] in alarms:
+                alarms[record[1]].append((record[0], record[2]))
             else:
                 values.append(0)
                 labels.append('')
@@ -168,7 +178,7 @@ def update_graph(box_index, ax, histories):
     ax.tick_params(axis='x', rotation=45)
     ax.figure.tight_layout()
 
-    annot = ax.annotate("", xy=(0,0), xytext=(20,20),
+    annot = ax.annotate("", xy=(0, 0), xytext=(20, 20),
                         textcoords="offset points",
                         bbox=dict(boxstyle="round", fc="w"),
                         arrowprops=dict(arrowstyle="->"))
@@ -195,3 +205,32 @@ def update_graph(box_index, ax, histories):
                     ax.figure.canvas.draw_idle()
 
     ax.figure.canvas.mpl_connect("motion_notify_event", on_hover)
+
+    # 에러와 알람 시각적 표시
+    for error, points in errors.items():
+        for time, value in points:
+            if time in timestamps:
+                idx = timestamps.index(time)
+                ax.scatter(timestamps[idx], values[idx], color='red', label=error, zorder=5)
+                ax.annotate(error, (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
+                            ha='center', color='red')
+
+    for alarm, points in alarms.items():
+        for time, value in points:
+            if time in timestamps:
+                idx = timestamps.index(time)
+                ax.scatter(timestamps[idx], values[idx], color='orange', label=alarm, zorder=5)
+                ax.annotate(alarm, (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
+                            ha='center', color='orange')
+
+    # 연결 끊어짐 시각적 표시
+    for time in disconnects:
+        if time in timestamps:
+            idx = timestamps.index(time)
+            ax.scatter(timestamps[idx], values[idx], color='black', label='Disconnect', zorder=5)
+            ax.annotate('Disconnect', (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
+                        ha='center', color='black')
+
+    handles, labels = ax.get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    ax.legend(by_label.values(), by_label.keys())
