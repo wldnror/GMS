@@ -1,4 +1,4 @@
-from tkinter import Tk
+from tkinter import Tk, Frame
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import signal
@@ -31,8 +31,11 @@ if __name__ == "__main__":
     modbus_boxes = 5  # 원하는 Modbus TCP 상자 수를 설정하세요.
     analog_boxes = 6  # 원하는 4~20mA 상자 수를 설정하세요.
 
-    modbus_ui = ModbusUI(root, modbus_boxes)
-    analog_ui = AnalogUI(root, analog_boxes)
+    main_frame = Frame(root)
+    main_frame.grid(row=0, column=0)
+
+    modbus_ui = ModbusUI(main_frame, modbus_boxes)
+    analog_ui = AnalogUI(main_frame, analog_boxes)
 
     root.mainloop()
 
