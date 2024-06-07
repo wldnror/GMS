@@ -1,8 +1,8 @@
+import os
 from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel
 import threading
 import time
 import queue
-import os
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
@@ -39,16 +39,16 @@ class ModbusUI:
 
         self.gradient_bar = create_gradient_bar(131, 5)  # gradient_bar 초기화
 
-        # 이미지 파일 경로 지정
+        # 현재 스크립트 파일의 디렉토리 경로를 기준으로 이미지 파일 경로 지정
         script_dir = os.path.dirname(os.path.abspath(__file__))
         connect_image_path = os.path.join(script_dir, "img/on.png")
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환
-        self.connect_image = Image.open(connect_image_path).resize((20, 20), Image.ANTIALIAS)
+        self.connect_image = Image.open(connect_image_path).resize((20, 20), Image.LANCZOS)
         self.connect_image = ImageTk.PhotoImage(self.connect_image)
         
-        self.disconnect_image = Image.open(disconnect_image_path).resize((20, 20), Image.ANTIALIAS)
+        self.disconnect_image = Image.open(disconnect_image_path).resize((20, 20), Image.LANCZOS)
         self.disconnect_image = ImageTk.PhotoImage(self.disconnect_image)
 
         for _ in range(num_boxes):
