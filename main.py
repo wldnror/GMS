@@ -6,6 +6,7 @@ import sys
 
 if __name__ == "__main__":
     root = Tk()
+    root.title("GDSENG - 스마트 모니터링 시스템")
 
     # 전체 화면 설정
     root.attributes("-fullscreen", True)
@@ -33,9 +34,13 @@ if __name__ == "__main__":
 
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
-
+    
+    # 각 UI의 부모를 main_frame으로 설정
     modbus_ui = ModbusUI(main_frame, modbus_boxes)
     analog_ui = AnalogUI(main_frame, analog_boxes)
+
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)  # ModbusUI 배치
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
 
     root.mainloop()
 
