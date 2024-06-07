@@ -45,8 +45,8 @@ class ModbusUI:
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환 (비율 유지, 크기 조절)
-        self.connect_image = self.load_image(connect_image_path, (20, 20))
-        self.disconnect_image = self.load_image(disconnect_image_path, (20, 20))
+        self.connect_image = self.load_image(connect_image_path, (40, 20))
+        self.disconnect_image = self.load_image(disconnect_image_path, (40, 20))
 
         for _ in range(num_boxes):
             self.create_modbus_box()
@@ -56,7 +56,7 @@ class ModbusUI:
             self.update_circle_state([False, False, False, False], box_index=i)
 
     def load_image(self, path, size):
-        img = Image.open(path)
+        img = Image.open(path).convert("RGBA")
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
 
