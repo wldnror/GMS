@@ -40,9 +40,9 @@ class ModbusUI:
         self.gradient_bar = create_gradient_bar(131, 5)  # gradient_bar 초기화
 
         # 이미지 파일 경로 지정
-        script_dir = os.path.dirname(__file__)  # 현재 스크립트 파일의 디렉토리 경로
-        connect_image_path = os.path.join(script_dir, "GMS/img/on.png")
-        disconnect_image_path = os.path.join(script_dir, "GMS/img/off.png")
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        connect_image_path = os.path.join(script_dir, "img/on.png")
+        disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환
         self.connect_image = Image.open(connect_image_path).resize((20, 20), Image.ANTIALIAS)
