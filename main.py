@@ -1,8 +1,23 @@
-from tkinter import Tk
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
+from tkinter import Tk, Frame, Label
 import signal
 import sys
+
+class ModbusUI(Frame):
+    def __init__(self, parent, boxes):
+        super().__init__(parent)
+        self.pack(expand=True, fill='both')
+        self.clients = {}
+        for i in range(boxes):
+            label = Label(self, text=f'Modbus Box {i+1}')
+            label.place(relx=0.5, rely=0.1*(i+1), anchor='center')
+
+class AnalogUI(Frame):
+    def __init__(self, parent, boxes):
+        super().__init__(parent)
+        self.pack(expand=True, fill='both')
+        for i in range(boxes):
+            label = Label(self, text=f'Analog Box {i+1}')
+            label.place(relx=0.5, rely=0.1*(i+1+5), anchor='center')  # Adjust y-position as needed
 
 if __name__ == "__main__":
     root = Tk()
