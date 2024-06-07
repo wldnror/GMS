@@ -69,7 +69,7 @@ class ModbusUI:
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
-                               width=40, height=40,  # 가로 크기를 늘림
+                               width=40, height=50,  # 가로 크기를 늘림
                                bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
         action_button.grid(row=0, column=1, padx=(0, 5))  # 버튼 배치
         self.action_buttons.append(action_button)
