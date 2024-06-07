@@ -2,6 +2,7 @@ from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, T
 import threading
 import time
 import queue
+import os
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
