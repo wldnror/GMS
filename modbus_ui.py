@@ -45,8 +45,8 @@ class ModbusUI:
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환 (비율 유지, 크기 조절)
-        self.connect_image = self.load_image(connect_image_path, (80, 40))  # 가로 크기를 늘림
-        self.disconnect_image = self.load_image(disconnect_image_path, (80, 40))  # 가로 크기를 늘림
+        self.connect_image = self.load_image(connect_image_path, (60, 40))  # 가로 크기를 늘림
+        self.disconnect_image = self.load_image(disconnect_image_path, (60, 40))  # 가로 크기를 늘림
 
         for _ in range(num_boxes):
             self.create_modbus_box()
