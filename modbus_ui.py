@@ -31,7 +31,7 @@ class ModbusUI:
         self.graph_windows = [None for _ in range(num_boxes)]  # 그래프 윈도우 저장을 위한 리스트 초기화
 
         self.box_frame = Frame(self.root)
-        self.box_frame.pack()
+        self.box_frame.grid(row=0, column=0, padx=20, pady=20)  # grid로 변경하고 padding 추가
 
         self.row_frames = []  # 각 행의 프레임을 저장할 리스트
         self.box_frames = []  # UI 상자를 저장할 리스트
@@ -75,13 +75,13 @@ class ModbusUI:
 
         if col == 0:
             row_frame = Frame(self.box_frame)
-            row_frame.pack()
+            row_frame.grid(row=row, column=0)  # grid로 변경
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.pack(side='left', padx=10, pady=10)
+        box_frame.grid(row=0, column=col, padx=10, pady=10)  # grid로 변경
 
         box_canvas = Canvas(box_frame, width=166, height=336, highlightthickness=3, highlightbackground="#000000",
                             highlightcolor="#000000")
