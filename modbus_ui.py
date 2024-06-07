@@ -45,13 +45,8 @@ class ModbusUI:
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환 (비율 유지, 크기 조절)
-        self.connect_image = Image.open(connect_image_path)
-        self.connect_image.thumbnail((20, 20), Image.LANCZOS)
-        self.connect_image = ImageTk.PhotoImage(self.connect_image)
-        
-        self.disconnect_image = Image.open(disconnect_image_path)
-        self.disconnect_image.thumbnail((20, 20), Image.LANCZOS)
-        self.disconnect_image = ImageTk.PhotoImage(self.disconnect_image)
+        self.connect_image = self.load_image(connect_image_path, (20, 20))
+        self.disconnect_image = self.load_image(disconnect_image_path, (20, 20))
 
         for _ in range(num_boxes):
             self.create_modbus_box()
@@ -59,6 +54,11 @@ class ModbusUI:
         # 모든 동그라미를 꺼는 초기화
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
+
+    def load_image(self, path, size):
+        img = Image.open(path)
+        img.thumbnail(size, Image.LANCZOS)
+        return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
         entry = Entry(frame, textvariable=ip_var, width=11, highlightthickness=0)
