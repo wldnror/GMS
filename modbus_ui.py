@@ -14,7 +14,7 @@ from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment
 class ModbusUI:
     def __init__(self, root, num_boxes):
         self.root = root
-        self.root.title("GDSENG - 스마트 모니터링 시스템")
+        # self.root.title("GDSENG - 스마트 모니터링 시스템")
 
         self.ip_vars = []
         self.entries = []
