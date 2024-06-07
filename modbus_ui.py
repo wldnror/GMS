@@ -38,6 +38,10 @@ class ModbusUI:
 
         self.gradient_bar = create_gradient_bar(131, 5)  # gradient_bar 초기화
 
+        # 이미지 로드 및 변환
+        self.connect_image = ImageTk.PhotoImage(Image.open("connect.png"))
+        self.disconnect_image = ImageTk.PhotoImage(Image.open("disconnect.png"))
+
         for _ in range(num_boxes):
             self.create_modbus_box()
 
@@ -53,7 +57,7 @@ class ModbusUI:
         entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치
         self.entries.append(entry)
 
-        action_button = Button(frame, text="🔗", command=lambda i=index: self.toggle_connection(i), width=1, height=1,
+        action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i), width=20, height=20,
                                bd=0, highlightthickness=0, borderwidth=0, relief='flat')
         action_button.grid(row=0, column=1, padx=(0, 5))  # 버튼 배치
         self.action_buttons.append(action_button)
@@ -239,7 +243,7 @@ class ModbusUI:
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
-                self.root.after(0, lambda: self.action_buttons[i].config(text="❌", relief='flat', borderwidth=0))  # 연결 성공 시 버튼을 연결 해제로 변경
+                self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))  # 연결 성공 시 버튼을 연결 해제로 변경
                 self.root.after(0, lambda: self.entries[i].config(state=DISABLED))  # 연결 성공 시 IP 입력 필드 비활성화
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)  # 무지개 바 보이기
@@ -255,7 +259,7 @@ class ModbusUI:
             self.connected_clients[ip].join()  # 스레드가 종료될 때까지 대기
             self.cleanup_client(ip)
             self.ip_vars[i].set('')  # IP 입력 필드를 비웁니다.
-            self.action_buttons[i].config(text="🔗", relief='flat', borderwidth=0)  # 연결 해제 시 버튼을 연결로 변경
+            self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0)  # 연결 해제 시 버튼을 연결로 변경
             self.root.after(0, lambda: self.entries[i].config(state=NORMAL))  # 연결 해제 시 IP 입력 필드 활성화
             self.update_circle_state([False, False, False, False], box_index=i)
             self.update_segment_display("    ", self.box_frames[i][1], box_index=i)  # 연결 해제 시 세그먼트 디스플레이 초기화
