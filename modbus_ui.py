@@ -44,11 +44,13 @@ class ModbusUI:
         connect_image_path = os.path.join(script_dir, "img/on.png")
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
-        # 이미지 로드 및 변환
-        self.connect_image = Image.open(connect_image_path).resize((20, 20), Image.LANCZOS)
+        # 이미지 로드 및 변환 (비율 유지, 크기 조절)
+        self.connect_image = Image.open(connect_image_path)
+        self.connect_image.thumbnail((20, 20), Image.LANCZOS)
         self.connect_image = ImageTk.PhotoImage(self.connect_image)
         
-        self.disconnect_image = Image.open(disconnect_image_path).resize((20, 20), Image.LANCZOS)
+        self.disconnect_image = Image.open(disconnect_image_path)
+        self.disconnect_image.thumbnail((20, 20), Image.LANCZOS)
         self.disconnect_image = ImageTk.PhotoImage(self.disconnect_image)
 
         for _ in range(num_boxes):
