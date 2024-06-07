@@ -45,8 +45,8 @@ class ModbusUI:
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환 (비율 유지, 크기 조절)
-        self.connect_image = self.load_image(connect_image_path, (40, 20))
-        self.disconnect_image = self.load_image(disconnect_image_path, (40, 20))
+        self.connect_image = self.load_image(connect_image_path, (40, 40))  # 가로 크기를 늘림
+        self.disconnect_image = self.load_image(disconnect_image_path, (40, 40))  # 가로 크기를 늘림
 
         for _ in range(num_boxes):
             self.create_modbus_box()
@@ -56,7 +56,7 @@ class ModbusUI:
             self.update_circle_state([False, False, False, False], box_index=i)
 
     def load_image(self, path, size):
-        img = Image.open(path).convert("RGBA")
+        img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
 
@@ -70,7 +70,7 @@ class ModbusUI:
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
                                width=40, height=40,  # 가로 크기를 늘림
-                               bd=0, highlightthickness=0, borderwidth=0, relief='flat')
+                               bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
         action_button.grid(row=0, column=1, padx=(0, 5))  # 버튼 배치
         self.action_buttons.append(action_button)
 
