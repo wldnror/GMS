@@ -39,8 +39,11 @@ class ModbusUI:
         self.gradient_bar = create_gradient_bar(131, 5)  # gradient_bar 초기화
 
         # 이미지 로드 및 변환
-        self.connect_image = ImageTk.PhotoImage(Image.open("connect.png"))
-        self.disconnect_image = ImageTk.PhotoImage(Image.open("disconnect.png"))
+        self.connect_image = Image.open("GMS/img/on.png").resize((20, 20), Image.ANTIALIAS)
+        self.connect_image = ImageTk.PhotoImage(self.connect_image)
+        
+        self.disconnect_image = Image.open("GMS/img/off.png").resize((20, 20), Image.ANTIALIAS)
+        self.disconnect_image = ImageTk.PhotoImage(self.disconnect_image)
 
         for _ in range(num_boxes):
             self.create_modbus_box()
