@@ -45,8 +45,8 @@ class ModbusUI:
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
         # 이미지 로드 및 변환 (비율 유지, 크기 조절)
-        self.connect_image = self.load_image(connect_image_path, (50, 40))  # 가로 크기를 늘림
-        self.disconnect_image = self.load_image(disconnect_image_path, (50, 40))  # 가로 크기를 늘림
+        self.connect_image = self.load_image(connect_image_path, (50, 70))  # 가로 크기를 늘림
+        self.disconnect_image = self.load_image(disconnect_image_path, (50, 70))  # 가로 크기를 늘림
 
         for _ in range(num_boxes):
             self.create_modbus_box()
@@ -65,7 +65,7 @@ class ModbusUI:
         entry.insert(0, f"IP를 입력해주세요. {index + 1}")
         entry.bind("<FocusIn>", lambda event, e=entry: self.on_focus_in(e))
         entry.bind("<FocusOut>", lambda event, e=entry: self.on_focus_out(e, f"IP Address {index + 1}"))
-        entry.grid(row=0, column=0, padx=(0, 8))  # 입력 필드 배치
+        entry.grid(row=0, column=0, padx=(0, 10))  # 입력 필드 배치
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
