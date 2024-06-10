@@ -61,12 +61,12 @@ class AnalogUI:
         # Draw small circles in the desired positions (moved to gray section)
         # Left vertical row under the segment display
         circle_items.append(
-            box_canvas.create_oval(130, 200, 120, 190))  # Red circle 1
+            box_canvas.create_oval(135, 200, 125, 190))  # Red circle 1
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
             box_canvas.create_oval(75, 200, 85, 190))  # Red circle 2
-        box_canvas.create_text(137, 220, text="AL2", fill="#cccccc", anchor="e")
+        box_canvas.create_text(132, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
             box_canvas.create_oval(30, 200, 40, 190))  # Green circle 1
