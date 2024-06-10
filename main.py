@@ -1,4 +1,4 @@
-from tkinter import Tk, Frame, Label
+from tkinter import Tk, Frame
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import signal
@@ -29,29 +29,18 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    modbus_boxes = 7  # 원하는 Modbus TCP 상자 수를 설정하세요.
-    analog_boxes = 7  # 원하는 4~20mA 상자 수를 설정하세요.
+    modbus_boxes = 8  # Modbus TCP 상자 수를 설정합니다.
+    analog_boxes = 8  # 4~20mA 상자 수를 설정합니다.
 
     main_frame = Frame(root)
-    main_frame.grid(row=0, column=0, sticky="nsew")
-
+    main_frame.grid(row=0, column=0, padx=50, pady=50)
+    
     # 각 UI의 부모를 main_frame으로 설정
     modbus_ui = ModbusUI(main_frame, modbus_boxes)
     analog_ui = AnalogUI(main_frame, analog_boxes)
 
-    # 각 상자를 그리드에 추가
-    for i in range(modbus_boxes):
-        modbus_ui.box_frame.grid(row=i, column=0, padx=20, pady=20, sticky="nsew")
-
-    for i in range(analog_boxes):
-        analog_ui.box_frame.grid(row=i, column=1, padx=20, pady=20, sticky="nsew")
-
-    # main_frame의 모든 자식이 남쪽, 동쪽, 서쪽, 북쪽으로 확장되도록 설정
-    for i in range(max(modbus_boxes, analog_boxes)):
-        main_frame.grid_rowconfigure(i, weight=1)
-
-    main_frame.grid_columnconfigure(0, weight=1)
-    main_frame.grid_columnconfigure(1, weight=1)
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)  # ModbusUI 배치
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
 
     root.mainloop()
 
