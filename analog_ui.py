@@ -24,8 +24,8 @@ class AnalogUI:
 
     def create_analog_box(self):
         i = len(self.box_frames)
-        row = i // 5  # 줄당 5개로 변경
-        col = i % 5
+        row = i // 7
+        col = i % 7
 
         if col == 0:
             row_frame = Frame(self.box_frame)
@@ -61,30 +61,32 @@ class AnalogUI:
         # Draw small circles in the desired positions (moved to gray section)
         # Left vertical row under the segment display
         circle_items.append(
-            box_canvas.create_oval(120, 180, 140, 200))  # Red circle 1
-        box_canvas.create_text(80, 220, text="AL1", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(110, 160, 100, 170))  # Red circle 1
+        box_canvas.create_text(75, 183, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(50, 180, 70, 200))  # Red circle 2
-        box_canvas.create_text(160, 220, text="AL2", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(60, 160, 70, 170))  # Red circle 2
+        box_canvas.create_text(117, 183, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(20, 180, 40, 200))  # Green circle 1
-        box_canvas.create_text(30, 220, text="PWR", fill="#cccccc", anchor="center")
+            box_canvas.create_oval(20, 160, 30, 170))  # Green circle 1
+        box_canvas.create_text(25, 183, text="PWR", fill="#cccccc", anchor="center")
 
         # Right horizontal row under the segment display
         circle_items.append(
-            box_canvas.create_oval(160, 180, 180, 200))  # Yellow circle 1
-        box_canvas.create_text(170, 210, text="FUT", fill="#cccccc", anchor="n")
+            box_canvas.create_oval(141, 160, 151, 170))  # Yellow circle 1
+        box_canvas.create_text(148, 175, text="FUT", fill="#cccccc", anchor="n")
 
         # 상자 세그먼트 아래에 "가스명" 글자 추가
-        box_canvas.create_text(100, 125, text="ORG", font=("Helvetica", 24, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         # 상자 맨 아래에 "GDS SMS" 글자 추가
-        box_canvas.create_text(100, 340, text="GMS-1000", font=("Helvetica", 26, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(87, 295, text="GMS-1000", font=("Helvetica", 20, "bold"), fill="#cccccc",
+                               anchor="center")
 
         # 상자 맨 아래에 "GDS ENGINEERING CO.,LTD" 글자 추가
-        box_canvas.create_text(100, 380, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 12, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(87, 328, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 8, "bold"), fill="#cccccc",
+                               anchor="center")
 
         # 4~20mA 상자는 bar 관련 UI 요소를 추가하지 않음
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
