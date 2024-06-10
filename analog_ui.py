@@ -62,19 +62,19 @@ class AnalogUI:
         # Left vertical row under the segment display
         circle_items.append(
             box_canvas.create_oval(130, 200, 120, 190))  # Red circle 1
-        box_canvas.create_text(95, 203, text="AL1", fill="#cccccc", anchor="e")
+        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(80, 200, 90, 195))  # Red circle 2
-        box_canvas.create_text(137, 208, text="AL2", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(80, 200, 90, 190))  # Red circle 2
+        box_canvas.create_text(137, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(40, 200, 50, 200))  # Green circle 1
-        box_canvas.create_text(45, 213, text="PWR", fill="#cccccc", anchor="center")
+            box_canvas.create_oval(40, 200, 50, 190))  # Green circle 1
+        box_canvas.create_text(45, 220, text="PWR", fill="#cccccc", anchor="center")
 
         # Right horizontal row under the segment display
         circle_items.append(
-            box_canvas.create_oval(161, 200, 171, 205))  # Yellow circle 1
+            box_canvas.create_oval(161, 200, 171, 190))  # Yellow circle 1
         box_canvas.create_text(168, 220, text="FUT", fill="#cccccc", anchor="n")
 
 
