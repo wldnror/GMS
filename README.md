@@ -9,4 +9,9 @@ pip install pymodbus
 pip install rich
 pip install Pillow
 pip install matplotlib
+pip install mplcursors
 ```
+
+# 필수 설정
+
+export DISPLAY=:0
