@@ -81,11 +81,11 @@ class AnalogUI:
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         # 상자 맨 아래에 "GDS SMS" 글자 추가
-        box_canvas.create_text(87, 295, text="GMS-1000", font=("Helvetica", 20, "bold"), fill="#cccccc",
+        box_canvas.create_text(100, 350, text="GMS-1000", font=("Helvetica", 20, "bold"), fill="#cccccc",
                                anchor="center")
 
         # 상자 맨 아래에 "GDS ENGINEERING CO.,LTD" 글자 추가
-        box_canvas.create_text(87, 328, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 8, "bold"), fill="#cccccc",
+        box_canvas.create_text(100, 380, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 8, "bold"), fill="#cccccc",
                                anchor="center")
 
         # 4~20mA 상자는 bar 관련 UI 요소를 추가하지 않음
