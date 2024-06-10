@@ -69,24 +69,24 @@ class AnalogUI:
         box_canvas.create_text(137, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(40, 200, 50, 190))  # Green circle 1
-        box_canvas.create_text(45, 220, text="PWR", fill="#cccccc", anchor="center")
+            box_canvas.create_oval(20, 200, 30, 190))  # Green circle 1
+        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
         # Right horizontal row under the segment display
         circle_items.append(
             box_canvas.create_oval(161, 200, 171, 190))  # Yellow circle 1
-        box_canvas.create_text(168, 210, text="FUT", fill="#cccccc", anchor="n")
+        box_canvas.create_text(168, 215, text="FUT", fill="#cccccc", anchor="n")
 
 
         # 상자 세그먼트 아래에 "가스명" 글자 추가
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         # 상자 맨 아래에 "GDS SMS" 글자 추가
-        box_canvas.create_text(108, 370, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc",
+        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc",
                                anchor="center")
 
         # 상자 맨 아래에 "GDS ENGINEERING CO.,LTD" 글자 추가
-        box_canvas.create_text(108, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc",
+        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc",
                                anchor="center")
 
         # 4~20mA 상자는 bar 관련 UI 요소를 추가하지 않음
