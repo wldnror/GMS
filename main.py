@@ -29,11 +29,11 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    modbus_boxes = 8  # Modbus TCP 상자 수를 설정합니다.
-    analog_boxes = 8  # 4~20mA 상자 수를 설정합니다.
+    modbus_boxes = 7  # 원하는 Modbus TCP 상자 수를 설정하세요.
+    analog_boxes = 7  # 원하는 4~20mA 상자 수를 설정하세요.
 
     main_frame = Frame(root)
-    main_frame.grid(row=0, column=0, padx=50, pady=50)
+    main_frame.grid(row=0, column=0)
     
     # 각 UI의 부모를 main_frame으로 설정
     modbus_ui = ModbusUI(main_frame, modbus_boxes)
