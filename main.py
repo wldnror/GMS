@@ -11,9 +11,6 @@ if __name__ == "__main__":
     # 전체 화면 설정
     root.attributes("-fullscreen", True)
 
-    # 기본 윈도우 크기 설정 (전체 화면을 사용하지 않는 경우)
-    root.geometry("1920x1080")
-
     # 중앙 정렬 설정
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
@@ -36,18 +33,14 @@ if __name__ == "__main__":
     analog_boxes = 7  # 원하는 4~20mA 상자 수를 설정하세요.
 
     main_frame = Frame(root)
-    main_frame.grid(row=0, column=0, sticky="nsew")
-    main_frame.grid_rowconfigure(0, weight=1)
-    main_frame.grid_rowconfigure(1, weight=1)
-    main_frame.grid_columnconfigure(0, weight=1)
-
+    main_frame.grid(row=0, column=0)
+    
     # 각 UI의 부모를 main_frame으로 설정
     modbus_ui = ModbusUI(main_frame, modbus_boxes)
     analog_ui = AnalogUI(main_frame, analog_boxes)
 
-    # 각 UI 요소의 크기를 조정
-    modbus_ui.box_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
-    analog_ui.box_frame.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)  # ModbusUI 배치
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
 
     root.mainloop()
 
