@@ -9,7 +9,7 @@ if __name__ == "__main__":
     root.title("GDSENG - 스마트 모니터링 시스템")
 
     # 전체 화면 설정
-    root.attributes("-fullscreen", True)
+    # root.attributes("-fullscreen", True)
 
     # 중앙 정렬 설정
     root.grid_rowconfigure(0, weight=1)
