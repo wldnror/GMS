@@ -33,14 +33,26 @@ if __name__ == "__main__":
     analog_boxes = 7  # 원하는 4~20mA 상자 수를 설정하세요.
 
     main_frame = Frame(root)
-    main_frame.grid(row=0, column=0)
-    
+    main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)  # 여백 추가
+
     # 각 UI의 부모를 main_frame으로 설정
     modbus_ui = ModbusUI(main_frame, modbus_boxes)
     analog_ui = AnalogUI(main_frame, analog_boxes)
 
-    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)  # ModbusUI 배치
-    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
+    # ModbusUI 배치
+    modbus_ui.box_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+    modbus_ui.box_frame.grid_columnconfigure(0, weight=1)
+    modbus_ui.box_frame.grid_rowconfigure(0, weight=1)
+
+    # AnalogUI 배치
+    analog_ui.box_frame.grid(row=1, column=0, padx=20, pady=20, sticky="nsew")
+    analog_ui.box_frame.grid_columnconfigure(0, weight=1)
+    analog_ui.box_frame.grid_rowconfigure(0, weight=1)
+
+    # main_frame의 모든 자식이 남쪽, 동쪽, 서쪽, 북쪽으로 확장되도록 설정
+    main_frame.grid_rowconfigure(0, weight=1)
+    main_frame.grid_rowconfigure(1, weight=1)
+    main_frame.grid_columnconfigure(0, weight=1)
 
     root.mainloop()
 
