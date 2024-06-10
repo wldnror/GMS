@@ -61,21 +61,22 @@ class AnalogUI:
         # Draw small circles in the desired positions (moved to gray section)
         # Left vertical row under the segment display
         circle_items.append(
-            box_canvas.create_oval(130, 160, 120, 170))  # Red circle 1
-        box_canvas.create_text(95, 183, text="AL1", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(130, 180, 120, 190))  # Red circle 1
+        box_canvas.create_text(95, 203, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(80, 160, 90, 170))  # Red circle 2
-        box_canvas.create_text(137, 183, text="AL2", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(80, 185, 90, 195))  # Red circle 2
+        box_canvas.create_text(137, 208, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(40, 160, 50, 170))  # Green circle 1
-        box_canvas.create_text(45, 183, text="PWR", fill="#cccccc", anchor="center")
+            box_canvas.create_oval(40, 190, 50, 200))  # Green circle 1
+        box_canvas.create_text(45, 213, text="PWR", fill="#cccccc", anchor="center")
 
         # Right horizontal row under the segment display
         circle_items.append(
-            box_canvas.create_oval(161, 160, 171, 170))  # Yellow circle 1
-        box_canvas.create_text(168, 175, text="FUT", fill="#cccccc", anchor="n")
+            box_canvas.create_oval(161, 195, 171, 205))  # Yellow circle 1
+        box_canvas.create_text(168, 218, text="FUT", fill="#cccccc", anchor="n")
+
 
         # 상자 세그먼트 아래에 "가스명" 글자 추가
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
