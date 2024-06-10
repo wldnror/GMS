@@ -65,11 +65,11 @@ class AnalogUI:
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(80, 200, 90, 190))  # Red circle 2
+            box_canvas.create_oval(70, 200, 80, 190))  # Red circle 2
         box_canvas.create_text(137, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(20, 200, 30, 190))  # Green circle 1
+            box_canvas.create_oval(30, 200, 40, 190))  # Green circle 1
         box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
         # Right horizontal row under the segment display
