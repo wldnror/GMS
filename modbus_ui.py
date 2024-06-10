@@ -65,7 +65,7 @@ class ModbusUI:
         entry.insert(0, f"IP를 입력해주세요. {index + 1}")
         entry.bind("<FocusIn>", lambda event, e=entry: self.on_focus_in(e))
         entry.bind("<FocusOut>", lambda event, e=entry: self.on_focus_out(e, f"IP Address {index + 1}"))
-        entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치
+        entry.grid(row=0, column=0, padx=(0, 8))  # 입력 필드 배치
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
@@ -118,7 +118,7 @@ class ModbusUI:
         self.update_segment_display("    ", box_canvas, box_index=i)  # 초기화시 빈 상태로 설정
 
         control_frame = Frame(box_canvas, bg="black")
-        control_frame.place(x=10, y=220)
+        control_frame.place(x=10, y=250)
 
         ip_var = StringVar()
         self.ip_vars.append(ip_var)
