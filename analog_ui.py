@@ -41,8 +41,8 @@ class AnalogUI:
                             highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, 200, 250, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 250, 200, 400, fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 250, 210, 400, fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)  # 세그먼트 디스플레이 생성
         self.box_states.append({
