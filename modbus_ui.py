@@ -97,14 +97,14 @@ class ModbusUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=10, pady=10)  # grid로 변경
+        box_frame.grid(row=0, column=col, padx=20, pady=20)  # padding 증가
 
-        box_canvas = Canvas(box_frame, width=166, height=336, highlightthickness=3, highlightbackground="#000000",
+        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000",
                             highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, 170, 215, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 215, 170, 340, fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)  # 세그먼트 디스플레이 생성
         self.box_states.append({
@@ -131,31 +131,31 @@ class ModbusUI:
         # Draw small circles in the desired positions (moved to gray section)
         # Left vertical row under the segment display
         circle_items.append(
-            box_canvas.create_oval(130, 160, 120, 170))  # Red circle 1
-        box_canvas.create_text(95, 183, text="AL1", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(133, 200, 123, 190))  # Red circle 1
+        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(80, 160, 90, 170))  # Red circle 2
-        box_canvas.create_text(137, 183, text="AL2", fill="#cccccc", anchor="e")
+            box_canvas.create_oval(77, 200, 87, 190))  # Red circle 2
+        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(40, 160, 50, 170))  # Green circle 1
-        box_canvas.create_text(45, 183, text="PWR", fill="#cccccc", anchor="center")
+            box_canvas.create_oval(30, 200, 40, 190))  # Green circle 1
+        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
         # Right horizontal row under the segment display
         circle_items.append(
-            box_canvas.create_oval(161, 160, 171, 170))  # Yellow circle 1
-        box_canvas.create_text(168, 175, text="FUT", fill="#cccccc", anchor="n")
+            box_canvas.create_oval(171, 200, 181, 190))  # Yellow circle 1
+        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
         # 상자 세그먼트 아래에 "가스명" 글자 추가
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         # 상자 맨 아래에 "GDS SMS" 글자 추가
-        box_canvas.create_text(87, 295, text="GMS-1000", font=("Helvetica", 20, "bold"), fill="#cccccc",
+        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc",
                                anchor="center")
 
         # 상자 맨 아래에 "GDS ENGINEERING CO.,LTD" 글자 추가
-        box_canvas.create_text(87, 328, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 8, "bold"), fill="#cccccc",
+        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc",
                                anchor="center")
 
         # 40011 값을 시각적으로 표시할 막대 추가
