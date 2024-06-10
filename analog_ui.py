@@ -65,7 +65,7 @@ class AnalogUI:
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(
-            box_canvas.create_oval(70, 200, 80, 190))  # Red circle 2
+            box_canvas.create_oval(75, 200, 85, 190))  # Red circle 2
         box_canvas.create_text(137, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(
@@ -74,8 +74,8 @@ class AnalogUI:
 
         # Right horizontal row under the segment display
         circle_items.append(
-            box_canvas.create_oval(161, 200, 171, 190))  # Yellow circle 1
-        box_canvas.create_text(168, 215, text="FUT", fill="#cccccc", anchor="n")
+            box_canvas.create_oval(171, 200, 181, 190))  # Yellow circle 1
+        box_canvas.create_text(178, 215, text="FUT", fill="#cccccc", anchor="n")
 
 
         # 상자 세그먼트 아래에 "가스명" 글자 추가
