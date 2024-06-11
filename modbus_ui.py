@@ -174,8 +174,8 @@ class ModbusUI:
         # 무지개 바 초기 숨김 처리
         self.show_bar(i, show=False)
 
-        # 세그먼트 클릭 시 히스토리를 그래프로 보여주는 이벤트 추가
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: threading.Thread(target=self.show_history_graph, args=(i,)).start())
+        # 세그먼트 클릭 시 히스토리를 중앙에 표시하는 이벤트 추가
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.display_history(i))
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -427,31 +427,31 @@ class ModbusUI:
             self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
 
-    def show_history_graph(self, box_index):
-        if self.graph_windows[box_index] is not None:
-            return  # 그래프 창이 이미 열려 있는 경우 무시합니다.
+    def display_history(self, box_index):
+        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
+            self.history_frame.destroy()
 
-        def plot_graph():
-            self.graph_windows[box_index] = Toplevel(self.root)
-            self.graph_windows[box_index].title(f"History Graph - Box {box_index + 1}")
+        self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
+        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=600, height=400)
 
-            fig, ax = plt.subplots()
-            timestamps, values, last_values = zip(*self.histories[box_index])
+        close_button = Button(self.history_frame, text='X', command=self.history_frame.destroy, bg='red', fg='white')
+        close_button.place(relx=1.0, rely=0.0, anchor='ne')
 
-            ax.plot(timestamps, values, label='Segment Values')
-            ax.plot(timestamps, last_values, label='Last Values')
+        figure = plt.Figure(figsize=(6, 4), dpi=100)
+        ax = figure.add_subplot(111)
 
-            ax.set_xlabel('Timestamp')
-            ax.set_ylabel('Values')
-            ax.legend()
+        times, values, _ = zip(*self.histories[box_index]) if self.histories[box_index] else ([], [], [])
+        ax.plot(times, values, marker='o')
+        ax.set_title('History')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Value')
+        figure.autofmt_xdate()
 
-            canvas = FigureCanvasTkAgg(fig, master=self.graph_windows[box_index])
-            canvas.get_tk_widget().pack(fill='both', expand=True)
-            canvas.draw()
+        canvas = FigureCanvasTkAgg(figure, master=self.history_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
 
-            mplcursors.cursor(hover=True)
-
-        threading.Thread(target=plot_graph).start()
+        mplcursors.cursor(ax)  # Enable interactive cursor
 
 # 실제로 실행하기 위한 Tkinter 메인 루프 설정
 if __name__ == "__main__":
