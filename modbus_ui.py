@@ -63,8 +63,8 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=15, highlightthickness=0)  # 길이를 21로 증가
-        placeholder_text = f"IP를 입력해주세요. {index + 1}"
+        entry = Entry(frame, textvariable=ip_var, width=17, highlightthickness=0)  # 길이를 17로 증가
+        placeholder_text = f"{index + 1}. IP를 입력해주세요."
         entry.insert(0, placeholder_text)
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
@@ -74,7 +74,7 @@ class ModbusUI:
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
                                width=40, height=50,  # 가로 크기를 늘림
                                bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
-        action_button.grid(row=0, column=1, padx=(0, 5))  # 버튼 배치
+        action_button.grid(row=0, column=1, padx=(0, 10))  # 버튼 배치
         self.action_buttons.append(action_button)
 
     def on_focus_in(self, entry, placeholder):
