@@ -55,6 +55,8 @@ class ModbusUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
+        self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
+
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
         img.thumbnail(size, Image.LANCZOS)
@@ -285,6 +287,8 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
+        interval = 0.2  # 200ms
+        next_call = time.time()
         while not stop_flag.is_set():
             try:
                 address_40001 = 40001 - 1  # Modbus 주소는 0부터 시작하므로 40001의 실제 주소는 40000
@@ -338,7 +342,7 @@ class ModbusUI:
                         # 40007에 신호가 없으면 40005 값을 세그먼트 디스플레이에 표시
                         if not any(bits):
                             formatted_value = f"{value_40005:04d}"
-                            self.update_segment_display(formatted_value, self.box_frames[box_index][1], box_index=box_index)
+                            self.data_queue.put((box_index, formatted_value, False))  # 큐에 추가
                         else:
                             error_display = ""
                             for i, bit in enumerate(bits):
@@ -352,12 +356,12 @@ class ModbusUI:
                             # 세그먼트 디스플레이 업데이트
                             if 'E' in error_display:  # 'E'가 포함된 에러 신호일 경우 깜빡이도록 설정
                                 self.box_states[box_index]["blinking_error"] = True
-                                self.update_segment_display(error_display, self.box_frames[box_index][1], blink=True, box_index=box_index)
+                                self.data_queue.put((box_index, error_display, True))  # 큐에 추가
                                 self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]],
                                                          box_index=box_index)  # 노란색 LED 깜빡임
                             else:
                                 self.box_states[box_index]["blinking_error"] = False
-                                self.update_segment_display(error_display, self.box_frames[box_index][1], box_index=box_index)
+                                self.data_queue.put((box_index, error_display, False))  # 큐에 추가
                                 self.update_circle_state([False, False, True, False], box_index=box_index)  # 노란색 LED 끄기
                     else:
                         self.console.print(f"Error from {ip}: {result_40007}")
@@ -368,7 +372,12 @@ class ModbusUI:
                     value_40011 = result_40011.registers[0]
                     self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])  # 40011 값에 따라 막대 업데이트
 
-                time.sleep(0.2)  # 200ms 간격으로 데이터 읽기 및 히스토리 기록
+                next_call += interval
+                sleep_time = next_call - time.time()
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                else:
+                    next_call = time.time()  # 시간 누적을 방지하기 위해 리셋
 
             except ConnectionException:
                 self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
@@ -407,3 +416,17 @@ class ModbusUI:
                 print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
                 time.sleep(5)
         return False
+
+    def process_queue(self):
+        while not self.data_queue.empty():
+            box_index, value, blink = self.data_queue.get()
+            box_canvas = self.box_frames[box_index][1]
+            self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
+        self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
+
+# 이 코드를 실제로 실행하려면 Tkinter 메인 루프와 GUI 설정이 필요합니다.
+# 예:
+# if __name__ == "__main__":
+#     root = Tk()
+#     app = ModbusUI(root, num_boxes=14)
+#     root.mainloop()
