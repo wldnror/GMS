@@ -63,7 +63,7 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=17, highlightthickness=0)  # 길이를 17로 증가
+        entry = Entry(frame, textvariable=ip_var, width=16, highlightthickness=0)  # 길이를 16로 증가
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         entry.insert(0, placeholder_text)
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
