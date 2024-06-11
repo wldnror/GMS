@@ -63,16 +63,16 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=17, highlightthickness=0)  # 길이를 16로 증가
+        entry = Entry(frame, textvariable=ip_var, width=16, highlightthickness=0)  # 길이를 16으로 설정
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         entry.insert(0, placeholder_text)
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
-        entry.grid(row=0, column=0, padx=(0, 0))  # 입력 필드 배치
+        entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치, 간격을 5로 설정
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
-                               width=60, height=40,  # 가로 크기를 늘림
+                               width=60, height=40,  # 버튼 크기 설정
                                bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
         action_button.grid(row=0, column=1, padx=(0, 0))  # 버튼 배치
         self.action_buttons.append(action_button)
@@ -265,139 +265,132 @@ class ModbusUI:
             else:
                 self.console.print(f"Failed to connect to {ip}")
 
-    def connect(self, i):
-    ip = self.ip_vars[i].get()
-    if ip and ip not in self.connected_clients:
-        client = ModbusTcpClient(ip, port=502)
-        if self.connect_to_server(ip, client):
-            stop_flag = threading.Event()
-            self.stop_flags[ip] = stop_flag
-            self.clients[ip] = client
-            self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
-                                                          args=(ip, client, stop_flag, i))
-            self.connected_clients[ip].daemon = True
-            self.connected_clients[ip].start()
-            self.console.print(f"Started data thread for {ip}")
-            self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))  # 연결 성공 시 버튼을 연결 해제로 변경
-            self.root.after(0, lambda: self.entries[i].config(state=DISABLED))  # 연결 성공 시 IP 입력 필드 비활성화
-            self.update_circle_state([False, False, True, False], box_index=i)
-            self.show_bar(i, show=True)  # 무지개 바 보이기
-        else:
-            self.console.print(f"Failed to connect to {ip}")
-    else:
-        self.console.print(f"IP {ip} is already connected or empty")
+    def disconnect(self, i):
+        ip = self.ip_vars[i].get()
+        if ip in self.connected_clients:
+            self.stop_flags[ip].set()  # 스레드 종료 신호 설정
+            self.clients[ip].close()
+            self.console.print(f"Disconnected from {ip}")
+            self.connected_clients[ip].join()  # 스레드가 종료될 때까지 대기
+            self.cleanup_client(ip)
+            self.ip_vars[i].set('')  # IP 입력 필드를 비웁니다.
+            self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0)  # 연결 해제 시 버튼을 연결로 변경
+            self.root.after(0, lambda: self.entries[i].config(state=NORMAL))  # 연결 해제 시 IP 입력 필드 활성화
+            self.update_circle_state([False, False, False, False], box_index=i)
+            self.update_segment_display("    ", self.box_frames[i][1], box_index=i)  # 연결 해제 시 세그먼트 디스플레이 초기화
+            self.show_bar(i, show=False)  # 무지개 바 숨기기
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
         del self.clients[ip]
         del self.stop_flags[ip]
 
-    def def read_modbus_data(self, ip, client, stop_flag, box_index):
-    blink_state_middle = False
-    blink_state_top = False
-    interval = 0.2  # 200ms
-    next_call = time.time()
-    while not stop_flag.is_set():
-        try:
-            if not client.is_socket_open():
-                raise ConnectionException("Socket is closed")
+    def read_modbus_data(self, ip, client, stop_flag, box_index):
+        blink_state_middle = False
+        blink_state_top = False
+        interval = 0.2  # 200ms
+        next_call = time.time()
+        while not stop_flag.is_set():
+            try:
+                if not client.is_socket_open():
+                    raise ConnectionException("Socket is closed")
 
-            address_40001 = 40001 - 1  # Modbus 주소는 0부터 시작하므로 40001의 실제 주소는 40000
-            address_40005 = 40005 - 1  # Modbus 주소는 0부터 시작하므로 40005의 실제 주소는 40004
-            address_40007 = 40008 - 1  # Modbus 주소는 0부터 시작하므로 40008의 실제 주소는 40007
-            address_40011 = 40011 - 1  # Modbus 주소는 0부터 시작하므로 40011의 실제 주소는 40010
-            count = 1
-            result_40001 = client.read_holding_registers(address_40001, count, unit=1)
-            result_40005 = client.read_holding_registers(address_40005, count, unit=1)
-            result_40007 = client.read_holding_registers(address_40007, count, unit=1)
-            result_40011 = client.read_holding_registers(address_40011, count, unit=1)
+                address_40001 = 40001 - 1  # Modbus 주소는 0부터 시작하므로 40001의 실제 주소는 40000
+                address_40005 = 40005 - 1  # Modbus 주소는 0부터 시작하므로 40005의 실제 주소는 40004
+                address_40007 = 40008 - 1  # Modbus 주소는 0부터 시작하므로 40008의 실제 주소는 40007
+                address_40011 = 40011 - 1  # Modbus 주소는 0부터 시작하므로 40011의 실제 주소는 40010
+                count = 1
+                result_40001 = client.read_holding_registers(address_40001, count, unit=1)
+                result_40005 = client.read_holding_registers(address_40005, count, unit=1)
+                result_40007 = client.read_holding_registers(address_40007, count, unit=1)
+                result_40011 = client.read_holding_registers(address_40011, count, unit=1)
 
-            if not result_40001.isError():
-                value_40001 = result_40001.registers[0]
+                if not result_40001.isError():
+                    value_40001 = result_40001.registers[0]
 
-                # 6번째 비트 및 7번째 비트 상태 확인
-                bit_6_on = bool(value_40001 & (1 << 6))
-                bit_7_on = bool(value_40001 & (1 << 7))
+                    # 6번째 비트 및 7번째 비트 상태 확인
+                    bit_6_on = bool(value_40001 & (1 << 6))
+                    bit_7_on = bool(value_40001 & (1 << 7))
 
-                if bit_7_on:
-                    blink_state_top = not blink_state_top
-                    top_blink = blink_state_top
-                    middle_fixed = True
-                    middle_blink = True
-                    self.record_history(box_index, 'A2')
-                elif bit_6_on:
-                    blink_state_middle = not blink_state_middle
-                    top_blink = False
-                    middle_fixed = True
-                    middle_blink = blink_state_middle
-                    self.record_history(box_index, 'A1')
-                else:
-                    top_blink = False
-                    middle_blink = False
-                    middle_fixed = True
-
-                # 동그라미 상태 업데이트
-                self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
-
-            if not result_40005.isError():
-                value_40005 = result_40005.registers[0]
-                self.box_states[box_index]["last_value_40005"] = value_40005
-
-                # 40008에 bit 0~3 신호가 없을 때 40005 표시
-                if not result_40007.isError():
-                    value_40007 = result_40007.registers[0]
-
-                    # 40007 레지스터의 bit 0, 1, 2, 3 상태 확인
-                    bits = [bool(value_40007 & (1 << n)) for n in range(4)]
-
-                    # 40007에 신호가 없으면 40005 값을 세그먼트 디스플레이에 표시
-                    if not any(bits):
-                        formatted_value = f"{value_40005:04d}"
-                        self.data_queue.put((box_index, formatted_value, False))  # 큐에 추가
+                    if bit_7_on:
+                        blink_state_top = not blink_state_top
+                        top_blink = blink_state_top
+                        middle_fixed = True
+                        middle_blink = True
+                        self.record_history(box_index, 'A2')
+                    elif bit_6_on:
+                        blink_state_middle = not blink_state_middle
+                        top_blink = False
+                        middle_fixed = True
+                        middle_blink = blink_state_middle
+                        self.record_history(box_index, 'A1')
                     else:
-                        error_display = ""
-                        for i, bit in enumerate(bits):
-                            if bit:
-                                error_display = BIT_TO_SEGMENT[i]
-                                self.record_history(box_index, error_display)
-                                break
+                        top_blink = False
+                        middle_blink = False
+                        middle_fixed = True
 
-                        error_display = error_display.ljust(4)  # 길이를 4로 맞춤
+                    # 동그라미 상태 업데이트
+                    self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
 
-                        # 세그먼트 디스플레이 업데이트
-                        if 'E' in error_display:  # 'E'가 포함된 에러 신호일 경우 깜빡이도록 설정
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.data_queue.put((box_index, error_display, True))  # 큐에 추가
-                            self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]],
-                                                     box_index=box_index)  # 노란색 LED 깜빡임
+                if not result_40005.isError():
+                    value_40005 = result_40005.registers[0]
+                    self.box_states[box_index]["last_value_40005"] = value_40005
+
+                    # 40008에 bit 0~3 신호가 없을 때 40005 표시
+                    if not result_40007.isError():
+                        value_40007 = result_40007.registers[0]
+
+                        # 40007 레지스터의 bit 0, 1, 2, 3 상태 확인
+                        bits = [bool(value_40007 & (1 << n)) for n in range(4)]
+
+                        # 40007에 신호가 없으면 40005 값을 세그먼트 디스플레이에 표시
+                        if not any(bits):
+                            formatted_value = f"{value_40005:04d}"
+                            self.data_queue.put((box_index, formatted_value, False))  # 큐에 추가
                         else:
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.data_queue.put((box_index, error_display, False))  # 큐에 추가
-                            self.update_circle_state([False, False, True, False], box_index=box_index)  # 노란색 LED 끄기
+                            error_display = ""
+                            for i, bit in enumerate(bits):
+                                if bit:
+                                    error_display = BIT_TO_SEGMENT[i]
+                                    self.record_history(box_index, error_display)
+                                    break
+
+                            error_display = error_display.ljust(4)  # 길이를 4로 맞춤
+
+                            # 세그먼트 디스플레이 업데이트
+                            if 'E' in error_display:  # 'E'가 포함된 에러 신호일 경우 깜빡이도록 설정
+                                self.box_states[box_index]["blinking_error"] = True
+                                self.data_queue.put((box_index, error_display, True))  # 큐에 추가
+                                self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]],
+                                                         box_index=box_index)  # 노란색 LED 깜빡임
+                            else:
+                                self.box_states[box_index]["blinking_error"] = False
+                                self.data_queue.put((box_index, error_display, False))  # 큐에 추가
+                                self.update_circle_state([False, False, True, False], box_index=box_index)  # 노란색 LED 끄기
+                    else:
+                        self.console.print(f"Error from {ip}: {result_40007}")
                 else:
-                    self.console.print(f"Error from {ip}: {result_40007}")
-            else:
-                self.console.print(f"Error from {ip}: {result_40005}")
+                    self.console.print(f"Error from {ip}: {result_40005}")
 
-            if not result_40011.isError():
-                value_40011 = result_40011.registers[0]
-                self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])  # 40011 값에 따라 막대 업데이트
+                if not result_40011.isError():
+                    value_40011 = result_40011.registers[0]
+                    self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])  # 40011 값에 따라 막대 업데이트
 
-            next_call += interval
-            sleep_time = next_call - time.time()
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            else:
-                next_call = time.time()  # 시간 누적을 방지하기 위해 리셋
+                next_call += interval
+                sleep_time = next_call - time.time()
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                else:
+                    next_call = time.time()  # 시간 누적을 방지하기 위해 리셋
 
-        except ConnectionException:
-            self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
-            if self.connect_to_server(ip, client):
-                self.console.print(f"Reconnected to {ip}")
-            else:
-                self.console.print(f"Failed to reconnect to {ip}. Exiting thread.")
-                stop_flag.set()  # 재연결 실패 시 스레드 종료
-                break
+            except ConnectionException:
+                self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
+                if self.connect_to_server(ip, client):
+                    self.console.print(f"Reconnected to {ip}")
+                else:
+                    self.console.print(f"Failed to reconnect to {ip}. Exiting thread.")
+                    stop_flag.set()  # 재연결 실패 시 스레드 종료
+                    break
 
     def update_bar(self, value, bar_canvas, bar_item):
         percentage = value / 100.0
@@ -425,7 +418,6 @@ class ModbusUI:
             else:
                 self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
                 time.sleep(5)
-                
         return False
 
     def process_queue(self):
