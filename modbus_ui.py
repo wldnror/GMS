@@ -175,7 +175,7 @@ class ModbusUI:
         self.show_bar(i, show=False)
 
         # 세그먼트 클릭 시 히스토리를 그래프로 보여주는 이벤트 추가
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: show_history_graph(self.root, i, self.histories, self.graph_windows))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: threading.Thread(target=self.show_history_graph, args=(i,)).start())
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -426,6 +426,32 @@ class ModbusUI:
             box_canvas = self.box_frames[box_index][1]
             self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
+
+    def show_history_graph(self, box_index):
+        if self.graph_windows[box_index] is not None:
+            return  # 그래프 창이 이미 열려 있는 경우 무시합니다.
+
+        def plot_graph():
+            self.graph_windows[box_index] = Toplevel(self.root)
+            self.graph_windows[box_index].title(f"History Graph - Box {box_index + 1}")
+
+            fig, ax = plt.subplots()
+            timestamps, values, last_values = zip(*self.histories[box_index])
+
+            ax.plot(timestamps, values, label='Segment Values')
+            ax.plot(timestamps, last_values, label='Last Values')
+
+            ax.set_xlabel('Timestamp')
+            ax.set_ylabel('Values')
+            ax.legend()
+
+            canvas = FigureCanvasTkAgg(fig, master=self.graph_windows[box_index])
+            canvas.get_tk_widget().pack(fill='both', expand=True)
+            canvas.draw()
+
+            mplcursors.cursor(hover=True)
+
+        threading.Thread(target=plot_graph).start()
 
 # 실제로 실행하기 위한 Tkinter 메인 루프 설정
 if __name__ == "__main__":
