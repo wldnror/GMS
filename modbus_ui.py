@@ -63,10 +63,11 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=11, highlightthickness=0)
-        entry.insert(0, f"IP를 입력해주세요. {index + 1}")
-        entry.bind("<FocusIn>", lambda event, e=entry: self.on_focus_in(e))
-        entry.bind("<FocusOut>", lambda event, e=entry: self.on_focus_out(e, f"IP Address {index + 1}"))
+        entry = Entry(frame, textvariable=ip_var, width=21, highlightthickness=0)  # 길이를 21로 증가
+        placeholder_text = f"IP를 입력해주세요. {index + 1}"
+        entry.insert(0, placeholder_text)
+        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
+        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
         entry.grid(row=0, column=0, padx=(0, 10))  # 입력 필드 배치
         self.entries.append(entry)
 
@@ -76,8 +77,8 @@ class ModbusUI:
         action_button.grid(row=0, column=1, padx=(0, 5))  # 버튼 배치
         self.action_buttons.append(action_button)
 
-    def on_focus_in(self, entry):
-        if entry.get().startswith("IP Address"):
+    def on_focus_in(self, entry, placeholder):
+        if entry.get() == placeholder:
             entry.delete(0, "end")
             entry.config(fg="black")
 
