@@ -68,7 +68,7 @@ class ModbusUI:
         entry.insert(0, placeholder_text)
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
-        entry.grid(row=0, column=0, padx=(0, 3))  # 입력 필드 배치
+        entry.grid(row=0, column=0, padx=(0, 0))  # 입력 필드 배치
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
