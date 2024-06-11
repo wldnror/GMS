@@ -1,5 +1,5 @@
 import os
-from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel
+from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel, Tk
 import threading
 import time
 import queue
@@ -424,9 +424,10 @@ class ModbusUI:
             self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
 
-# 이 코드를 실제로 실행하려면 Tkinter 메인 루프와 GUI 설정이 필요합니다.
-# 예:
-# if __name__ == "__main__":
-#     root = Tk()
-#     app = ModbusUI(root, num_boxes=14)
-#     root.mainloop()
+# 실제로 실행하기 위한 Tkinter 메인 루프 설정
+if __name__ == "__main__":
+    root = Tk()
+    root.title("GDSENG - 스마트 모니터링 시스템")  # 윈도우 타이틀 설정
+    num_boxes = 14  # 생성할 박스의 개수
+    app = ModbusUI(root, num_boxes)
+    root.mainloop()
