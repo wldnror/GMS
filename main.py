@@ -1,5 +1,4 @@
 from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
-import random
 import time
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -116,7 +115,7 @@ def show_password_prompt():
             entry.insert(tk.END, char)
 
     def check_password():
-        nonlocal attempt_count, lock_time
+        global attempt_count, lock_time
         if password_entry.get() == "00700":  # 비밀번호 설정
             password_window.destroy()
             show_settings()
