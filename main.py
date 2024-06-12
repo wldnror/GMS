@@ -88,9 +88,12 @@ def show_password_prompt():
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
     password_entry.pack(pady=5)
 
+    keypad_frame = Frame(password_window)
+    keypad_frame.pack()
+
     def create_keypad():
-        frame = Frame(password_window)
-        frame.pack()
+        for widget in keypad_frame.winfo_children():
+            widget.destroy()
 
         buttons = [str(i) for i in range(10)]
         random.shuffle(buttons)
@@ -100,11 +103,12 @@ def show_password_prompt():
         rows = 4
         cols = 3
         for i, button in enumerate(buttons):
-            b = Button(frame, text=button, width=5, height=2,
+            b = Button(keypad_frame, text=button, width=5, height=2,
                        command=lambda b=button: on_button_click(b, password_entry))
             b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
 
     def on_button_click(char, entry):
+        create_keypad()  # 버튼 클릭 시 키패드 재배치
         if char == 'DEL':
             current_text = entry.get()
             entry.delete(0, tk.END)
