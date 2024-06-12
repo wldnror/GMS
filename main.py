@@ -1,7 +1,6 @@
 from tkinter import Tk, Frame, Button, Menu, Toplevel, Label
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
-from virtual_keyboard import VirtualKeyboard  # VirtualKeyboard 클래스 임포트
 import signal
 import sys
 import subprocess
@@ -9,7 +8,6 @@ import os
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
-virtual_keyboard = None
 
 def show_settings():
     global settings_window
@@ -108,12 +106,6 @@ if __name__ == "__main__":
     settings_button.bind("<Leave>", on_leave)
     
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
-
-    # 가상 키보드 버튼 추가
-    keyboard_button = Button(root, text="⌨", command=lambda: virtual_keyboard.show(), font=("Arial", 20))
-    keyboard_button.place(relx=0.95, rely=1.0, anchor='se')
-
-    virtual_keyboard = VirtualKeyboard(root)
 
     root.mainloop()
 
