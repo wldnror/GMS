@@ -17,7 +17,6 @@ class ModbusUI:
     def __init__(self, root, num_boxes):
         self.root = root
         self.virtual_keyboard = VirtualKeyboard(root)  # 가상 키보드 초기화
-        # self.root.title("GDSENG - 스마트 모니터링 시스템")
 
         self.ip_vars = []
         self.entries = []
@@ -73,7 +72,7 @@ class ModbusUI:
         entry.insert(0, placeholder_text)
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
-        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(e))  # 가상 키보드를 열도록 이벤트 추가
+        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(event))  # 가상 키보드를 열도록 이벤트 추가
         entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치, 간격을 5로 설정
         self.entries.append(entry)
 
@@ -454,7 +453,7 @@ class ModbusUI:
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
 
-        times, values, _ = zip(*self.histories[box_index]) if self.histories[box_index] else ([], [], [])
+        times, values, _ = zip(*(self.histories[box_index])) if self.histories[box_index] else ([], [], [])
         ax.plot(times, values, marker='o')
         ax.set_title('History')
         ax.set_xlabel('Time')
@@ -478,12 +477,3 @@ class ModbusUI:
             widget = event.widget
             if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
                 self.hide_history(event)
-
-
-# 실제로 실행하기 위한 Tkinter 메인 루프 설정
-if __name__ == "__main__":
-    root = Tk()
-    root.title("GDSENG - 스마트 모니터링 시스템")  # 윈도우 타이틀 설정
-    num_boxes = 14  # 생성할 박스의 개수
-    app = ModbusUI(root, num_boxes)
-    root.mainloop()
