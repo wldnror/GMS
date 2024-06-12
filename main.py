@@ -61,7 +61,7 @@ if __name__ == "__main__":
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
 
     # 톱니바퀴 버튼 추가
-    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20), foreground="#b2b2b2", background="#b2b2b2")
+    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20))
     # 마우스 오버 이벤트 핸들러
     def on_enter(event):
         event.widget.config(background="darkgray", foreground="black")
