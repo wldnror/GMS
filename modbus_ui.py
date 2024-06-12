@@ -1,5 +1,5 @@
 import os
-from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel, Tk
+from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Tk
 import threading
 import time
 import queue
@@ -10,7 +10,7 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors  # mplcursors 라이브러리 추가
-from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display, show_history_graph
+from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 
 class ModbusUI:
     def __init__(self, root, num_boxes):
@@ -54,6 +54,9 @@ class ModbusUI:
             self.update_circle_state([False, False, False, False], box_index=i)
 
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
+
+        # 메인 윈도우의 클릭 이벤트 바인딩
+        self.root.bind("<Button-1>", self.check_click)
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
@@ -429,9 +432,8 @@ class ModbusUI:
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
             self.history_frame.destroy()
 
-        self.history_frame = Toplevel(self.root)
-        self.history_frame.title("History")
-        self.history_frame.geometry("1200x800")
+        self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
+        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
 
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
@@ -449,12 +451,17 @@ class ModbusUI:
 
         mplcursors.cursor(ax)  # Enable interactive cursor
 
-        # 외부 클릭 시 히스토리 창 닫기
-        self.history_frame.bind("<FocusOut>", self.hide_history)
+        # 오버레이 추가
+        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
+        self.overlay.place(x=0, y=0)
+        self.overlay.lift(self.history_frame)
+        self.overlay.bind("<Button-1>", self.hide_history)
 
-    def hide_history(self, event):
+    def hide_history(self, event=None):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
             self.history_frame.destroy()
+        if hasattr(self, 'overlay') and self.overlay.winfo_exists():
+            self.overlay.destroy()
 
     def check_click(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
@@ -466,6 +473,7 @@ class ModbusUI:
 if __name__ == "__main__":
     root = Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")  # 윈도우 타이틀 설정
+    root.attributes("-fullscreen", True)  # 전체 화면 모드로 설정
     num_boxes = 14  # 생성할 박스의 개수
     app = ModbusUI(root, num_boxes)
     root.mainloop()
