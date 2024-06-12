@@ -30,7 +30,7 @@ BIT_TO_SEGMENT = {
 }
 
 # 확대 배율 및 위치 조정 변수
-SCALE = 2
+SCALE = 1.2
 x_offset_global = 50
 y_offset_global = 50
 
