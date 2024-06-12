@@ -4,9 +4,19 @@ from analog_ui import AnalogUI
 import signal
 import sys
 
+# 글로벌 변수로 설정 창을 참조합니다.
+settings_window = None
+
 def show_settings():
+    global settings_window
+    # 이미 설정 창이 열려 있는 경우, 창을 포커스로 가져옵니다.
+    if settings_window and settings_window.winfo_exists():
+        settings_window.focus()
+        return
+
     settings_window = Toplevel(root)
     settings_window.title("Settings")
+    settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
     
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
     
