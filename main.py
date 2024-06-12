@@ -10,9 +10,9 @@ def show_settings():
     
     Label(settings_window, text="Settings Menu", font=("Arial", 16)).pack(pady=10)
     
-    Button(settings_window, text="Exit Fullscreen", command=exit_fullscreen).pack(pady=5)
-    Button(settings_window, text="Resize Window", command=resize_window).pack(pady=5)
-    Button(settings_window, text="Exit Application", command=exit_application).pack(pady=5)
+    Button(settings_window, text="전체 화면", command=exit_fullscreen).pack(pady=5)
+    Button(settings_window, text="창 크기", command=resize_window).pack(pady=5)
+    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
 
     # 톱니바퀴 버튼 추가
-    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20))
+    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20), foreground="white", background="gray")
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     root.mainloop()
