@@ -51,6 +51,10 @@ class VirtualKeyboard:
 
         self.reset_hide_timer()
 
+        # Entry 위젯에 포커스 인 이벤트 추가
+        entry.bind('<Key>', self.reset_hide_timer)
+        entry.bind('<Button-1>', self.reset_hide_timer)
+
     def on_button_click(self, char, entry):
         if char == 'DEL':
             current_text = entry.get()
@@ -60,7 +64,7 @@ class VirtualKeyboard:
             entry.insert(tk.END, char)
         self.reset_hide_timer()  # 입력 시 타이머 리셋
 
-    def reset_hide_timer(self):
+    def reset_hide_timer(self, event=None):
         if self.hide_timer:
             self.root.after_cancel(self.hide_timer)
         self.hide_timer = self.root.after(10000, self.hide)  # 10초 후에 hide 메서드 호출
