@@ -15,8 +15,8 @@ class VirtualKeyboard:
         x = entry.winfo_rootx()
         y = entry.winfo_rooty() + entry.winfo_height()
 
-        keyboard_width = 200  # 가상 키보드의 예상 너비
-        keyboard_height = 100  # 가상 키보드의 예상 높이
+        keyboard_width = 300  # 가상 키보드의 예상 너비
+        keyboard_height = 200  # 가상 키보드의 예상 높이
 
         # 가상 키보드가 창 바깥으로 이탈하지 않도록 위치 조정
         if x + keyboard_width > root_width:
@@ -44,7 +44,7 @@ class VirtualKeyboard:
         for i, button in enumerate(buttons):
             b = tk.Button(frame, text=button, width=5, height=2,
                           command=lambda b=button: self.on_button_click(b, entry))
-            b.grid(row=i // cols, column=i % cols)
+            b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
 
     def on_button_click(self, char, entry):
         if char == 'DEL':
