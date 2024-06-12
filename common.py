@@ -29,6 +29,8 @@ BIT_TO_SEGMENT = {
     3: 'E-23'  # E-23
 }
 
+# 확대 배율
+SCALE = 2
 
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
