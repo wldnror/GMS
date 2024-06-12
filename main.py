@@ -83,14 +83,14 @@ def show_password_prompt():
             lock_window = Toplevel(root)
             lock_window.title("잠금")
             lock_window.attributes("-topmost", True)
-            lock_window.geometry("300x100")
-            Label(lock_window, text="비밀번호 입력 시도가 5회 초과되었습니다.", font=("Arial", 12)).pack(pady=10)
-            lock_label = Label(lock_window, font=("Arial", 12))
-            lock_label.pack(pady=5)
+            lock_window.geometry("300x150")
+            lock_label = Label(lock_window, text="", font=("Arial", 12))
+            lock_label.pack(pady=10)
+            Button(lock_window, text="확인", command=lock_window.destroy).pack(pady=5)
 
             def update_lock_message():
                 remaining_time = int(lock_time - time.time())
-                lock_label.config(text=f"{remaining_time}초 후에 다시 시도하십시오.")
+                lock_label.config(text=f"비밀번호 입력 시도가 5회 초과되었습니다.\n{remaining_time}초 후에 다시 시도하십시오.")
                 if remaining_time > 0:
                     root.after(1000, update_lock_message)
                 else:
