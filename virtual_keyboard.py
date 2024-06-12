@@ -39,10 +39,12 @@ class VirtualKeyboard:
             '.', '0', 'DEL'
         ]
 
-        for button in buttons:
+        rows = 4
+        cols = 3
+        for i, button in enumerate(buttons):
             b = tk.Button(frame, text=button, width=5, height=2,
                           command=lambda b=button: self.on_button_click(b, entry))
-            b.pack(side=tk.LEFT)
+            b.grid(row=i // cols, column=i % cols)
 
     def on_button_click(self, char, entry):
         if char == 'DEL':
