@@ -29,8 +29,10 @@ BIT_TO_SEGMENT = {
     3: 'E-23'  # E-23
 }
 
-# 확대 배율
-SCALE = 1.2
+# 확대 배율 및 위치 조정 변수
+SCALE = 2
+x_offset_global = 50
+y_offset_global = 50
 
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
@@ -60,7 +62,7 @@ def create_gradient_bar(width, height):
 
 def create_segment_display(box_canvas):
     segment_canvas = Canvas(box_canvas, width=131 * SCALE, height=60 * SCALE, bg='#000000', highlightthickness=0)
-    segment_canvas.place(x=23 * SCALE, y=24 * SCALE)  # 상단에 위치
+    segment_canvas.place(x=(23 + x_offset_global) * SCALE, y=(24 + y_offset_global) * SCALE)  # 상단에 위치
 
     segment_items = []
     for i in range(4):
@@ -68,38 +70,38 @@ def create_segment_display(box_canvas):
         y_offset = i * 20 * SCALE
         segments = [
             # 상단 (4만큼 아래로 이동, 두께 10% 감소)
-            segment_canvas.create_polygon(4 * SCALE + x_offset, 11.2 * SCALE, 12 * SCALE + x_offset, 11.2 * SCALE, 16 * SCALE + x_offset, 13.6 * SCALE,
-                                          12 * SCALE + x_offset, 16 * SCALE, 4 * SCALE + x_offset, 16 * SCALE, 0 * SCALE + x_offset, 13.6 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(4 * SCALE + x_offset, 11.2 * SCALE + y_offset, 12 * SCALE + x_offset, 11.2 * SCALE + y_offset, 16 * SCALE + x_offset, 13.6 * SCALE + y_offset,
+                                          12 * SCALE + x_offset, 16 * SCALE + y_offset, 4 * SCALE + x_offset, 16 * SCALE + y_offset, 0 * SCALE + x_offset, 13.6 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_a'),
 
             # 상단-오른쪽 (세로 열, 두께 감소, 3만큼 아래로 이동)
-            segment_canvas.create_polygon(16 * SCALE + x_offset, 15 * SCALE, 17.6 * SCALE + x_offset, 17.4 * SCALE, 17.6 * SCALE + x_offset, 27.4 * SCALE,
-                                          16 * SCALE + x_offset, 29.4 * SCALE, 14.4 * SCALE + x_offset, 27.4 * SCALE, 14.4 * SCALE + x_offset, 17.4 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(16 * SCALE + x_offset, 15 * SCALE + y_offset, 17.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, 17.6 * SCALE + x_offset, 27.4 * SCALE + y_offset,
+                                          16 * SCALE + x_offset, 29.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 27.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_b'),
 
             # 하단-오른쪽 (세로 열, 두께 감소, 1만큼 위로 이동)
-            segment_canvas.create_polygon(16 * SCALE + x_offset, 31 * SCALE, 17.6 * SCALE + x_offset, 33.4 * SCALE, 17.6 * SCALE + x_offset, 43.4 * SCALE,
-                                          16 * SCALE + x_offset, 45.4 * SCALE, 14.4 * SCALE + x_offset, 43.4 * SCALE, 14.4 * SCALE + x_offset, 33.4 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(16 * SCALE + x_offset, 31 * SCALE + y_offset, 17.6 * SCALE + x_offset, 33.4 * SCALE + y_offset, 17.6 * SCALE + x_offset, 43.4 * SCALE + y_offset,
+                                          16 * SCALE + x_offset, 45.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 43.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 33.4 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_c'),
 
             # 하단 (7만큼 위로 이동, 두께 10% 감소)
-            segment_canvas.create_polygon(4 * SCALE + x_offset, 43.8 * SCALE, 12 * SCALE + x_offset, 43.8 * SCALE, 16 * SCALE + x_offset, 46.2 * SCALE,
-                                          12 * SCALE + x_offset, 48.6 * SCALE, 4 * SCALE + x_offset, 48.6 * SCALE, 0 * SCALE + x_offset, 46.2 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(4 * SCALE + x_offset, 43.8 * SCALE + y_offset, 12 * SCALE + x_offset, 43.8 * SCALE + y_offset, 16 * SCALE + x_offset, 46.2 * SCALE + y_offset,
+                                          12 * SCALE + x_offset, 48.6 * SCALE + y_offset, 4 * SCALE + x_offset, 48.6 * SCALE + y_offset, 0 * SCALE + x_offset, 46.2 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_d'),
 
             # 하단-왼쪽 (세로 열, 두께 감소, 1만큼 위로 이동)
-            segment_canvas.create_polygon(0 * SCALE + x_offset, 31 * SCALE, 1.6 * SCALE + x_offset, 33.4 * SCALE, 1.6 * SCALE + x_offset, 43.4 * SCALE,
-                                          0 * SCALE + x_offset, 45.4 * SCALE, -1.6 * SCALE + x_offset, 43.4 * SCALE, -1.6 * SCALE + x_offset, 33.4 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(0 * SCALE + x_offset, 31 * SCALE + y_offset, 1.6 * SCALE + x_offset, 33.4 * SCALE + y_offset, 1.6 * SCALE + x_offset, 43.4 * SCALE + y_offset,
+                                          0 * SCALE + x_offset, 45.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 43.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 33.4 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_e'),
 
             # 상단-왼쪽 (세로 열, 두께 감소, 3만큼 아래로 이동)
-            segment_canvas.create_polygon(0 * SCALE + x_offset, 15 * SCALE, 1.6 * SCALE + x_offset, 17.4 * SCALE, 1.6 * SCALE + x_offset, 27.4 * SCALE,
-                                          0 * SCALE + x_offset, 29.4 * SCALE, -1.6 * SCALE + x_offset, 27.4 * SCALE, -1.6 * SCALE + x_offset, 17.4 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(0 * SCALE + x_offset, 15 * SCALE + y_offset, 1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, 1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset,
+                                          0 * SCALE + x_offset, 29.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_f'),
 
             # 중간 (두께 10% 감소, 아래로 8만큼 이동)
-            segment_canvas.create_polygon(4 * SCALE + x_offset, 27.8 * SCALE, 12 * SCALE + x_offset, 27.8 * SCALE, 16 * SCALE + x_offset, 30.2 * SCALE,
-                                          12 * SCALE + x_offset, 32.6 * SCALE, 4 * SCALE + x_offset, 32.6 * SCALE, 0 * SCALE + x_offset, 30.2 * SCALE, fill='#424242',
+            segment_canvas.create_polygon(4 * SCALE + x_offset, 27.8 * SCALE + y_offset, 12 * SCALE + x_offset, 27.8 * SCALE + y_offset, 16 * SCALE + x_offset, 30.2 * SCALE + y_offset,
+                                          12 * SCALE + x_offset, 32.6 * SCALE + y_offset, 4 * SCALE + x_offset, 32.6 * SCALE + y_offset, 0 * SCALE + x_offset, 30.2 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_g')
         ]
         segment_items.append(segments)
