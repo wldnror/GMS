@@ -47,13 +47,30 @@ def show_settings():
 
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
 
-    Label(settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
-    modbus_entry = Entry(settings_window, font=("Arial", 12))
+    Button(settings_window, text="상자 설정", command=show_box_settings).pack(pady=5)
+    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
+    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
+    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
+
+# 상자 설정 페이지를 여는 함수
+def show_box_settings():
+    global box_settings_window
+    if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.focus()
+        return
+
+    box_settings_window = Toplevel(root)
+    box_settings_window.title("상자 설정")
+    box_settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
+    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
     modbus_entry.insert(0, settings["modbus_boxes"])
     modbus_entry.pack(pady=5)
 
-    Label(settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
-    analog_entry = Entry(settings_window, font=("Arial", 12))
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
+    analog_entry = Entry(box_settings_window, font=("Arial", 12))
     analog_entry.insert(0, settings["analog_boxes"])
     analog_entry.pack(pady=5)
 
@@ -63,16 +80,12 @@ def show_settings():
             settings["analog_boxes"] = int(analog_entry.get())
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
-            settings_window.destroy()
+            box_settings_window.destroy()
             restart_application()  # 설정이 변경되면 애플리케이션을 재시작
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(settings_window, text="저장", command=save_and_close).pack(pady=5)
-    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
-    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
-    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
-    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
+    Button(box_settings_window, text="저장", command=save_and_close).pack(pady=5)
 
 # 전체 화면 해제
 def exit_fullscreen(event=None):
