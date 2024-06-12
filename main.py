@@ -61,7 +61,7 @@ if __name__ == "__main__":
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
 
     # 톱니바퀴 버튼 추가
-    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20), foreground="#b2b2b2", background="white")
+    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20), foreground="#b2b2b2", background="#b2b2b2")
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     root.mainloop()
