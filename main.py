@@ -66,7 +66,7 @@ if __name__ == "__main__":
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
-        event.widget.config(background="#b2b2b2", foreground="white")
+        event.widget.config(background="#b2b2b2", foreground="black")
     # 이벤트 바인딩
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
