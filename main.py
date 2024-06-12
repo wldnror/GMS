@@ -109,9 +109,6 @@ if __name__ == "__main__":
     
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
-    # 가상 키보드 버튼 추가
-    keyboard_button = Button(root, text="⌨", command=lambda: virtual_keyboard.show(), font=("Arial", 20))
-    keyboard_button.place(relx=0.95, rely=1.0, anchor='se')
 
     virtual_keyboard = VirtualKeyboard(root)
 
