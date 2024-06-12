@@ -397,7 +397,7 @@ class ModbusUI:
 
     def update_bar(self, value, bar_canvas, bar_item):
         percentage = value / 100.0
-        bar_length = int(131 * percentage)
+        bar_length = int(153 * percentage)
 
         # 잘라내어 새로운 이미지를 생성
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, 5))
