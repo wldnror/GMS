@@ -7,8 +7,13 @@ class VirtualKeyboard:
         self.hide_timer = None
 
     def show(self, entry):
+        # 기존 키보드 창이 있으면 닫음
         if self.keyboard_window and self.keyboard_window.winfo_exists():
             self.keyboard_window.destroy()
+
+        # 입력 필드에 포커스 인 이벤트 추가
+        entry.bind('<Key>', self.reset_hide_timer)
+        entry.bind('<Button-1>', self.reset_hide_timer)
 
         root_width = self.root.winfo_width()
         root_height = self.root.winfo_height()
@@ -50,10 +55,6 @@ class VirtualKeyboard:
             b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
 
         self.reset_hide_timer()
-
-        # Entry 위젯에 포커스 인 이벤트 추가
-        entry.bind('<Key>', self.reset_hide_timer)
-        entry.bind('<Button-1>', self.reset_hide_timer)
 
     def on_button_click(self, char, entry):
         if char == 'DEL':
