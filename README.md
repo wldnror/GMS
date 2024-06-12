@@ -14,4 +14,37 @@ pip install mplcursors
 
 # 필수 설정
 
-export DISPLAY=:0
+## systemd 서비스 파일 수정
+
+
+```bash
+sudo nano /etc/systemd/system/myscript.service
+```
+
+### 다음 내용을 서비스 파일에 추가 또는 수정합니다:
+```bash
+[Unit]
+Description=My Python Script
+After=network.target
+
+[Service]
+WorkingDirectory=/home/user/GMS
+ExecStart=/home/user/GMS/myenv/bin/python3 /home/user/GMS/main.py
+Restart=always
+User=user
+Environment="DISPLAY=:0"
+Environment="PATH=/home/user/GMS/myenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## 서비스 재시작 
+
+### systemd 서비스를 다시 시작하여 변경 사항을 적용합니다.
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart myscript.service
+```
+
+
