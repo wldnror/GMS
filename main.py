@@ -84,9 +84,6 @@ def show_password_prompt():
             lock_window.title("잠금")
             lock_window.attributes("-topmost", True)
             lock_window.geometry("300x150")
-
-            lock_window.geometry(f"+{root.winfo_screenwidth() // 2 - 150}+{root.winfo_screenheight() // 2 - 75}")
-
             lock_label = Label(lock_window, text="", font=("Arial", 12))
             lock_label.pack(pady=10)
             Button(lock_window, text="확인", command=lock_window.destroy).pack(pady=5)
@@ -112,8 +109,6 @@ def show_password_prompt():
     password_window = Toplevel(root)
     password_window.title("비밀번호 입력")
     password_window.attributes("-topmost", True)
-
-    password_window.geometry(f"+{root.winfo_screenwidth() // 2 - 150}+{root.winfo_screenheight() // 2 - 100}")
 
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
