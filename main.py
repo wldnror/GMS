@@ -29,9 +29,11 @@ def show_settings():
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
+    root.attributes("-topmost", False)  # 전체 화면 해제 시 최상위 속성도 해제
 
 def enter_fullscreen(event=None):
     root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)  # 전체 화면 모드에서는 최상위 속성 설정
 
 def exit_application():
     root.destroy()
@@ -65,6 +67,7 @@ if __name__ == "__main__":
 
     # 전체 화면 설정
     root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)  # 전체 화면 모드에서는 최상위 속성 설정
 
     # 중앙 정렬 설정
     root.grid_rowconfigure(0, weight=1)
