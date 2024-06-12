@@ -39,15 +39,17 @@ def exit_application():
 
 def update_system():
     try:
-        # git pull 명령 실행
-        result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
-        output = result.stdout + result.stderr
+        # 로컬 리포지토리의 최신 커밋 해시를 가져옵니다.
+        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+        # 원격 리포지토리의 최신 커밋 해시를 가져옵니다.
+        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
 
-        if "Already up to date." in output:
+        if local_commit == remote_commit:
             # 최신 버전일 경우
             Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
         else:
             # 업데이트가 있는 경우
+            result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
             Label(settings_window, text="업데이트 완료. 애플리케이션을 재시작합니다.", font=("Arial", 12)).pack(pady=5)
             root.after(2000, restart_application)  # 2초 후에 애플리케이션 재시작
     except Exception as e:
