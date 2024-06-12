@@ -63,12 +63,12 @@ def create_gradient_bar(width, height):
 
 def create_segment_display(box_canvas):
     segment_canvas = Canvas(box_canvas, width=(131 + x_shift) * SCALE, height=(60 + y_shift) * SCALE, bg='#000000', highlightthickness=0)
-    segment_canvas.place(x=(23 + x_shift) * SCALE, y=(24 + y_shift) * SCALE)  # 상단에 위치
+    segment_canvas.place(x=(23 + x_shift) * SCALE, y=(24 + y_shift) * SCALE)  # 전체 위치 이동 적용
 
     segment_items = []
     for i in range(4):
-        x_offset = (i * 29 + 14 + x_shift) * SCALE
-        y_offset = (i * 20 + y_shift) * SCALE
+        x_offset = (i * 29 + 14) * SCALE  # x축 위치는 각 세그먼트에 맞게 조정
+        y_offset = 0  # y축 위치는 동일하게 유지
         segments = [
             # 상단 (4만큼 아래로 이동, 두께 10% 감소)
             segment_canvas.create_polygon(4 * SCALE + x_offset, 11.2 * SCALE + y_offset, 12 * SCALE + x_offset, 11.2 * SCALE + y_offset, 16 * SCALE + x_offset, 13.6 * SCALE + y_offset,
