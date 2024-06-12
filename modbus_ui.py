@@ -437,6 +437,12 @@ class ModbusUI:
         self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
         self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
 
+        # Add an invisible overlay to capture clicks outside the history frame
+        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
+        self.overlay.place(x=0, y=0)
+        self.overlay.lower(self.history_frame)
+        self.overlay.bind("<Button-1>", self.hide_history)
+
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
 
@@ -455,13 +461,15 @@ class ModbusUI:
 
     def hide_history(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            widget = event.widget
-            if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
-                self.history_frame.destroy()
+            self.history_frame.destroy()
+        if hasattr(self, 'overlay') and self.overlay.winfo_exists():
+            self.overlay.destroy()
 
     def check_click(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            self.hide_history(event)
+            widget = event.widget
+            if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
+                self.hide_history(event)
 
 # 실제로 실행하기 위한 Tkinter 메인 루프 설정
 if __name__ == "__main__":
