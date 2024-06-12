@@ -59,7 +59,7 @@ class ModbusUI:
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
 
         # 메인 윈도우의 클릭 이벤트 바인딩
-        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(e))  # 수정된 부분
+        entry.bind("<Button-1>", lambda event: self.show_virtual_keyboard(entry))  # 수정된 부분
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
