@@ -83,7 +83,7 @@ class ModbusUI:
         self.action_buttons.append(action_button)
 
     def show_virtual_keyboard(self, entry):
-    self.virtual_keyboard.show(entry)
+        self.virtual_keyboard.show(entry)
 
     def on_focus_in(self, entry, placeholder):
         if entry.get() == placeholder:
