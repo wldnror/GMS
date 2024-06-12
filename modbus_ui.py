@@ -37,7 +37,7 @@ class ModbusUI:
         self.row_frames = []  # 각 행의 프레임을 저장할 리스트
         self.box_frames = []  # UI 상자를 저장할 리스트
 
-        self.gradient_bar = create_gradient_bar(140, 5)  # gradient_bar 초기화
+        self.gradient_bar = create_gradient_bar(153, 5)  # gradient_bar 초기화
 
         # 현재 스크립트 파일의 디렉토리 경로를 기준으로 이미지 파일 경로 지정
         script_dir = os.path.dirname(os.path.abspath(__file__))
