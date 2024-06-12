@@ -8,12 +8,13 @@ import os  # os 모듈을 추가로 가져옵니다.
 
 # 가상 키패드 클래스
 class VirtualKeyboard:
-    def __init__(self, master):
+    def __init__(self, master, target_entry=None):
         self.master = master
         self.window = None
-        self.entry = None
-    
-    def show(self):
+        self.target_entry = target_entry  # 가상 키보드로 값을 입력할 타겟 입력 필드
+
+    def show(self, target_entry):
+        self.target_entry = target_entry
         if self.window and self.window.winfo_exists():
             self.window.focus()
             return
@@ -21,9 +22,6 @@ class VirtualKeyboard:
         self.window = Toplevel(self.master)
         self.window.title("Virtual Keyboard")
         self.window.attributes("-topmost", True)
-
-        self.entry = Entry(self.window, font=("Arial", 18))
-        self.entry.pack(pady=10, padx=10)
 
         buttons_frame = Frame(self.window)
         buttons_frame.pack()
@@ -42,10 +40,10 @@ class VirtualKeyboard:
 
     def on_button_click(self, char):
         if char == 'Del':
-            current_text = self.entry.get()
-            self.entry.delete(len(current_text)-1, 'end')
+            current_text = self.target_entry.get()
+            self.target_entry.delete(len(current_text)-1, 'end')
         else:
-            self.entry.insert('end', char)
+            self.target_entry.insert('end', char)
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
