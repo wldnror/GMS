@@ -14,6 +14,7 @@ settings_window = None
 password_window = None
 attempt_count = 0
 lock_time = 0
+lock_window = None
 
 # 설정 페이지를 여는 함수
 def show_settings():
@@ -75,11 +76,27 @@ def restart_application():
 
 # 비밀번호 입력 창을 표시하는 함수
 def show_password_prompt():
-    global attempt_count, lock_time, password_window, settings_window
+    global attempt_count, lock_time, password_window, settings_window, lock_window
 
     if time.time() < lock_time:
-        remaining_time = int(lock_time - time.time())
-        messagebox.showerror("잠금", f"비밀번호 입력 시도가 5회 초과되었습니다. {remaining_time}초 후에 다시 시도하십시오.")
+        if not lock_window or not lock_window.winfo_exists():
+            lock_window = Toplevel(root)
+            lock_window.title("잠금")
+            lock_window.attributes("-topmost", True)
+            lock_window.geometry("300x100")
+            Label(lock_window, text="비밀번호 입력 시도가 5회 초과되었습니다.", font=("Arial", 12)).pack(pady=10)
+            lock_label = Label(lock_window, font=("Arial", 12))
+            lock_label.pack(pady=5)
+
+            def update_lock_message():
+                remaining_time = int(lock_time - time.time())
+                lock_label.config(text=f"{remaining_time}초 후에 다시 시도하십시오.")
+                if remaining_time > 0:
+                    root.after(1000, update_lock_message)
+                else:
+                    lock_window.destroy()
+
+            update_lock_message()
         return
 
     if password_window and password_window.winfo_exists():
@@ -138,15 +155,9 @@ def show_password_prompt():
                 lock_time = time.time() + 60  # 60초 잠금
                 attempt_count = 0
                 password_window.destroy()
-                update_lock_message()
+                show_password_prompt()
             else:
                 Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
-
-    def update_lock_message():
-        if time.time() < lock_time:
-            remaining_time = int(lock_time - time.time())
-            messagebox.showerror("잠금", f"비밀번호 입력 시도가 5회 초과되었습니다. {remaining_time}초 후에 다시 시도하십시오.")
-            root.after(1000, update_lock_message)
 
     create_keypad()
     Button(password_window, text="확인", command=check_password).pack(pady=5)
