@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
+import random
 import time
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -91,12 +92,10 @@ def show_password_prompt():
         frame = Frame(password_window)
         frame.pack()
 
-        buttons = [
-            '1', '2', '3',
-            '4', '5', '6',
-            '7', '8', '9',
-            '0', 'CLR', 'DEL'
-        ]
+        buttons = [str(i) for i in range(10)]
+        random.shuffle(buttons)
+        buttons.append('CLR')
+        buttons.append('DEL')
 
         rows = 4
         cols = 3
