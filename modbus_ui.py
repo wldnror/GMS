@@ -70,9 +70,9 @@ class ModbusUI:
         entry = Entry(frame, textvariable=ip_var, width=16, highlightthickness=0)  # 길이를 16으로 설정
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         entry.insert(0, placeholder_text)
-        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
-        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
-        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(event))  # 가상 키보드를 열도록 이벤트 추가
+        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
+        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
+        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(e))  # 가상 키보드를 열도록 이벤트 추가
         entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치, 간격을 5로 설정
         self.entries.append(entry)
 
@@ -85,13 +85,15 @@ class ModbusUI:
     def show_virtual_keyboard(self, event):
         entry = event.widget
         self.virtual_keyboard.show(entry)
+        entry.focus_set()  # 필드에 포커스를 다시 설정하여 가상 키보드가 뒤로 숨지 않도록 합니다.
 
-    def on_focus_in(self, entry, placeholder):
+    def on_focus_in(self, event, entry, placeholder):
         if entry.get() == placeholder:
             entry.delete(0, "end")
             entry.config(fg="black")
+        self.show_virtual_keyboard(event)  # 포커스 인 이벤트에서도 가상 키보드를 표시합니다.
 
-    def on_focus_out(self, entry, placeholder):
+    def on_focus_out(self, event, entry, placeholder):
         if not entry.get():
             entry.insert(0, placeholder)
             entry.config(fg="grey")
