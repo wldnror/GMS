@@ -1,5 +1,5 @@
 import os
-from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Tk
+from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel, Tk
 import threading
 import time
 import queue
@@ -10,11 +10,12 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors  # mplcursors 라이브러리 추가
-from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
+from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display, show_history_graph
 
 class ModbusUI:
     def __init__(self, root, num_boxes):
         self.root = root
+        # self.root.title("GDSENG - 스마트 모니터링 시스템")
 
         self.ip_vars = []
         self.entries = []
@@ -28,6 +29,7 @@ class ModbusUI:
 
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]  # 히스토리 저장을 위한 리스트 초기화
+        self.graph_windows = [None for _ in range(num_boxes)]  # 그래프 윈도우 저장을 위한 리스트 초기화
 
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=20, pady=20)  # grid로 변경하고 padding 추가
@@ -435,6 +437,12 @@ class ModbusUI:
         self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
         self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
 
+        # Add an invisible overlay to capture clicks outside the history frame
+        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
+        self.overlay.place(x=0, y=0)
+        self.overlay.lower(self.history_frame)
+        self.overlay.bind("<Button-1>", self.hide_history)
+
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
 
@@ -450,12 +458,6 @@ class ModbusUI:
         canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
 
         mplcursors.cursor(ax)  # Enable interactive cursor
-
-        # 오버레이 추가
-        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
-        self.overlay.place(x=0, y=0)
-        self.overlay.lift(self.history_frame)
-        self.overlay.bind("<Button-1>", self.hide_history)
 
     def hide_history(self, event=None):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
@@ -473,7 +475,6 @@ class ModbusUI:
 if __name__ == "__main__":
     root = Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")  # 윈도우 타이틀 설정
-    root.attributes("-fullscreen", True)  # 전체 화면 모드로 설정
     num_boxes = 14  # 생성할 박스의 개수
     app = ModbusUI(root, num_boxes)
     root.mainloop()
