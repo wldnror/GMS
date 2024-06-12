@@ -1,3 +1,4 @@
+import tkinter as tk
 from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
 import time
 from modbus_ui import ModbusUI
