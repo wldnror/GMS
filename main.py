@@ -62,6 +62,15 @@ if __name__ == "__main__":
 
     # 톱니바퀴 버튼 추가
     settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20), foreground="#b2b2b2", background="#b2b2b2")
+    # 마우스 오버 이벤트 핸들러
+    def on_enter(event):
+        event.widget.config(background="darkgray", foreground="black")
+    def on_leave(event):
+        event.widget.config(background="gray", foreground="white")
+    # 이벤트 바인딩
+    settings_button.bind("<Enter>", on_enter)
+    settings_button.bind("<Leave>", on_leave)
+    
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     root.mainloop()
