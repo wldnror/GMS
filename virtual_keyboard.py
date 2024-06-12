@@ -4,6 +4,7 @@ class VirtualKeyboard:
     def __init__(self, root):
         self.root = root
         self.keyboard_window = None
+        self.hide_timer = None
 
     def show(self, entry):
         if self.keyboard_window and self.keyboard_window.winfo_exists():
@@ -48,6 +49,8 @@ class VirtualKeyboard:
                           command=lambda b=button: self.on_button_click(b, entry))
             b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
 
+        self.reset_hide_timer()
+
     def on_button_click(self, char, entry):
         if char == 'DEL':
             current_text = entry.get()
@@ -55,7 +58,14 @@ class VirtualKeyboard:
             entry.insert(0, current_text[:-1])
         else:
             entry.insert(tk.END, char)
+        self.reset_hide_timer()  # 입력 시 타이머 리셋
+
+    def reset_hide_timer(self):
+        if self.hide_timer:
+            self.root.after_cancel(self.hide_timer)
+        self.hide_timer = self.root.after(10000, self.hide)  # 10초 후에 hide 메서드 호출
 
     def hide(self):
         if self.keyboard_window and self.keyboard_window.winfo_exists():
             self.keyboard_window.destroy()
+        self.hide_timer = None  # 타이머 초기화
