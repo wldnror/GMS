@@ -4,6 +4,7 @@ from analog_ui import AnalogUI
 import signal
 import sys
 import subprocess
+import os
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
