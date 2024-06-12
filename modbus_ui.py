@@ -59,7 +59,7 @@ class ModbusUI:
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
 
         # 메인 윈도우의 클릭 이벤트 바인딩
-        entry.bind("<Button-1>", lambda event: self.show_virtual_keyboard(entry))  # 수정된 부분
+        self.root.bind("<Button-1>", self.check_click)
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
@@ -72,7 +72,7 @@ class ModbusUI:
         entry.insert(0, placeholder_text)
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(e, p))
-        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(e))  # 가상 키보드를 열도록 이벤트 추가
+        entry.bind("<Button-1>", lambda event, e=entry: self.show_virtual_keyboard(event))  # 가상 키보드를 열도록 이벤트 추가
         entry.grid(row=0, column=0, padx=(0, 5))  # 입력 필드 배치, 간격을 5로 설정
         self.entries.append(entry)
 
@@ -82,7 +82,8 @@ class ModbusUI:
         action_button.grid(row=0, column=1, padx=(0, 0))  # 버튼 배치
         self.action_buttons.append(action_button)
 
-    def show_virtual_keyboard(self, entry):
+    def show_virtual_keyboard(self, event):
+        entry = event.widget
         self.virtual_keyboard.show(entry)
 
     def on_focus_in(self, entry, placeholder):
@@ -420,7 +421,7 @@ class ModbusUI:
 
     def connect_to_server(self, ip, client):
         retries = 5
-        for attempt in (range(retries)):
+        for attempt in range(retries):
             if client.connect():
                 self.console.print(f"Connected to the Modbus server at {ip}")
                 return True
