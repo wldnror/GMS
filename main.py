@@ -4,7 +4,7 @@ from analog_ui import AnalogUI
 import signal
 import sys
 import subprocess
-import os
+import os  # os 모듈을 추가로 가져옵니다.
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -43,7 +43,7 @@ def update_system():
         result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
         output = result.stdout
 
-        if "Already up to date." in output:
+        if result.returncode == 0 and "Already up to date." in output:
             # 최신 버전일 경우
             Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
         else:
@@ -80,7 +80,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
     modbus_boxes = 7  # 원하는 Modbus TCP 상자 수를 설정하세요.
-    analog_boxes = 5  # 원하는 4~20mA 상자 수를 설정하세요.
+    analog_boxes = 7  # 원하는 4~20mA 상자 수를 설정하세요.
 
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
