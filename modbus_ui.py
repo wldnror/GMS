@@ -82,16 +82,14 @@ class ModbusUI:
         action_button.grid(row=0, column=1, padx=(0, 0))  # 버튼 배치
         self.action_buttons.append(action_button)
 
-    def show_virtual_keyboard(self, event):
-        entry = event.widget
+    def show_virtual_keyboard(self, entry):
         self.virtual_keyboard.show(entry)
-        entry.focus_set()  # 필드에 포커스를 다시 설정하여 가상 키보드가 뒤로 숨지 않도록 합니다.
 
     def on_focus_in(self, event, entry, placeholder):
         if entry.get() == placeholder:
             entry.delete(0, "end")
             entry.config(fg="black")
-        self.show_virtual_keyboard(event)  # 포커스 인 이벤트에서도 가상 키보드를 표시합니다.
+        self.show_virtual_keyboard(entry)  # 포커스 인 이벤트에서도 가상 키보드를 표시
 
     def on_focus_out(self, event, entry, placeholder):
         if not entry.get():
