@@ -8,6 +8,7 @@ import signal
 import sys
 import subprocess
 import os
+import json
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -15,6 +16,22 @@ password_window = None
 attempt_count = 0
 lock_time = 0
 lock_window = None
+
+# 설정 값을 저장할 파일 경로
+SETTINGS_FILE = "settings.json"
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r') as file:
+            return json.load(file)
+    else:
+        return {"modbus_boxes": 14, "analog_boxes": 0}
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, 'w') as file:
+        json.dump(settings, file)
+
+settings = load_settings()
 
 # 설정 페이지를 여는 함수
 def show_settings():
@@ -30,6 +47,28 @@ def show_settings():
 
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
 
+    Label(settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
+    modbus_entry = Entry(settings_window, font=("Arial", 12))
+    modbus_entry.insert(0, settings["modbus_boxes"])
+    modbus_entry.pack(pady=5)
+
+    Label(settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
+    analog_entry = Entry(settings_window, font=("Arial", 12))
+    analog_entry.insert(0, settings["analog_boxes"])
+    analog_entry.pack(pady=5)
+
+    def save_and_close():
+        try:
+            settings["modbus_boxes"] = int(modbus_entry.get())
+            settings["analog_boxes"] = int(analog_entry.get())
+            save_settings(settings)
+            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            settings_window.destroy()
+            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+        except ValueError:
+            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
+
+    Button(settings_window, text="저장", command=save_and_close).pack(pady=5)
     Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
     Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
     Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
@@ -185,8 +224,8 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    modbus_boxes = 14  # 원하는 Modbus TCP 상자 수를 설정하세요.
-    analog_boxes = 0  # 원하는 4~20mA 상자 수를 설정하세요.
+    modbus_boxes = settings["modbus_boxes"]
+    analog_boxes = settings["analog_boxes"]
 
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
