@@ -8,7 +8,7 @@ def show_settings():
     settings_window = Toplevel(root)
     settings_window.title("Settings")
     
-    Label(settings_window, text="Settings Menu", font=("Arial", 16)).pack(pady=10)
+    Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
     
     Button(settings_window, text="전체 화면", command=exit_fullscreen).pack(pady=5)
     Button(settings_window, text="창 크기", command=resize_window).pack(pady=5)
