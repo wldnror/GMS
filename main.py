@@ -11,6 +11,7 @@ import os
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
+password_window = None
 attempt_count = 0
 lock_time = 0
 
@@ -74,11 +75,18 @@ def restart_application():
 
 # 비밀번호 입력 창을 표시하는 함수
 def show_password_prompt():
-    global attempt_count, lock_time
+    global attempt_count, lock_time, password_window, settings_window
 
     if time.time() < lock_time:
         messagebox.showerror("잠금", "비밀번호 입력 시도가 5회 초과되었습니다. 30초 후에 다시 시도하십시오.")
         return
+
+    if password_window and password_window.winfo_exists():
+        password_window.focus()
+        return
+
+    if settings_window and settings_window.winfo_exists():
+        settings_window.destroy()
 
     password_window = Toplevel(root)
     password_window.title("비밀번호 입력")
