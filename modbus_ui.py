@@ -459,7 +459,7 @@ class ModbusUI:
 
         mplcursors.cursor(ax)  # Enable interactive cursor
 
-    def hide_history(self, event):
+    def hide_history(self, event=None):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
             self.history_frame.destroy()
         if hasattr(self, 'overlay') and self.overlay.winfo_exists():
