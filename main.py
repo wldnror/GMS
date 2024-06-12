@@ -64,9 +64,9 @@ if __name__ == "__main__":
     settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20))
     # 마우스 오버 이벤트 핸들러
     def on_enter(event):
-        event.widget.config(background="darkgray", foreground="black")
+        event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
-        event.widget.config(background="gray", foreground="white")
+        event.widget.config(background="#b2b2b2", foreground="white")
     # 이벤트 바인딩
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
