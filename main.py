@@ -1,4 +1,4 @@
-from tkinter import Tk, Frame, Button, Menu, Toplevel, Label, Entry, StringVar
+from tkinter import Tk, Frame, Button, Menu, Toplevel, Label, Entry
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import signal
@@ -6,10 +6,50 @@ import sys
 import subprocess
 import os  # os 모듈을 추가로 가져옵니다.
 
+# 가상 키패드 클래스
+class VirtualKeyboard:
+    def __init__(self, master):
+        self.master = master
+        self.window = None
+        self.entry = None
+    
+    def show(self):
+        if self.window and self.window.winfo_exists():
+            self.window.focus()
+            return
+
+        self.window = Toplevel(self.master)
+        self.window.title("Virtual Keyboard")
+        self.window.attributes("-topmost", True)
+
+        self.entry = Entry(self.window, font=("Arial", 18))
+        self.entry.pack(pady=10, padx=10)
+
+        buttons_frame = Frame(self.window)
+        buttons_frame.pack()
+
+        buttons = [
+            ('1', 1, 0), ('2', 1, 1), ('3', 1, 2),
+            ('4', 2, 0), ('5', 2, 1), ('6', 2, 2),
+            ('7', 3, 0), ('8', 3, 1), ('9', 3, 2),
+            ('.', 4, 0), ('0', 4, 1), ('Del', 4, 2)
+        ]
+
+        for (text, row, col) in buttons:
+            button = Button(buttons_frame, text=text, font=("Arial", 18),
+                            command=lambda t=text: self.on_button_click(t))
+            button.grid(row=row, column=col, padx=5, pady=5, ipadx=10, ipady=10)
+
+    def on_button_click(self, char):
+        if char == 'Del':
+            current_text = self.entry.get()
+            self.entry.delete(len(current_text)-1, 'end')
+        else:
+            self.entry.insert('end', char)
+
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
-keyboard_window = None
-ip_var = StringVar()
+virtual_keyboard = None
 
 def show_settings():
     global settings_window
@@ -28,37 +68,6 @@ def show_settings():
     Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
     Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
     Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
-
-def show_keyboard():
-    global keyboard_window
-    # 이미 키보드 창이 열려 있는 경우, 창을 포커스로 가져옵니다.
-    if keyboard_window and keyboard_window.winfo_exists():
-        keyboard_window.focus()
-        return
-
-    keyboard_window = Toplevel(root)
-    keyboard_window.title("IP 입력")
-    keyboard_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
-
-    Entry(keyboard_window, textvariable=ip_var, font=("Arial", 24), width=15).pack(pady=10)
-
-    buttons = [
-        ('1', 1, 0), ('2', 1, 1), ('3', 1, 2),
-        ('4', 2, 0), ('5', 2, 1), ('6', 2, 2),
-        ('7', 3, 0), ('8', 3, 1), ('9', 3, 2),
-        ('.', 4, 0), ('0', 4, 1), ('<-', 4, 2),
-    ]
-
-    for (text, row, col) in buttons:
-        Button(keyboard_window, text=text, width=5, height=2, font=("Arial", 18),
-               command=lambda t=text: keypress(t)).grid(row=row, column=col, padx=5, pady=5)
-
-def keypress(key):
-    if key == '<-':
-        current_text = ip_var.get()
-        ip_var.set(current_text[:-1])  # 마지막 문자 삭제
-    else:
-        ip_var.set(ip_var.get() + key)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
@@ -140,12 +149,11 @@ if __name__ == "__main__":
     
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
-    # 키보드 버튼 추가
-    keyboard_button = Button(root, text="⌨", command=show_keyboard, font=("Arial", 20))
-    keyboard_button.bind("<Enter>", on_enter)
-    keyboard_button.bind("<Leave>", on_leave)
-    
+    # 가상 키보드 버튼 추가
+    keyboard_button = Button(root, text="⌨", command=lambda: virtual_keyboard.show(), font=("Arial", 20))
     keyboard_button.place(relx=0.95, rely=1.0, anchor='se')
+
+    virtual_keyboard = VirtualKeyboard(root)
 
     root.mainloop()
 
