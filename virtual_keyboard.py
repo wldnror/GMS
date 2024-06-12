@@ -9,12 +9,24 @@ class VirtualKeyboard:
         if self.keyboard_window and self.keyboard_window.winfo_exists():
             self.keyboard_window.destroy()
 
+        root_width = self.root.winfo_width()
+        root_height = self.root.winfo_height()
+
         x = entry.winfo_rootx()
         y = entry.winfo_rooty() + entry.winfo_height()
 
+        keyboard_width = 200  # 가상 키보드의 예상 너비
+        keyboard_height = 100  # 가상 키보드의 예상 높이
+
+        # 가상 키보드가 창 바깥으로 이탈하지 않도록 위치 조정
+        if x + keyboard_width > root_width:
+            x = root_width - keyboard_width
+        if y + keyboard_height > root_height:
+            y = root_height - keyboard_height
+
         self.keyboard_window = tk.Toplevel(self.root)
         self.keyboard_window.overrideredirect(True)
-        self.keyboard_window.geometry(f"+{x}+{y}")
+        self.keyboard_window.geometry(f"{keyboard_width}x{keyboard_height}+{x}+{y}")
         self.keyboard_window.attributes("-topmost", True)
 
         frame = tk.Frame(self.keyboard_window)
