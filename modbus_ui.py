@@ -15,7 +15,6 @@ from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment
 class ModbusUI:
     def __init__(self, root, num_boxes):
         self.root = root
-        # self.root.title("GDSENG - 스마트 모니터링 시스템")
 
         self.ip_vars = []
         self.entries = []
@@ -29,7 +28,6 @@ class ModbusUI:
 
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]  # 히스토리 저장을 위한 리스트 초기화
-        self.graph_windows = [None for _ in range(num_boxes)]  # 그래프 윈도우 저장을 위한 리스트 초기화
 
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=20, pady=20)  # grid로 변경하고 padding 추가
@@ -56,9 +54,6 @@ class ModbusUI:
             self.update_circle_state([False, False, False, False], box_index=i)
 
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
-
-        # 메인 윈도우의 클릭 이벤트 바인딩
-        self.root.bind("<Button-1>", self.check_click)
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
@@ -434,14 +429,9 @@ class ModbusUI:
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
             self.history_frame.destroy()
 
-        self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
-        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
-
-        # Add an invisible overlay to capture clicks outside the history frame
-        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
-        self.overlay.place(x=0, y=0)
-        self.overlay.lower(self.history_frame)
-        self.overlay.bind("<Button-1>", self.hide_history)
+        self.history_frame = Toplevel(self.root)
+        self.history_frame.title("History")
+        self.history_frame.geometry("1200x800")
 
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
@@ -459,11 +449,12 @@ class ModbusUI:
 
         mplcursors.cursor(ax)  # Enable interactive cursor
 
-    def hide_history(self, event=None):
+        # 외부 클릭 시 히스토리 창 닫기
+        self.history_frame.bind("<FocusOut>", self.hide_history)
+
+    def hide_history(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
             self.history_frame.destroy()
-        if hasattr(self, 'overlay') and self.overlay.winfo_exists():
-            self.overlay.destroy()
 
     def check_click(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
