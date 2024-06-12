@@ -3,6 +3,7 @@ from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import signal
 import sys
+import subprocess
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -22,6 +23,7 @@ def show_settings():
     
     Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
     Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
     Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
 
 def exit_fullscreen(event=None):
@@ -33,6 +35,26 @@ def enter_fullscreen(event=None):
 def exit_application():
     root.destroy()
     sys.exit(0)
+
+def update_system():
+    try:
+        # git pull 명령 실행
+        result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
+        output = result.stdout
+
+        if "Already up to date." in output:
+            # 최신 버전일 경우
+            Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
+        else:
+            # 업데이트가 있는 경우
+            Label(settings_window, text="업데이트 완료. 애플리케이션을 재시작합니다.", font=("Arial", 12)).pack(pady=5)
+            root.after(2000, restart_application)  # 2초 후에 애플리케이션 재시작
+    except Exception as e:
+        Label(settings_window, text=f"업데이트 중 오류 발생: {e}", font=("Arial", 12)).pack(pady=5)
+
+def restart_application():
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
 
 if __name__ == "__main__":
     root = Tk()
