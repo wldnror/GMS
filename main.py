@@ -41,9 +41,9 @@ def update_system():
     try:
         # git pull 명령 실행
         result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
-        output = result.stdout
+        output = result.stdout + result.stderr
 
-        if result.returncode == 0 and "Already up to date." in output:
+        if "Already up to date." in output:
             # 최신 버전일 경우
             Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
         else:
