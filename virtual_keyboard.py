@@ -12,7 +12,7 @@ class VirtualKeyboard:
         root_width = self.root.winfo_width()
         root_height = self.root.winfo_height()
 
-        x = entry.winfo_rootx() - self.root.winfo_rootx() + entry.winfo_width() + 50
+        x = entry.winfo_rootx() - self.root.winfo_rootx() + entry.winfo_width() + 100
         y = entry.winfo_rooty() - self.root.winfo_rooty()
 
         keyboard_width = 260  # 가상 키보드의 예상 너비
