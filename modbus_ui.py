@@ -432,12 +432,11 @@ class ModbusUI:
             self.history_frame.destroy()
 
         self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
-        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=600, height=400)
+        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
 
-        close_button = Button(self.history_frame, text='X', command=self.history_frame.destroy, bg='red', fg='white')
-        close_button.place(relx=1.0, rely=0.0, anchor='ne')
+        self.history_frame.bind("<Button-1>", self.hide_history)  # 히스토리 창을 닫기 위한 이벤트 바인딩
 
-        figure = plt.Figure(figsize=(6, 4), dpi=100)
+        figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
 
         times, values, _ = zip(*self.histories[box_index]) if self.histories[box_index] else ([], [], [])
@@ -452,6 +451,10 @@ class ModbusUI:
         canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
 
         mplcursors.cursor(ax)  # Enable interactive cursor
+
+    def hide_history(self, event):
+        if self.history_frame:
+            self.history_frame.destroy()
 
 # 실제로 실행하기 위한 Tkinter 메인 루프 설정
 if __name__ == "__main__":
