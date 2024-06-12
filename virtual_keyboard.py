@@ -22,9 +22,20 @@ class VirtualKeyboard:
         if x + keyboard_width > root_width:
             x = root_width - keyboard_width
 
-        # 입력 필드의 아래쪽에 키보드를 표시할 수 없는 경우, 위쪽에 표시
-        if y + keyboard_height > root_height:
+        # 입력 필드의 아래쪽과 위쪽 공간 확인
+        space_below = root_height - (entry.winfo_rooty() - self.root.winfo_rooty() + entry.winfo_height())
+        space_above = entry.winfo_rooty() - self.root.winfo_rooty()
+
+        if space_below < keyboard_height and space_above >= keyboard_height:
+            # 아래쪽 공간이 부족하고 위쪽 공간이 충분한 경우, 위쪽에 표시
             y = entry.winfo_rooty() - self.root.winfo_rooty() - keyboard_height
+        elif space_below >= keyboard_height:
+            # 아래쪽 공간이 충분한 경우, 아래쪽에 표시
+            y = entry.winfo_rooty() - self.root.winfo_rooty() + entry.winfo_height()
+        else:
+            # 위쪽과 아래쪽 공간이 모두 부족한 경우, 아래쪽에 표시하고 높이를 조정
+            y = entry.winfo_rooty() - self.root.winfo_rooty() + entry.winfo_height()
+            keyboard_height = space_below
 
         self.keyboard_window = tk.Toplevel(self.root)
         self.keyboard_window.overrideredirect(True)
