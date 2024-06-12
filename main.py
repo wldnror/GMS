@@ -78,7 +78,8 @@ def show_password_prompt():
     global attempt_count, lock_time, password_window, settings_window
 
     if time.time() < lock_time:
-        messagebox.showerror("잠금", "비밀번호 입력 시도가 5회 초과되었습니다. 30초 후에 다시 시도하십시오.")
+        remaining_time = int(lock_time - time.time())
+        messagebox.showerror("잠금", f"비밀번호 입력 시도가 5회 초과되었습니다. {remaining_time}초 후에 다시 시도하십시오.")
         return
 
     if password_window and password_window.winfo_exists():
@@ -134,12 +135,18 @@ def show_password_prompt():
         else:
             attempt_count += 1
             if attempt_count >= 5:
-                lock_time = time.time() + 30  # 30초 잠금
+                lock_time = time.time() + 60  # 60초 잠금
                 attempt_count = 0
                 password_window.destroy()
-                messagebox.showerror("잠금", "비밀번호 입력 시도가 5회 초과되었습니다. 30초 후에 다시 시도하십시오.")
+                update_lock_message()
             else:
                 Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
+
+    def update_lock_message():
+        if time.time() < lock_time:
+            remaining_time = int(lock_time - time.time())
+            messagebox.showerror("잠금", f"비밀번호 입력 시도가 5회 초과되었습니다. {remaining_time}초 후에 다시 시도하십시오.")
+            root.after(1000, update_lock_message)
 
     create_keypad()
     Button(password_window, text="확인", command=check_password).pack(pady=5)
