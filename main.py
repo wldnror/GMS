@@ -1,8 +1,29 @@
-from tkinter import Tk, Frame
+from tkinter import Tk, Frame, Button, Menu, Toplevel, Label
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import signal
 import sys
+
+def show_settings():
+    settings_window = Toplevel(root)
+    settings_window.title("Settings")
+    
+    Label(settings_window, text="Settings Menu", font=("Arial", 16)).pack(pady=10)
+    
+    Button(settings_window, text="Exit Fullscreen", command=exit_fullscreen).pack(pady=5)
+    Button(settings_window, text="Resize Window", command=resize_window).pack(pady=5)
+    Button(settings_window, text="Exit Application", command=exit_application).pack(pady=5)
+
+def exit_fullscreen(event=None):
+    root.attributes("-fullscreen", False)
+
+def resize_window():
+    root.attributes("-fullscreen", False)
+    root.geometry("800x600")
+
+def exit_application():
+    root.destroy()
+    sys.exit(0)
 
 if __name__ == "__main__":
     root = Tk()
@@ -16,9 +37,6 @@ if __name__ == "__main__":
     root.grid_columnconfigure(0, weight=1)
 
     # ESC 키를 눌러 전체 화면 모드를 종료할 수 있도록 이벤트를 설정합니다.
-    def exit_fullscreen(event):
-        root.attributes("-fullscreen", False)
-
     root.bind("<Escape>", exit_fullscreen)
 
     # 정상 종료를 위한 핸들러 추가
@@ -41,6 +59,10 @@ if __name__ == "__main__":
 
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)  # ModbusUI 배치
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
+
+    # 톱니바퀴 버튼 추가
+    settings_button = Button(root, text="⚙", command=show_settings, font=("Arial", 20))
+    settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     root.mainloop()
 
