@@ -29,10 +29,11 @@ BIT_TO_SEGMENT = {
     3: 'E-23'  # E-23
 }
 
-# 확대 배율 및 위치 조정 변수
-SCALE = 1.2
-x_offset_global = 0
-y_offset_global = 0
+# 확대 배율
+SCALE = 2
+# 위치 이동 값
+x_shift = 50
+y_shift = 50
 
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
@@ -61,13 +62,13 @@ def create_gradient_bar(width, height):
     return gradient
 
 def create_segment_display(box_canvas):
-    segment_canvas = Canvas(box_canvas, width=131 * SCALE, height=60 * SCALE, bg='#000000', highlightthickness=0)
-    segment_canvas.place(x=(23 + x_offset_global) * SCALE, y=(24 + y_offset_global) * SCALE)  # 상단에 위치
+    segment_canvas = Canvas(box_canvas, width=(131 + x_shift) * SCALE, height=(60 + y_shift) * SCALE, bg='#000000', highlightthickness=0)
+    segment_canvas.place(x=(23 + x_shift) * SCALE, y=(24 + y_shift) * SCALE)  # 상단에 위치
 
     segment_items = []
     for i in range(4):
-        x_offset = i * 29 * SCALE + 14 * SCALE
-        y_offset = i * 20 * SCALE
+        x_offset = (i * 29 + 14 + x_shift) * SCALE
+        y_offset = (i * 20 + y_shift) * SCALE
         segments = [
             # 상단 (4만큼 아래로 이동, 두께 10% 감소)
             segment_canvas.create_polygon(4 * SCALE + x_offset, 11.2 * SCALE + y_offset, 12 * SCALE + x_offset, 11.2 * SCALE + y_offset, 16 * SCALE + x_offset, 13.6 * SCALE + y_offset,
