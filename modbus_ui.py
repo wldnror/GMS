@@ -10,7 +10,7 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors  # mplcursors 라이브러리 추가
-from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display, show_history_graph
+from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 
 class ModbusUI:
     def __init__(self, root, num_boxes):
