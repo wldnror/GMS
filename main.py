@@ -1,6 +1,7 @@
 from tkinter import Tk, Frame, Button, Menu, Toplevel, Label
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
+from virtual_keyboard import VirtualKeyboard  # VirtualKeyboard 클래스 임포트
 import signal
 import sys
 import subprocess
