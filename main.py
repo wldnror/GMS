@@ -80,7 +80,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
 
     modbus_boxes = 7  # 원하는 Modbus TCP 상자 수를 설정하세요.
-    analog_boxes = 7  # 원하는 4~20mA 상자 수를 설정하세요.
+    analog_boxes = 5  # 원하는 4~20mA 상자 수를 설정하세요.
 
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
