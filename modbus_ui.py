@@ -57,6 +57,9 @@ class ModbusUI:
 
         self.root.after(100, self.process_queue)  # 주기적으로 큐를 처리하도록 설정
 
+        # 메인 윈도우의 클릭 이벤트 바인딩
+        self.root.bind("<Button-1>", self.check_click)
+
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")  # RGBA 모드로 변환하여 투명 배경 유지
         img.thumbnail(size, Image.LANCZOS)
@@ -434,8 +437,6 @@ class ModbusUI:
         self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
         self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
 
-        self.history_frame.bind("<Button-1>", self.hide_history)  # 히스토리 창을 닫기 위한 이벤트 바인딩
-
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
 
@@ -453,8 +454,14 @@ class ModbusUI:
         mplcursors.cursor(ax)  # Enable interactive cursor
 
     def hide_history(self, event):
-        if self.history_frame:
-            self.history_frame.destroy()
+        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
+            widget = event.widget
+            if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
+                self.history_frame.destroy()
+
+    def check_click(self, event):
+        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
+            self.hide_history(event)
 
 # 실제로 실행하기 위한 Tkinter 메인 루프 설정
 if __name__ == "__main__":
