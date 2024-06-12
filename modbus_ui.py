@@ -90,7 +90,6 @@ class ModbusUI:
         if entry.get() == placeholder:
             entry.delete(0, "end")
             entry.config(fg="black")
-        self.show_virtual_keyboard(entry)  # 포커스 인 이벤트에서도 가상 키보드를 표시합니다.
 
     def on_focus_out(self, event, entry, placeholder):
         if not entry.get():
