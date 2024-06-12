@@ -31,8 +31,8 @@ BIT_TO_SEGMENT = {
 
 # 확대 배율 및 위치 조정 변수
 SCALE = 1.2
-x_offset_global = 10
-y_offset_global = 20
+x_offset_global = 0
+y_offset_global = 0
 
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
