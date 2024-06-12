@@ -482,3 +482,4 @@ class ModbusUI:
             widget = event.widget
             if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
                 self.hide_history(event)
+
