@@ -165,8 +165,8 @@ class ModbusUI:
                                anchor="center")
 
         # 40011 값을 시각적으로 표시할 막대 추가
-        bar_canvas = Canvas(box_canvas, width=140, height=5, bg="white", highlightthickness=0)
-        bar_canvas.place(x=26, y=95)  # 막대를 상자 안의 원하는 위치에 배치
+        bar_canvas = Canvas(box_canvas, width=145, height=5, bg="white", highlightthickness=0)
+        bar_canvas.place(x=27, y=98)  # 막대를 상자 안의 원하는 위치에 배치
 
         # 전체 그라데이션 막대를 생성
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
