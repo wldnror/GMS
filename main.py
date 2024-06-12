@@ -10,16 +10,15 @@ def show_settings():
     
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
     
-    Button(settings_window, text="전체 화면", command=exit_fullscreen).pack(pady=5)
-    Button(settings_window, text="창 크기", command=resize_window).pack(pady=5)
+    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
+    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
     Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
 
-def resize_window():
-    root.attributes("-fullscreen", False)
-    root.geometry("800x600")
+def enter_fullscreen(event=None):
+    root.attributes("-fullscreen", True)
 
 def exit_application():
     root.destroy()
