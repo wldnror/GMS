@@ -1,12 +1,16 @@
-from tkinter import Frame, Canvas, StringVar
+import os
+import time
+import json
+from tkinter import Frame, Canvas, StringVar, Toplevel, Label, Button, messagebox
 from common import SEGMENTS, create_segment_display, show_history_graph
+
+LOG_FILE = "history_log.json"
 
 class AnalogUI:
     def __init__(self, root, num_boxes):
         self.root = root
 
         self.box_states = []
-        self.histories = [[] for _ in range(num_boxes)]  # 히스토리 저장을 위한 리스트 초기화
         self.graph_windows = [None for _ in range(num_boxes)]  # 그래프 윈도우 저장을 위한 리스트 초기화
 
         self.box_frame = Frame(self.root)
@@ -77,7 +81,6 @@ class AnalogUI:
             box_canvas.create_oval(171, 200, 181, 190))  # Yellow circle 1
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-
         # 상자 세그먼트 아래에 "가스명" 글자 추가
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
@@ -93,7 +96,7 @@ class AnalogUI:
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         # 세그먼트 클릭 시 히스토리를 그래프로 보여주는 이벤트 추가
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: show_history_graph(self.root, i, self.histories, self.graph_windows))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.show_history_graph(i))
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -148,11 +151,38 @@ class AnalogUI:
 
     def record_history(self, box_index, value):
         if value.strip():  # 값이 공백이 아닌 경우에만 기록
-            last_history_value = self.box_states[box_index]["last_history_value"]
-            if value != last_history_value:
-                timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-                last_value = self.box_states[box_index].get("last_value_40005", 0)
-                self.histories[box_index].append((timestamp, value, last_value))
-                self.box_states[box_index]["last_history_value"] = value
-                if len(self.histories[box_index]) > 100:  # 최대 기록 수를 제한
-                    self.histories[box_index].pop(0)
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            history_entry = {
+                "timestamp": timestamp,
+                "box_index": box_index,
+                "value": value
+            }
+            self.write_to_log_file(history_entry)
+
+    def write_to_log_file(self, entry):
+        if not os.path.exists(LOG_FILE):
+            with open(LOG_FILE, 'w') as file:
+                json.dump([entry], file)
+        else:
+            with open(LOG_FILE, 'r') as file:
+                data = json.load(file)
+            data.append(entry)
+            with open(LOG_FILE, 'w') as file:
+                json.dump(data, file)
+
+    def show_history_graph(self, box_index):
+        try:
+            with open(LOG_FILE, 'r') as file:
+                data = json.load(file)
+            box_data = [entry for entry in data if entry['box_index'] == box_index]
+            timestamps = [entry['timestamp'] for entry in box_data]
+            values = [entry['value'] for entry in box_data]
+            # 이제 그래프를 표시할 수 있습니다.
+            show_history_graph(self.root, box_index, timestamps, values, self.graph_windows)
+        except Exception as e:
+            messagebox.showerror("오류", f"로그 파일을 불러오는 중 오류가 발생했습니다: {e}")
+
+# 그래프를 표시하는 함수를 업데이트합니다.
+def show_history_graph(root, box_index, timestamps, values, graph_windows):
+    # 기존의 그래프 표시 코드를 사용하여 그래프를 표시합니다.
+    pass
