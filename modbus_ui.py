@@ -28,6 +28,7 @@ class ModbusUI:
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
         self.history_window = None  # 히스토리 창을 저장할 변수
+        self.history_lock = threading.Lock()  # 히스토리 창 중복 방지를 위한 락
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=20, pady=20)
         self.row_frames = []
@@ -162,7 +163,10 @@ class ModbusUI:
 
         self.show_bar(i, show=False)
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.show_history_graph(i))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.on_segment_click(i))
+
+    def on_segment_click(self, box_index):
+        threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -223,38 +227,39 @@ class ModbusUI:
                 file.write(log_line)
 
     def show_history_graph(self, box_index):
-        if self.history_window and self.history_window.winfo_exists():
-            self.history_window.destroy()
+        with self.history_lock:
+            if self.history_window and self.history_window.winfo_exists():
+                self.history_window.destroy()
 
-        self.history_window = Toplevel(self.root)
-        self.history_window.title(f"History - Box {box_index}")
-        self.history_window.geometry("1200x800")
+            self.history_window = Toplevel(self.root)
+            self.history_window.title(f"History - Box {box_index}")
+            self.history_window.geometry("1200x800")
 
-        figure = plt.Figure(figsize=(12, 8), dpi=100)
-        ax = figure.add_subplot(111)
+            figure = plt.Figure(figsize=(12, 8), dpi=100)
+            ax = figure.add_subplot(111)
 
-        log_file = os.path.join(self.history_dir, f"box_{box_index}.log")
+            log_file = os.path.join(self.history_dir, f"box_{box_index}.log")
 
-        times = []
-        values = []
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
-                for line in file:
-                    timestamp, value = line.strip().split(',')
-                    times.append(timestamp)
-                    values.append(value)
+            times = []
+            values = []
+            if os.path.exists(log_file):
+                with open(log_file, 'r') as file:
+                    for line in file:
+                        timestamp, value = line.strip().split(',')
+                        times.append(timestamp)
+                        values.append(value)
 
-        ax.plot(times, values, marker='o')
-        ax.set_title('History')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Value')
-        figure.autofmt_xdate()
+            ax.plot(times, values, marker='o')
+            ax.set_title('History')
+            ax.set_xlabel('Time')
+            ax.set_ylabel('Value')
+            figure.autofmt_xdate()
 
-        canvas = FigureCanvasTkAgg(figure, master=self.history_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
+            canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+            canvas.draw()
+            canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
 
-        mplcursors.cursor(ax)
+            mplcursors.cursor(ax)
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
