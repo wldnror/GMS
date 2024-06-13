@@ -1,6 +1,6 @@
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel
+from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel, Scrollbar, HORIZONTAL
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
@@ -14,6 +14,8 @@ from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment
 from virtual_keyboard import VirtualKeyboard
 
 class ModbusUI:
+    LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
+
     def __init__(self, root, num_boxes):
         self.root = root
         self.virtual_keyboard = VirtualKeyboard(root)
@@ -221,22 +223,41 @@ class ModbusUI:
         if value.strip():
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
             log_line = f"{timestamp},{value}\n"
-            log_file_prefix = os.path.join(self.history_dir, f"box_{box_index}")
-            log_files = [f for f in os.listdir(self.history_dir) if f.startswith(f"box_{box_index}_")]
-            log_files.sort()
+            log_file_index = self.get_log_file_index(box_index)
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
 
-            if log_files:
-                latest_file = log_files[-1]
-                with open(os.path.join(self.history_dir, latest_file), 'a') as file:
-                    file.write(log_line)
-                if sum(1 for line in open(os.path.join(self.history_dir, latest_file))) >= 10:
-                    new_file = f"{log_file_prefix}_{len(log_files)}.log"
-                    with open(new_file, 'a') as file:
-                        file.write(log_line)
-            else:
-                new_file = f"{log_file_prefix}_0.log"
-                with open(new_file, 'a') as file:
-                    file.write(log_line)
+            with open(log_file, 'a') as file:
+                file.write(log_line)
+
+    def get_log_file_index(self, box_index):
+        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                return index
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                if len(lines) < self.LOGS_PER_FILE:
+                    return index
+            index += 1
+
+    def load_log_files(self, box_index):
+        """모든 로그 파일을 로드하여 시간순으로 정렬된 로그 목록을 반환"""
+        log_entries = []
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                break
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                for line in lines:
+                    timestamp, value = line.strip().split(',')
+                    log_entries.append((timestamp, value))
+            index += 1
+        log_entries.sort()
+        return log_entries
 
     def show_history_graph(self, box_index):
         with self.history_lock:
@@ -248,31 +269,27 @@ class ModbusUI:
             self.history_window.geometry("1200x800")
             self.history_window.attributes("-topmost", True)
 
+            frame = Frame(self.history_window)
+            frame.pack(fill="both", expand=True)
+
             figure = plt.Figure(figsize=(12, 8), dpi=100)
             ax = figure.add_subplot(111)
 
-            log_file_prefix = os.path.join(self.history_dir, f"box_{box_index}")
-            log_files = [f for f in os.listdir(self.history_dir) if f.startswith(f"box_{box_index}_")]
-            log_files.sort()
-
-            times = []
-            values = []
-            for log_file in log_files:
-                with open(os.path.join(self.history_dir, log_file), 'r') as file:
-                    for line in file:
-                        timestamp, value = line.strip().split(',')
-                        times.append(timestamp)
-                        values.append(value)
-
+            log_entries = self.load_log_files(box_index)
+            times, values = zip(*log_entries) if log_entries else ([], [])
             ax.plot(times, values, marker='o')
             ax.set_title('History')
             ax.set_xlabel('Time')
             ax.set_ylabel('Value')
             figure.autofmt_xdate()
 
-            canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+            canvas = FigureCanvasTkAgg(figure, master=frame)
             canvas.draw()
-            canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
+            canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+
+            scrollbar = Scrollbar(frame, orient=HORIZONTAL, command=canvas.get_tk_widget().xview)
+            scrollbar.pack(side="bottom", fill="x")
+            canvas.get_tk_widget().config(xscrollcommand=scrollbar.set)
 
             mplcursors.cursor(ax)
 
