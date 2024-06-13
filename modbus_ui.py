@@ -1,7 +1,7 @@
 import os
 import time
-import threading
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label
+import threading
 import queue
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
@@ -453,12 +453,9 @@ class ModbusUI:
 
             except ConnectionException:
                 self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
-                if self.connect_to_server(ip, client):
-                    self.console.print(f"Reconnected to {ip}")
-                else:
-                    self.console.print(f"Failed to reconnect to {ip}. Exiting thread.")
-                    stop_flag.set()
-                    break
+                self.handle_disconnection(box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
+                break
 
     def update_bar(self, value, bar_canvas, bar_item):
         percentage = value / 100.0
@@ -499,3 +496,25 @@ class ModbusUI:
             widget = event.widget
             if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
                 self.hide_history(event)
+
+    def handle_disconnection(self, box_index):
+        self.update_circle_state([False, False, False, False], box_index=box_index)
+        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        self.show_bar(box_index, show=False)
+        self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.root.after(0, lambda: self.entries[box_index].config(state=NORMAL))
+
+    def reconnect(self, ip, client, stop_flag, box_index):
+        while not stop_flag.is_set():
+            if client.connect():
+                self.console.print(f"Reconnected to the Modbus server at {ip}")
+                stop_flag.clear()
+                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
+                self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                self.root.after(0, lambda: self.entries[box_index].config(state=DISABLED))
+                self.update_circle_state([False, False, True, False], box_index=box_index)
+                self.show_bar(box_index, show=True)
+                break
+            else:
+                self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
+                time.sleep(1)
