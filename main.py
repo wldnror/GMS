@@ -2,7 +2,11 @@ import tkinter as tk
 from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
 import random
 import time
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
 import psutil
+import signal
+import sys
 import subprocess
 import os
 import json
