@@ -234,6 +234,7 @@ class ModbusUI:
             self.history_window = Toplevel(self.root)
             self.history_window.title(f"History - Box {box_index}")
             self.history_window.geometry("1200x800")
+            self.history_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정
 
             figure = plt.Figure(figsize=(12, 8), dpi=100)
             ax = figure.add_subplot(111)
