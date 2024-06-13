@@ -360,109 +360,107 @@ class ModbusUI:
         del self.stop_flags[ip]
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-    blink_state_middle = False
-    blink_state_top = False
-    interval = 0.4
-    next_call = time.time()
-    while not stop_flag.is_set():
-        try:
-            if not client.is_socket_open():
-                raise ConnectionException("Socket is closed")
+        blink_state_middle = False
+        blink_state_top = False
+        interval = 0.4
+        next_call = time.time()
+        while not stop_flag.is_set():
+            try:
+                if not client.is_socket_open():
+                    raise ConnectionException("Socket is closed")
 
-            address_40001 = 40001 - 1
-            address_40005 = 40005 - 1
-            address_40007 = 40008 - 1
-            address_40011 = 40011 - 1
-            count = 1
+                address_40001 = 40001 - 1
+                address_40005 = 40005 - 1
+                address_40007 = 40008 - 1
+                address_40011 = 40011 - 1
+                count = 1
+                result_40001 = client.read_holding_registers(address_40001, count, unit=1)
+                result_40005 = client.read_holding_registers(address_40005, count, unit=1)
+                result_40007 = client.read_holding_registers(address_40007, count, unit=1)
+                result_40011 = client.read_holding_registers(address_40011, count, unit=1)
 
-            result_40001 = client.read_holding_registers(address_40001, count, unit=1)
-            result_40005 = client.read_holding_registers(address_40005, count, unit=1)
-            result_40007 = client.read_holding_registers(address_40007, count, unit=1)
-            result_40011 = client.read_holding_registers(address_40011, count, unit=1)
+                if not result_40001.isError():
+                    value_40001 = result_40001.registers[0]
 
-            if not result_40001.isError():
-                value_40001 = result_40001.registers[0]
+                    bit_6_on = bool(value_40001 & (1 << 6))
+                    bit_7_on = bool(value_40001 & (1 << 7))
 
-                bit_6_on = bool(value_40001 & (1 << 6))
-                bit_7_on = bool(value_40001 & (1 << 7))
-
-                if bit_7_on:
-                    blink_state_top = not blink_state_top
-                    top_blink = blink_state_top
-                    middle_fixed = True
-                    middle_blink = True
-                    self.record_history(box_index, 'A2')
-                elif bit_6_on:
-                    blink_state_middle = not blink_state_middle
-                    top_blink = False
-                    middle_fixed = True
-                    middle_blink = blink_state_middle
-                    self.record_history(box_index, 'A1')
-                else:
-                    top_blink = False
-                    middle_blink = False
-                    middle_fixed = True
-
-                self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
-
-            if not result_40005.isError():
-                value_40005 = result_40005.registers[0]
-                self.box_states[box_index]["last_value_40005"] = value_40005
-
-                if not result_40007.isError():
-                    value_40007 = result_40007.registers[0]
-
-                    bits = [bool(value_40007 & (1 << n)) for n in range(4)]
-
-                    if not any(bits):
-                        formatted_value = f"{value_40005:04d}"
-                        self.data_queue.put((box_index, formatted_value, False))
+                    if bit_7_on:
+                        blink_state_top = not blink_state_top
+                        top_blink = blink_state_top
+                        middle_fixed = True
+                        middle_blink = True
+                        self.record_history(box_index, 'A2')
+                    elif bit_6_on:
+                        blink_state_middle = not blink_state_middle
+                        top_blink = False
+                        middle_fixed = True
+                        middle_blink = blink_state_middle
+                        self.record_history(box_index, 'A1')
                     else:
-                        error_display = ""
-                        for i, bit in enumerate(bits):
-                            if bit:
-                                error_display = BIT_TO_SEGMENT[i]
-                                self.record_history(box_index, error_display)
-                                break
+                        top_blink = False
+                        middle_blink = False
+                        middle_fixed = True
 
-                        error_display = error_display.ljust(4)
+                    self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
 
-                        if 'E' in error_display:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.data_queue.put((box_index, error_display, True))
-                            self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]],
-                                                     box_index=box_index)
+                if not result_40005.isError():
+                    value_40005 = result_40005.registers[0]
+                    self.box_states[box_index]["last_value_40005"] = value_40005
+
+                    if not result_40007.isError():
+                        value_40007 = result_40007.registers[0]
+
+                        bits = [bool(value_40007 & (1 << n)) for n in range(4)]
+
+                        if not any(bits):
+                            formatted_value = f"{value_40005:04d}"
+                            self.data_queue.put((box_index, formatted_value, False))
                         else:
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.data_queue.put((box_index, error_display, False))
-                            self.update_circle_state([False, False, True, False], box_index=box_index)
+                            error_display = ""
+                            for i, bit in enumerate(bits):
+                                if bit:
+                                    error_display = BIT_TO_SEGMENT[i]
+                                    self.record_history(box_index, error_display)
+                                    break
+
+                            error_display = error_display.ljust(4)
+
+                            if 'E' in error_display:
+                                self.box_states[box_index]["blinking_error"] = True
+                                self.data_queue.put((box_index, error_display, True))
+                                self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]],
+                                                         box_index=box_index)
+                            else:
+                                self.box_states[box_index]["blinking_error"] = False
+                                self.data_queue.put((box_index, error_display, False))
+                                self.update_circle_state([False, False, True, False], box_index=box_index)
+                    else:
+                        self.console.print(f"Error from {ip}: {result_40007}")
                 else:
-                    self.console.print(f"Error from {ip}: {result_40007}")
-            else:
-                self.console.print(f"Error from {ip}: {result_40005}")
+                    self.console.print(f"Error from {ip}: {result_40005}")
 
-            if not result_40011.isError():
-                value_40011 = result_40011.registers[0]
-                self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
+                if not result_40011.isError():
+                    value_40011 = result_40011.registers[0]
+                    self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
 
-            next_call += interval
-            sleep_time = next_call - time.time()
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            else:
-                next_call = time.time()
+                next_call += interval
+                sleep_time = next_call - time.time()
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                else:
+                    next_call = time.time()
 
-        except ConnectionException as e:
-            self.console.print(f"Connection to {ip} lost: {e}. Attempting to reconnect...")
-            self.handle_disconnection(box_index)
-            self.reconnect(ip, client, stop_flag, box_index)
-            break
-
-        except Exception as e:
-            self.console.print(f"Unexpected error: {e}. Attempting to reconnect...")
-            self.handle_disconnection(box_index)
-            self.reconnect(ip, client, stop_flag, box_index)
-            break
+            except ConnectionException:
+                self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
+                self.handle_disconnection(box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
+                break
+            except AttributeError as e:
+                self.console.print(f"Error reading data from {ip}: {e}")
+                self.handle_disconnection(box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
+                break
 
     def update_bar(self, value, bar_canvas, bar_item):
         percentage = value / 100.0
