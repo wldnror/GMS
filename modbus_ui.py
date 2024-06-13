@@ -1,6 +1,6 @@
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel, Scrollbar, HORIZONTAL
+from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
@@ -242,21 +242,16 @@ class ModbusUI:
                     return index
             index += 1
 
-    def load_log_files(self, box_index):
-        """모든 로그 파일을 로드하여 시간순으로 정렬된 로그 목록을 반환"""
+    def load_log_files(self, box_index, file_index):
+        """특정 로그 파일을 로드하여 로그 목록을 반환"""
         log_entries = []
-        index = 0
-        while True:
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
-            if not os.path.exists(log_file):
-                break
+        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
+        if os.path.exists(log_file):
             with open(log_file, 'r') as file:
                 lines = file.readlines()
                 for line in lines:
                     timestamp, value = line.strip().split(',')
                     log_entries.append((timestamp, value))
-            index += 1
-        log_entries.sort()
         return log_entries
 
     def show_history_graph(self, box_index):
@@ -269,29 +264,42 @@ class ModbusUI:
             self.history_window.geometry("1200x800")
             self.history_window.attributes("-topmost", True)
 
-            frame = Frame(self.history_window)
-            frame.pack(fill="both", expand=True)
+            self.current_file_index = self.get_log_file_index(box_index) - 1
+            self.update_history_graph(box_index, self.current_file_index)
 
-            figure = plt.Figure(figsize=(12, 8), dpi=100)
-            ax = figure.add_subplot(111)
+    def update_history_graph(self, box_index, file_index):
+        log_entries = self.load_log_files(box_index, file_index)
+        times, values = zip(*log_entries) if log_entries else ([], [])
 
-            log_entries = self.load_log_files(box_index)
-            times, values = zip(*log_entries) if log_entries else ([], [])
-            ax.plot(times, values, marker='o')
-            ax.set_title('History')
-            ax.set_xlabel('Time')
-            ax.set_ylabel('Value')
-            figure.autofmt_xdate()
+        figure = plt.Figure(figsize=(12, 8), dpi=100)
+        ax = figure.add_subplot(111)
 
-            canvas = FigureCanvasTkAgg(figure, master=frame)
-            canvas.draw()
-            canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+        ax.plot(times, values, marker='o')
+        ax.set_title(f'History - Box {box_index} (File {file_index + 1})')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Value')
+        figure.autofmt_xdate()
 
-            scrollbar = Scrollbar(frame, orient=HORIZONTAL, command=canvas.get_tk_widget().xview)
-            scrollbar.pack(side="bottom", fill="x")
-            canvas.get_tk_widget().config(xscrollcommand=scrollbar.set)
+        canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
 
-            mplcursors.cursor(ax)
+        nav_frame = Frame(self.history_window)
+        nav_frame.pack(side="bottom")
+
+        prev_button = Button(nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
+        prev_button.pack(side="left")
+
+        next_button = Button(nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
+        next_button.pack(side="right")
+
+        mplcursors.cursor(ax)
+
+    def navigate_logs(self, box_index, direction):
+        self.current_file_index += direction
+        if self.current_file_index < 0:
+            self.current_file_index = 0
+        self.update_history_graph(box_index, self.current_file_index)
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
