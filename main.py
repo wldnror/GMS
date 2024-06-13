@@ -311,7 +311,7 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
-    root.after(5000, update_status_label)
+    root.after(1000, update_status_label)
 
 if __name__ == "__main__":
     root = Tk()
