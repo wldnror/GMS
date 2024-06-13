@@ -1,141 +1,335 @@
-from tkinter import Frame, Canvas, Label, Toplevel, Button
-from common import SEGMENTS, create_segment_display
+from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
+import random
+import time
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
+import signal
+import sys
+import subprocess
+import os
+import json
+from cryptography.fernet import Fernet
 
-class ModbusUI:
-    def __init__(self, root, num_boxes):
-        self.root = root
-        self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=40, pady=40)
+# 글로벌 변수로 설정 창을 참조합니다.
+settings_window = None
+password_window = None
+attempt_count = 0
+lock_time = 0
+lock_window = None
+box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
+new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
 
-        self.box_states = []
-        self.histories = [[] for _ in range(num_boxes)]
-        self.graph_windows = [None for _ in range(num_boxes)]
+# 설정 값을 저장할 파일 경로
+SETTINGS_FILE = "settings.json"
+KEY_FILE = "secret.key"
 
-        for _ in range(num_boxes):
-            self.create_modbus_box()
+# 암호화 키 생성 및 로드
+def generate_key():
+    key = Fernet.generate_key()
+    with open(KEY_FILE, "wb") as key_file:
+        key_file.write(key)
 
-        for i in range(num_boxes):
-            self.update_circle_state([False, False, False, False], box_index=i)
+def load_key():
+    if not os.path.exists(KEY_FILE):
+        generate_key()
+    with open(KEY_FILE, "rb") as key_file:
+        return key_file.read()
 
-    def create_modbus_box(self):
-        i = len(self.box_states)
-        row = i // 7
-        col = i % 7
+key = load_key()
+cipher_suite = Fernet(key)
 
-        if col == 0:
-            row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0)
-            self.row_frames.append(row_frame)
+def encrypt_data(data):
+    return cipher_suite.encrypt(data.encode())
+
+def decrypt_data(data):
+    return cipher_suite.decrypt(data).decode()
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'rb') as file:
+            encrypted_data = file.read()
+        decrypted_data = decrypt_data(encrypted_data)
+        return json.loads(decrypted_data)
+    else:
+        return {"modbus_boxes": 14, "analog_boxes": 0, "admin_password": None}
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, 'wb') as file:
+        encrypted_data = encrypt_data(json.dumps(settings))
+        file.write(encrypted_data)
+
+settings = load_settings()
+admin_password = settings.get("admin_password")
+
+def create_keypad(entry, shuffle=True):
+    keypad_frame = Frame(entry.master)
+    keypad_frame.pack()
+
+    def on_button_click(char):
+        if char == 'DEL':
+            current_text = entry.get()
+            entry.delete(0, tk.END)
+            entry.insert(0, current_text[:-1])
+        elif char == 'CLR':
+            entry.delete(0, tk.END)
         else:
-            row_frame = self.row_frames[-1]
+            entry.insert(tk.END, char)
 
-        box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=20, pady=20)
+    buttons = [str(i) for i in range(10)]
+    if shuffle:
+        random.shuffle(buttons)
+    buttons.append('CLR')
+    buttons.append('DEL')
 
-        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000",
-                            highlightcolor="#000000")
-        box_canvas.pack()
+    rows = 4
+    cols = 3
+    for i, button in enumerate(buttons):
+        b = Button(keypad_frame, text=button, width=5, height=2,
+                   command=lambda b=button: on_button_click(b))
+        b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
+    
+    return keypad_frame
 
-        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
+def prompt_new_password():
+    global new_password_window
+    if new_password_window and new_password_window.winfo_exists():
+        new_password_window.focus()
+        return
 
-        create_segment_display(box_canvas)
-        self.box_states.append({
-            "blink_state": False,
-            "blinking_error": False,
-            "previous_value_40011": None,
-            "previous_segment_display": None,
-            "last_history_time": None,
-            "last_history_value": None
-        })
-        self.update_segment_display("    ", box_canvas, box_index=i)
+    new_password_window = Toplevel(root)
+    new_password_window.title("관리자 비밀번호 설정")
+    new_password_window.attributes("-topmost", True)
 
-        circle_items = []
+    Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
+    new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
+    new_password_entry.pack(pady=5)
+    create_keypad(new_password_entry)
 
-        circle_items.append(
-            box_canvas.create_oval(133, 200, 123, 190))
-        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
+    def confirm_password():
+        new_password = new_password_entry.get()
+        new_password_window.destroy()
+        prompt_confirm_password(new_password)
 
-        circle_items.append(
-            box_canvas.create_oval(77, 200, 87, 190))
-        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
+    Button(new_password_window, text="다음", command=confirm_password).pack(pady=5)
 
-        circle_items.append(
-            box_canvas.create_oval(30, 200, 40, 190))
-        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
+def prompt_confirm_password(new_password):
+    global new_password_window
+    if new_password_window and new_password_window.winfo_exists():
+        new_password_window.focus()
+        return
 
-        circle_items.append(
-            box_canvas.create_oval(171, 200, 181, 190))
-        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
+    new_password_window = Toplevel(root)
+    new_password_window.title("비밀번호 확인")
+    new_password_window.attributes("-topmost", True)
 
-        box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+    Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
+    confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
+    confirm_password_entry.pack(pady=5)
+    create_keypad(confirm_password_entry)
 
-        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc",
-                               anchor="center")
-
-        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc",
-                               anchor="center")
-
-        self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
-
-        box_canvas.bind("<Button-1>", lambda event, i=i: show_history_graph(self.root, i, self.histories, self.graph_windows))
-
-    def update_circle_state(self, states, box_index=0):
-        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
-
-        colors_on = ['red', 'red', 'green', 'yellow']
-        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
-        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
-        outline_color_off = '#000000'
-
-        for i, state in enumerate(states):
-            color = colors_on[i] if state else colors_off[i]
-            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
-
-        if states[0]:
-            outline_color = outline_colors[0]
-        elif states[1]:
-            outline_color = outline_colors[1]
-        elif states[3]:
-            outline_color = outline_colors[3]
+    def save_new_password():
+        confirm_password = confirm_password_entry.get()
+        if new_password == confirm_password and new_password:
+            settings["admin_password"] = new_password
+            save_settings(settings)
+            messagebox.showinfo("비밀번호 설정", "새로운 비밀번호가 설정되었습니다.")
+            new_password_window.destroy()
+            restart_application()
         else:
-            outline_color = outline_color_off
+            messagebox.showerror("비밀번호 오류", "비밀번호가 일치하지 않거나 유효하지 않습니다.")
+            new_password_window.destroy()
+            prompt_new_password()
 
-        box_canvas.config(highlightbackground=outline_color)
+    Button(new_password_window, text="저장", command=save_new_password).pack(pady=5)
 
-    def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)
-        leading_zero = True
-        blink_state = self.box_states[box_index]["blink_state"]
-        previous_segment_display = self.box_states[box_index]["previous_segment_display"]
+def show_password_prompt():
+    global attempt_count, lock_time, password_window, settings_window, lock_window
 
-        if value != previous_segment_display:
-            self.record_history(box_index, value)
-            self.box_states[box_index]["previous_segment_display"] = value
+    if time.time() < lock_time:
+        if not lock_window or not lock_window.winfo_exists():
+            lock_window = Toplevel(root)
+            lock_window.title("잠금")
+            lock_window.attributes("-topmost", True)
+            lock_window.geometry("300x150")
+            lock_label = Label(lock_window, text="", font=("Arial", 12))
+            lock_label.pack(pady=10)
+            Button(lock_window, text="확인", command=lock_window.destroy).pack(pady=5)
 
-        for i, digit in enumerate(value):
-            if leading_zero and digit == '0' and i < 3:
-                segments = SEGMENTS[' ']
+            def update_lock_message():
+                if lock_label.winfo_exists():
+                    remaining_time = int(lock_time - time.time())
+                    lock_label.config(text=f"비밀번호 입력 시도가 5회 초과되었습니다.\n{remaining_time}초 후에 다시 시도하십시오.")
+                    if remaining_time > 0:
+                        root.after(1000, update_lock_message)
+                    else:
+                        lock_window.destroy()
+
+            update_lock_message()
+        return
+
+    if password_window and password_window.winfo_exists():
+        password_window.focus()
+        return
+
+    if settings_window and settings_window.winfo_exists():
+        settings_window.destroy()
+
+    password_window = Toplevel(root)
+    password_window.title("비밀번호 입력")
+    password_window.attributes("-topmost", True)
+
+    Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
+    password_entry = Entry(password_window, show="*", font=("Arial", 12))
+    password_entry.pack(pady=5)
+    create_keypad(password_entry)
+
+    def check_password():
+        global attempt_count, lock_time
+        if password_entry.get() == admin_password:
+            password_window.destroy()
+            show_settings()
+        else:
+            attempt_count += 1
+            if attempt_count >= 5:
+                lock_time = time.time() + 60  # 60초 잠금
+                attempt_count = 0
+                password_window.destroy()
+                show_password_prompt()
             else:
-                segments = SEGMENTS[digit]
-                leading_zero = False
+                Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
 
-            if blink and blink_state:
-                segments = SEGMENTS[' ']
+    Button(password_window, text="확인", command=check_password).pack(pady=5)
 
-            for j, state in enumerate(segments):
-                color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
+def show_settings():
+    global settings_window
+    if settings_window and settings_window.winfo_exists():
+        settings_window.focus()
+        return
 
-        self.box_states[box_index]["blink_state"] = not blink_state
+    settings_window = Toplevel(root)
+    settings_window.title("Settings")
+    settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
 
-    def record_history(self, box_index, value):
-        if value.strip():
-            last_history_value = self.box_states[box_index]["last_history_value"]
-            if value != last_history_value:
-                timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-                last_value = self.box_states[box_index].get("last_value_40005", 0)
-                self.histories[box_index].append((timestamp, value, last_value))
-                self.box_states[box_index]["last_history_value"] = value
-                if len(self.histories[box_index]) > 100:
-                    self.histories[box_index].pop(0)
+    Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
+
+    Button(settings_window, text="상자 설정", command=show_box_settings).pack(pady=5)
+    Button(settings_window, text="비밀번호 변경", command=prompt_new_password).pack(pady=5)
+    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
+    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
+    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
+
+def show_box_settings():
+    global box_settings_window
+    if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.focus()
+        return
+
+    box_settings_window = Toplevel(root)
+    box_settings_window.title("상자 설정")
+    box_settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
+    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
+    modbus_entry.insert(0, settings["modbus_boxes"])
+    modbus_entry.pack(pady=5)
+    create_keypad(modbus_entry, shuffle=False)
+
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
+    analog_entry = Entry(box_settings_window, font=("Arial", 12))
+    analog_entry.insert(0, settings["analog_boxes"])
+    analog_entry.pack(pady=5)
+    create_keypad(analog_entry, shuffle=False)
+
+    def save_and_close():
+        try:
+            settings["modbus_boxes"] = int(modbus_entry.get())
+            settings["analog_boxes"] = int(analog_entry.get())
+            save_settings(settings)
+            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            box_settings_window.destroy()
+            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+        except ValueError:
+            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
+
+    Button(box_settings_window, text="저장", command=save_and_close).pack(pady=5)
+
+def exit_fullscreen(event=None):
+    root.attributes("-fullscreen", False)
+    root.attributes("-topmost", False)
+
+def enter_fullscreen(event=None):
+    root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)
+
+def exit_application():
+    root.destroy()
+    sys.exit(0)
+
+def update_system():
+    try:
+        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
+
+        if local_commit == remote_commit:
+            Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
+        else:
+            result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
+            Label(settings_window, text="업데이트 완료. 애플리케이션을 재시작합니다.", font=("Arial", 12)).pack(pady=5)
+            root.after(2000, restart_application)
+    except Exception as e:
+        Label(settings_window, text=f"업데이트 중 오류 발생: {e}", font=("Arial", 12)).pack(pady=5)
+
+def restart_application():
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+
+if __name__ == "__main__":
+    root = Tk()
+    root.title("GDSENG - 스마트 모니터링 시스템")
+
+    root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)
+
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    root.bind("<Escape>", exit_fullscreen)
+
+    def signal_handler(sig, frame):
+        print("Exiting gracefully...")
+        root.destroy()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    if not admin_password:
+        prompt_new_password()
+
+    modbus_boxes = settings["modbus_boxes"]
+    analog_boxes = settings["analog_boxes"]
+
+    main_frame = Frame(root)
+    main_frame.grid(row=0, column=0)
+
+    modbus_ui = ModbusUI(main_frame, modbus_boxes)
+    analog_ui = AnalogUI(main_frame, analog_boxes)
+
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
+
+    settings_button = Button(root, text="⚙", command=show_password_prompt, font=("Arial", 20))
+    def on_enter(event):
+        event.widget.config(background="#b2b2b2", foreground="black")
+    def on_leave(event):
+        event.widget.config(background="#b2b2b2", foreground="black")
+
+    settings_button.bind("<Enter>", on_enter)
+    settings_button.bind("<Leave>", on_leave)
+
+    settings_button.place(relx=1.0, rely=1.0, anchor='se')
+
+    root.mainloop()
+
+    for _, client in modbus_ui.clients.items():
+        client.close()
