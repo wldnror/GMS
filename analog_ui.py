@@ -145,10 +145,22 @@ class AnalogUI:
         if value.strip():
             timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
             log_line = f"{timestamp},{value}\n"
-            log_file = os.path.join(self.history_dir, f"box_{box_index}.log")
+            log_file_prefix = os.path.join(self.history_dir, f"box_{box_index}")
+            log_files = [f for f in os.listdir(self.history_dir) if f.startswith(f"box_{box_index}_")]
+            log_files.sort()
 
-            with open(log_file, 'a') as file:
-                file.write(log_line)
+            if log_files:
+                latest_file = log_files[-1]
+                with open(os.path.join(self.history_dir, latest_file), 'a') as file:
+                    file.write(log_line)
+                if sum(1 for line in open(os.path.join(self.history_dir, latest_file))) >= 10:
+                    new_file = f"{log_file_prefix}_{len(log_files)}.log"
+                    with open(new_file, 'a') as file:
+                        file.write(log_line)
+            else:
+                new_file = f"{log_file_prefix}_0.log"
+                with open(new_file, 'a') as file:
+                    file.write(log_line)
 
     def show_history_graph(self, box_index):
         with self.history_lock:
@@ -158,17 +170,19 @@ class AnalogUI:
             self.history_window = Toplevel(self.root)
             self.history_window.title(f"History - Box {box_index}")
             self.history_window.geometry("1200x800")
-            self.history_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정
+            self.history_window.attributes("-topmost", True)
 
             figure = plt.Figure(figsize=(12, 8), dpi=100)
             ax = figure.add_subplot(111)
 
-            log_file = os.path.join(self.history_dir, f"box_{box_index}.log")
+            log_file_prefix = os.path.join(self.history_dir, f"box_{box_index}")
+            log_files = [f for f in os.listdir(self.history_dir) if f.startswith(f"box_{box_index}_")]
+            log_files.sort()
 
             times = []
             values = []
-            if os.path.exists(log_file):
-                with open(log_file, 'r') as file:
+            for log_file in log_files:
+                with open(os.path.join(self.history_dir, log_file), 'r') as file:
                     for line in file:
                         timestamp, value = line.strip().split(',')
                         times.append(timestamp)
