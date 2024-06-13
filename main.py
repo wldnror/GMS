@@ -100,14 +100,27 @@ def prompt_new_password():
     new_password_entry = Entry(password_window, show="*", font=("Arial", 12))
     new_password_entry.pack(pady=5)
     create_keypad(new_password_entry)
-    
+
+    def confirm_password():
+        new_password = new_password_entry.get()
+        password_window.destroy()
+        prompt_confirm_password(new_password)
+
+    Button(password_window, text="다음", command=confirm_password).pack(pady=5)
+
+def prompt_confirm_password(new_password):
+    global password_window
+
+    password_window = Toplevel(root)
+    password_window.title("비밀번호 확인")
+    password_window.attributes("-topmost", True)
+
     Label(password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(password_window, show="*", font=("Arial", 12))
     confirm_password_entry.pack(pady=5)
     create_keypad(confirm_password_entry)
 
     def save_new_password():
-        new_password = new_password_entry.get()
         confirm_password = confirm_password_entry.get()
         if new_password == confirm_password and new_password:
             settings["admin_password"] = new_password
@@ -117,6 +130,8 @@ def prompt_new_password():
             restart_application()
         else:
             messagebox.showerror("비밀번호 오류", "비밀번호가 일치하지 않거나 유효하지 않습니다.")
+            password_window.destroy()
+            prompt_new_password()
 
     Button(password_window, text="저장", command=save_new_password).pack(pady=5)
 
