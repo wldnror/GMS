@@ -1,7 +1,7 @@
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import threading
+from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
@@ -150,8 +150,12 @@ class AnalogUI:
             log_file_index = self.get_log_file_index(box_index)
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
 
-            with open(log_file, 'a') as file:
-                file.write(log_line)
+            # 비동기적으로 로그 파일에 기록
+            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
 
     def get_log_file_index(self, box_index):
         """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
