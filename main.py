@@ -7,6 +7,8 @@ import subprocess
 import os
 import json
 from cryptography.fernet import Fernet
+import socket
+import signal
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
