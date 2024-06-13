@@ -1,4 +1,4 @@
-from tkinter import Frame, Canvas, StringVar
+from tkinter import Frame, Canvas
 from common import SEGMENTS, create_segment_display, show_history_graph
 
 class AnalogUI:
@@ -77,7 +77,6 @@ class AnalogUI:
             box_canvas.create_oval(171, 200, 181, 190))  # Yellow circle 1
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-
         # 상자 세그먼트 아래에 "가스명" 글자 추가
         box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
@@ -93,7 +92,7 @@ class AnalogUI:
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         # 세그먼트 클릭 시 히스토리를 그래프로 보여주는 이벤트 추가
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: show_history_graph(self.root, i, self.histories, self.graph_windows))
+        box_canvas.bind("<Button-1>", lambda event, i=i: show_history_graph(self.root, i, self.histories, self.graph_windows))
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -142,7 +141,7 @@ class AnalogUI:
 
             for j, state in enumerate(segments):
                 color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
+                box_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
 
         self.box_states[box_index]["blink_state"] = not blink_state  # 깜빡임 상태 토글
 
