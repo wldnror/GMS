@@ -210,17 +210,20 @@ def show_settings():
         return
 
     settings_window = Toplevel(root)
-    settings_window.title("Settings")
-    settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+    settings_window.title("설정 메뉴")
+    settings_window.attributes("-topmost", True)
 
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
 
-    Button(settings_window, text="상자 설정", command=show_box_settings).pack(pady=5)
-    Button(settings_window, text="비밀번호 변경", command=prompt_new_password).pack(pady=5)
-    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
-    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
-    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start()).pack(pady=5)
-    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
+    button_font = ("Arial", 14)
+    button_style = {'font': button_font, 'width': 25, 'height': 2, 'padx': 10, 'pady': 10}
+
+    Button(settings_window, text="상자 설정", command=show_box_settings, **button_style).pack(pady=5)
+    Button(settings_window, text="비밀번호 변경", command=prompt_new_password, **button_style).pack(pady=5)
+    Button(settings_window, text="창 크기 설정", command=exit_fullscreen, **button_style).pack(pady=5)
+    Button(settings_window, text="전체 화면 설정", command=enter_fullscreen, **button_style).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).pack(pady=5)
+    Button(settings_window, text="애플리케이션 종료", command=exit_application, **button_style).pack(pady=5)
 
 def show_box_settings():
     global box_settings_window
@@ -230,7 +233,7 @@ def show_box_settings():
 
     box_settings_window = Toplevel(root)
     box_settings_window.title("상자 설정")
-    box_settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+    box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
@@ -255,7 +258,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close).pack(pady=5)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).pack(pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
