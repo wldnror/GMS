@@ -219,7 +219,7 @@ def show_settings():
     Button(settings_window, text="비밀번호 변경", command=prompt_new_password).pack(pady=5)
     Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
     Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
-    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start()).pack(pady=5)
     Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
 
 def show_box_settings():
@@ -275,13 +275,15 @@ def update_system():
         remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
 
         if local_commit == remote_commit:
-            Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
+            message = "이미 최신 버전입니다."
         else:
             result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
-            Label(settings_window, text="업데이트 완료. 애플리케이션을 재시작합니다.", font=("Arial", 12)).pack(pady=5)
+            message = "업데이트 완료. 애플리케이션을 재시작합니다."
             root.after(2000, restart_application)
     except Exception as e:
-        Label(settings_window, text=f"업데이트 중 오류 발생: {e}", font=("Arial", 12)).pack(pady=5)
+        message = f"업데이트 중 오류 발생: {e}"
+    
+    messagebox.showinfo("시스템 업데이트", message)
 
 def restart_application():
     python = sys.executable
