@@ -67,6 +67,7 @@ def prompt_new_password():
             save_password(new_password)
             messagebox.showinfo("비밀번호 설정", "새로운 비밀번호가 설정되었습니다.")
             password_window.destroy()
+            restart_application()
         else:
             messagebox.showerror("비밀번호 오류", "비밀번호가 일치하지 않거나 유효하지 않습니다.")
 
