@@ -332,10 +332,10 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[i].config(state=DISABLED))
+                self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
-                self.virtual_keyboard.hide()
+                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
             else:
                 self.console.print(f"Failed to connect to {ip}")
 
@@ -349,7 +349,7 @@ class ModbusUI:
             self.cleanup_client(ip)
             self.ip_vars[i].set('')
             self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0)
-            self.root.after(0, lambda: self.entries[i].config(state=NORMAL))
+            self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
             self.update_circle_state([False, False, False, False], box_index=i)
             self.update_segment_display("    ", self.box_frames[i][1], box_index=i)
             self.show_bar(i, show=False)
@@ -502,7 +502,7 @@ class ModbusUI:
         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.root.after(0, lambda: self.entries[box_index].config(state=NORMAL))
+        self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
 
     def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
@@ -511,7 +511,7 @@ class ModbusUI:
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[box_index].config(state=DISABLED))
+                self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=box_index)
                 self.show_bar(box_index, show=True)
                 break
