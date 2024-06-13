@@ -16,6 +16,7 @@ password_window = None
 attempt_count = 0
 lock_time = 0
 lock_window = None
+box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
