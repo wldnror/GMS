@@ -1,10 +1,10 @@
 import os
 import time
-from tkinter import Frame, Canvas, StringVar
+from tkinter import Frame, Canvas, StringVar, Toplevel
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common import SEGMENTS, create_segment_display, show_history_graph
+from common import SEGMENTS, create_segment_display
 
 class AnalogUI:
     def __init__(self, root, num_boxes):
@@ -13,13 +13,14 @@ class AnalogUI:
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
         self.graph_windows = [None for _ in range(num_boxes)]
+        self.history_window = None  # 히스토리 창을 저장할 변수
 
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=40, pady=40)
 
         self.row_frames = []
         self.box_frames = []
-        self.history_dir = "analog_history_logs"  # 로그 파일을 저장할 디렉토리
+        self.history_dir = "analog_history_logs"
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -145,16 +146,12 @@ class AnalogUI:
                 file.write(log_line)
 
     def show_history_graph(self, box_index):
-        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            self.history_frame.destroy()
+        if self.history_window and self.history_window.winfo_exists():
+            self.history_window.destroy()
 
-        self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
-        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
-
-        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
-        self.overlay.place(x=0, y=0)
-        self.overlay.lower(self.history_frame)
-        self.overlay.bind("<Button-1>", self.hide_history)
+        self.history_window = Toplevel(self.root)
+        self.history_window.title(f"History - Box {box_index}")
+        self.history_window.geometry("1200x800")
 
         figure = plt.Figure(figsize=(12, 8), dpi=100)
         ax = figure.add_subplot(111)
@@ -176,14 +173,8 @@ class AnalogUI:
         ax.set_ylabel('Value')
         figure.autofmt_xdate()
 
-        canvas = FigureCanvasTkAgg(figure, master=self.history_frame)
+        canvas = FigureCanvasTkAgg(figure, master=self.history_window)
         canvas.draw()
         canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
 
         mplcursors.cursor(ax)
-
-    def hide_history(self, event=None):
-        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            self.history_frame.destroy()
-        if hasattr(self, 'overlay') and self.overlay.winfo_exists():
-            self.overlay.destroy()
