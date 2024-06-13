@@ -20,31 +20,48 @@ box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
-PASSWORD_FILE = "password.json"
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
         with open(SETTINGS_FILE, 'r') as file:
             return json.load(file)
     else:
-        return {"modbus_boxes": 14, "analog_boxes": 0}
+        return {"modbus_boxes": 14, "analog_boxes": 0, "admin_password": None}
 
 def save_settings(settings):
     with open(SETTINGS_FILE, 'w') as file:
         json.dump(settings, file)
 
-def load_password():
-    if os.path.exists(PASSWORD_FILE):
-        with open(PASSWORD_FILE, 'r') as file:
-            return json.load(file).get("admin_password", None)
-    return None
-
-def save_password(password):
-    with open(PASSWORD_FILE, 'w') as file:
-        json.dump({"admin_password": password}, file)
-
 settings = load_settings()
-admin_password = load_password()
+admin_password = settings.get("admin_password")
+
+def create_keypad(entry):
+    keypad_frame = Frame(entry.master)
+    keypad_frame.pack()
+
+    def on_button_click(char):
+        if char == 'DEL':
+            current_text = entry.get()
+            entry.delete(0, tk.END)
+            entry.insert(0, current_text[:-1])
+        elif char == 'CLR':
+            entry.delete(0, tk.END)
+        else:
+            entry.insert(tk.END, char)
+
+    buttons = [str(i) for i in range(10)]
+    random.shuffle(buttons)
+    buttons.append('CLR')
+    buttons.append('DEL')
+
+    rows = 4
+    cols = 3
+    for i, button in enumerate(buttons):
+        b = Button(keypad_frame, text=button, width=5, height=2,
+                   command=lambda b=button: on_button_click(b))
+        b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
+    
+    return keypad_frame
 
 def prompt_new_password():
     global password_window
@@ -56,15 +73,19 @@ def prompt_new_password():
     Label(password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(password_window, show="*", font=("Arial", 12))
     new_password_entry.pack(pady=5)
+    create_keypad(new_password_entry)
+    
     Label(password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(password_window, show="*", font=("Arial", 12))
     confirm_password_entry.pack(pady=5)
+    create_keypad(confirm_password_entry)
 
     def save_new_password():
         new_password = new_password_entry.get()
         confirm_password = confirm_password_entry.get()
         if new_password == confirm_password and new_password:
-            save_password(new_password)
+            settings["admin_password"] = new_password
+            save_settings(settings)
             messagebox.showinfo("비밀번호 설정", "새로운 비밀번호가 설정되었습니다.")
             password_window.destroy()
             restart_application()
@@ -111,36 +132,7 @@ def show_password_prompt():
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
     password_entry.pack(pady=5)
-
-    keypad_frame = Frame(password_window)
-    keypad_frame.pack()
-
-    def create_keypad():
-        for widget in keypad_frame.winfo_children():
-            widget.destroy()
-
-        buttons = [str(i) for i in range(10)]
-        random.shuffle(buttons)
-        buttons.append('CLR')
-        buttons.append('DEL')
-
-        rows = 4
-        cols = 3
-        for i, button in enumerate(buttons):
-            b = Button(keypad_frame, text=button, width=5, height=2,
-                       command=lambda b=button: on_button_click(b, password_entry))
-            b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
-
-    def on_button_click(char, entry):
-        create_keypad()  # 버튼 클릭 시 키패드 재배치
-        if char == 'DEL':
-            current_text = entry.get()
-            entry.delete(0, tk.END)
-            entry.insert(0, current_text[:-1])
-        elif char == 'CLR':
-            entry.delete(0, tk.END)
-        else:
-            entry.insert(tk.END, char)
+    create_keypad(password_entry)
 
     def check_password():
         global attempt_count, lock_time
@@ -157,7 +149,6 @@ def show_password_prompt():
             else:
                 Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
 
-    create_keypad()
     Button(password_window, text="확인", command=check_password).pack(pady=5)
 
 def show_settings():
