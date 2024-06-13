@@ -7,8 +7,35 @@ import subprocess
 import os
 import json
 from cryptography.fernet import Fernet
-import socket
-import signal
+import socket  # socket 모듈 임포트
+import signal  # signal 모듈 임포트
+
+# ModbusUI와 AnalogUI 클래스 정의
+class ModbusUI:
+    def __init__(self, master, box_count):
+        self.master = master
+        self.box_count = box_count
+        self.clients = {}
+        self.box_frame = Frame(master)
+        self.create_boxes()
+
+    def create_boxes(self):
+        for i in range(self.box_count):
+            label = Label(self.box_frame, text=f"Modbus Box {i+1}")
+            label.pack(padx=10, pady=5)
+
+class AnalogUI:
+    def __init__(self, master, box_count):
+        self.master = master
+        self.box_count = box_count
+        self.clients = {}
+        self.box_frame = Frame(master)
+        self.create_boxes()
+
+    def create_boxes(self):
+        for i in range(self.box_count):
+            label = Label(self.box_frame, text=f"Analog Box {i+1}")
+            label.pack(padx=10, pady=5)
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
