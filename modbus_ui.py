@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
@@ -325,6 +325,11 @@ class ModbusUI:
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
+        if ip in self.connected_clients:
+            self.console.print(f"{ip} 이미 연결됨.")
+            messagebox.showwarning("연결 실패", f"{ip} IP 주소는 이미 연결되어 있습니다.")
+            return
+
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502)
             if self.connect_to_server(ip, client):
@@ -335,7 +340,7 @@ class ModbusUI:
                                                               args=(ip, client, stop_flag, i))
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
-                self.console.print(f"Started data thread for {ip}")
+                self.console.print(f"{ip} 데이터 스레드 시작")
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=i)
@@ -343,14 +348,14 @@ class ModbusUI:
                 self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
                 self.save_ip_settings()  # 연결된 IP 저장
             else:
-                self.console.print(f"Failed to connect to {ip}")
+                self.console.print(f"{ip} 연결 실패")
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
             self.stop_flags[ip].set()
             self.clients[ip].close()
-            self.console.print(f"Disconnected from {ip}")
+            self.console.print(f"{ip} 연결 해제")
             self.connected_clients[ip].join()
             self.cleanup_client(ip)
             self.ip_vars[i].set('')
@@ -459,12 +464,12 @@ class ModbusUI:
                     next_call = time.time()
 
             except ConnectionException:
-                self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
+                self.console.print(f"{ip} 연결이 끊어짐. 재연결 시도 중...")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
             except AttributeError as e:
-                self.console.print(f"Error reading data from {ip}: {e}")
+                self.console.print(f"{ip} 데이터 읽기 오류: {e}")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
@@ -489,10 +494,10 @@ class ModbusUI:
         retries = 5
         for attempt in range(retries):
             if client.connect():
-                self.console.print(f"Connected to the Modbus server at {ip}")
+                self.console.print(f"{ip} Modbus 서버에 연결됨")
                 return True
             else:
-                self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
+                self.console.print(f"{ip} 연결 시도 {attempt + 1} 실패. 5초 후 재시도...")
                 time.sleep(5)
         return False
 
@@ -519,7 +524,7 @@ class ModbusUI:
     def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
             if client.connect():
-                self.console.print(f"Reconnected to the Modbus server at {ip}")
+                self.console.print(f"{ip} Modbus 서버에 재연결됨")
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
@@ -528,7 +533,7 @@ class ModbusUI:
                 self.show_bar(box_index, show=True)
                 break
             else:
-                self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
+                self.console.print(f"{ip} 재연결 시도 실패. 1초 후 재시도...")
                 time.sleep(1)
 
     def save_ip_settings(self):
