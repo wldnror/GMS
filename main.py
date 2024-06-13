@@ -19,6 +19,7 @@ lock_window = None
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
+PASSWORD_FILE = "password.json"
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
@@ -31,102 +32,45 @@ def save_settings(settings):
     with open(SETTINGS_FILE, 'w') as file:
         json.dump(settings, file)
 
+def load_password():
+    if os.path.exists(PASSWORD_FILE):
+        with open(PASSWORD_FILE, 'r') as file:
+            return json.load(file).get("admin_password", None)
+    return None
+
+def save_password(password):
+    with open(PASSWORD_FILE, 'w') as file:
+        json.dump({"admin_password": password}, file)
+
 settings = load_settings()
+admin_password = load_password()
 
-# 설정 페이지를 여는 함수
-def show_settings():
-    global settings_window
-    # 이미 설정 창이 열려 있는 경우, 창을 포커스로 가져옵니다.
-    if settings_window and settings_window.winfo_exists():
-        settings_window.focus()
-        return
+def prompt_new_password():
+    global password_window
 
-    settings_window = Toplevel(root)
-    settings_window.title("Settings")
-    settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+    password_window = Toplevel(root)
+    password_window.title("관리자 비밀번호 설정")
+    password_window.attributes("-topmost", True)
 
-    Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
+    Label(password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
+    new_password_entry = Entry(password_window, show="*", font=("Arial", 12))
+    new_password_entry.pack(pady=5)
+    Label(password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
+    confirm_password_entry = Entry(password_window, show="*", font=("Arial", 12))
+    confirm_password_entry.pack(pady=5)
 
-    Button(settings_window, text="상자 설정", command=show_box_settings).pack(pady=5)
-    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
-    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
-    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
-    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
-
-# 상자 설정 페이지를 여는 함수
-def show_box_settings():
-    global box_settings_window
-    if box_settings_window and box_settings_window.winfo_exists():
-        box_settings_window.focus()
-        return
-
-    box_settings_window = Toplevel(root)
-    box_settings_window.title("상자 설정")
-    box_settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
-
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
-    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
-    modbus_entry.insert(0, settings["modbus_boxes"])
-    modbus_entry.pack(pady=5)
-
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
-    analog_entry = Entry(box_settings_window, font=("Arial", 12))
-    analog_entry.insert(0, settings["analog_boxes"])
-    analog_entry.pack(pady=5)
-
-    def save_and_close():
-        try:
-            settings["modbus_boxes"] = int(modbus_entry.get())
-            settings["analog_boxes"] = int(analog_entry.get())
-            save_settings(settings)
-            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
-            box_settings_window.destroy()
-            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
-        except ValueError:
-            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
-
-    Button(box_settings_window, text="저장", command=save_and_close).pack(pady=5)
-
-# 전체 화면 해제
-def exit_fullscreen(event=None):
-    root.attributes("-fullscreen", False)
-    root.attributes("-topmost", False)  # 전체 화면 해제 시 최상위 속성도 해제
-
-# 전체 화면 설정
-def enter_fullscreen(event=None):
-    root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)  # 전체 화면 모드에서는 최상위 속성 설정
-
-# 애플리케이션 종료
-def exit_application():
-    root.destroy()
-    sys.exit(0)
-
-# 시스템 업데이트
-def update_system():
-    try:
-        # 로컬 리포지토리의 최신 커밋 해시를 가져옵니다.
-        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
-        # 원격 리포지토리의 최신 커밋 해시를 가져옵니다.
-        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
-
-        if local_commit == remote_commit:
-            # 최신 버전일 경우
-            Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
+    def save_new_password():
+        new_password = new_password_entry.get()
+        confirm_password = confirm_password_entry.get()
+        if new_password == confirm_password and new_password:
+            save_password(new_password)
+            messagebox.showinfo("비밀번호 설정", "새로운 비밀번호가 설정되었습니다.")
+            password_window.destroy()
         else:
-            # 업데이트가 있는 경우
-            result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
-            Label(settings_window, text="업데이트 완료. 애플리케이션을 재시작합니다.", font=("Arial", 12)).pack(pady=5)
-            root.after(2000, restart_application)  # 2초 후에 애플리케이션 재시작
-    except Exception as e:
-        Label(settings_window, text=f"업데이트 중 오류 발생: {e}", font=("Arial", 12)).pack(pady=5)
+            messagebox.showerror("비밀번호 오류", "비밀번호가 일치하지 않거나 유효하지 않습니다.")
 
-# 애플리케이션 재시작
-def restart_application():
-    python = sys.executable
-    os.execl(python, python, *sys.argv)
+    Button(password_window, text="저장", command=save_new_password).pack(pady=5)
 
-# 비밀번호 입력 창을 표시하는 함수
 def show_password_prompt():
     global attempt_count, lock_time, password_window, settings_window, lock_window
 
@@ -198,7 +142,7 @@ def show_password_prompt():
 
     def check_password():
         global attempt_count, lock_time
-        if password_entry.get() == "00700":  # 비밀번호 설정
+        if password_entry.get() == admin_password:
             password_window.destroy()
             show_settings()
         else:
@@ -214,22 +158,100 @@ def show_password_prompt():
     create_keypad()
     Button(password_window, text="확인", command=check_password).pack(pady=5)
 
+def show_settings():
+    global settings_window
+    if settings_window and settings_window.winfo_exists():
+        settings_window.focus()
+        return
+
+    settings_window = Toplevel(root)
+    settings_window.title("Settings")
+    settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+
+    Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
+
+    Button(settings_window, text="상자 설정", command=show_box_settings).pack(pady=5)
+    Button(settings_window, text="비밀번호 변경", command=prompt_new_password).pack(pady=5)
+    Button(settings_window, text="창 크기", command=exit_fullscreen).pack(pady=5)
+    Button(settings_window, text="완전 전체화면", command=enter_fullscreen).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=update_system).pack(pady=5)
+    Button(settings_window, text="애플리케이션 종료", command=exit_application).pack(pady=5)
+
+def show_box_settings():
+    global box_settings_window
+    if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.focus()
+        return
+
+    box_settings_window = Toplevel(root)
+    box_settings_window.title("상자 설정")
+    box_settings_window.attributes("-topmost", True)  # 창이 항상 최상위에 위치하도록 설정합니다.
+
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
+    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
+    modbus_entry.insert(0, settings["modbus_boxes"])
+    modbus_entry.pack(pady=5)
+
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
+    analog_entry = Entry(box_settings_window, font=("Arial", 12))
+    analog_entry.insert(0, settings["analog_boxes"])
+    analog_entry.pack(pady=5)
+
+    def save_and_close():
+        try:
+            settings["modbus_boxes"] = int(modbus_entry.get())
+            settings["analog_boxes"] = int(analog_entry.get())
+            save_settings(settings)
+            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            box_settings_window.destroy()
+            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+        except ValueError:
+            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
+
+    Button(box_settings_window, text="저장", command=save_and_close).pack(pady=5)
+
+def exit_fullscreen(event=None):
+    root.attributes("-fullscreen", False)
+    root.attributes("-topmost", False)
+
+def enter_fullscreen(event=None):
+    root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)
+
+def exit_application():
+    root.destroy()
+    sys.exit(0)
+
+def update_system():
+    try:
+        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
+
+        if local_commit == remote_commit:
+            Label(settings_window, text="이미 최신 버전입니다.", font=("Arial", 12)).pack(pady=5)
+        else:
+            result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
+            Label(settings_window, text="업데이트 완료. 애플리케이션을 재시작합니다.", font=("Arial", 12)).pack(pady=5)
+            root.after(2000, restart_application)
+    except Exception as e:
+        Label(settings_window, text=f"업데이트 중 오류 발생: {e}", font=("Arial", 12)).pack(pady=5)
+
+def restart_application():
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+
 if __name__ == "__main__":
     root = Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
 
-    # 전체 화면 설정
     root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)  # 전체 화면 모드에서는 최상위 속성 설정
+    root.attributes("-topmost", True)
 
-    # 중앙 정렬 설정
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
-    # ESC 키를 눌러 전체 화면 모드를 종료할 수 있도록 이벤트를 설정합니다.
     root.bind("<Escape>", exit_fullscreen)
 
-    # 정상 종료를 위한 핸들러 추가
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
         root.destroy()
@@ -237,27 +259,27 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    if not admin_password:
+        prompt_new_password()
+
     modbus_boxes = settings["modbus_boxes"]
     analog_boxes = settings["analog_boxes"]
 
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
 
-    # 각 UI의 부모를 main_frame으로 설정
     modbus_ui = ModbusUI(main_frame, modbus_boxes)
     analog_ui = AnalogUI(main_frame, analog_boxes)
 
-    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)  # ModbusUI 배치
-    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)  # AnalogUI 배치
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
-    # 톱니바퀴 버튼 추가
     settings_button = Button(root, text="⚙", command=show_password_prompt, font=("Arial", 20))
-    # 마우스 오버 이벤트 핸들러
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
-    # 이벤트 바인딩
+
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
 
