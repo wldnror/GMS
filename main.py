@@ -11,9 +11,8 @@ import subprocess
 import os
 import json
 from cryptography.fernet import Fernet
-import socket  # socket 모듈 임포트
-import signal  # signal 모듈 임포트
-
+import socket
+import threading
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -311,7 +310,6 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
-    root.after(1000, update_status_label)
 
 if __name__ == "__main__":
     root = Tk()
@@ -361,7 +359,12 @@ if __name__ == "__main__":
     status_label = Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    update_status_label()
+    def system_info_thread():
+        while True:
+            update_status_label()
+            time.sleep(1)
+
+    threading.Thread(target=system_info_thread, daemon=True).start()
 
     root.mainloop()
 
