@@ -62,7 +62,7 @@ def save_settings(settings):
 settings = load_settings()
 admin_password = settings.get("admin_password")
 
-def create_keypad(entry):
+def create_keypad(entry, shuffle=True):
     keypad_frame = Frame(entry.master)
     keypad_frame.pack()
 
@@ -77,7 +77,8 @@ def create_keypad(entry):
             entry.insert(tk.END, char)
 
     buttons = [str(i) for i in range(10)]
-    random.shuffle(buttons)
+    if shuffle:
+        random.shuffle(buttons)
     buttons.append('CLR')
     buttons.append('DEL')
 
@@ -233,13 +234,13 @@ def show_box_settings():
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
     modbus_entry.insert(0, settings["modbus_boxes"])
     modbus_entry.pack(pady=5)
-    create_keypad(modbus_entry)
+    create_keypad(modbus_entry, shuffle=False)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
     analog_entry = Entry(box_settings_window, font=("Arial", 12))
     analog_entry.insert(0, settings["analog_boxes"])
     analog_entry.pack(pady=5)
-    create_keypad(analog_entry)
+    create_keypad(analog_entry, shuffle=False)
 
     def save_and_close():
         try:
