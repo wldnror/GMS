@@ -3,7 +3,6 @@ import time
 from tkinter import Frame, Canvas, StringVar, DISABLED, NORMAL, Entry, Button, Toplevel
 import threading
 import queue
-import random
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
@@ -28,12 +27,13 @@ class ModbusUI:
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
+        self.history_window = None  # 히스토리 창을 저장할 변수
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=20, pady=20)
         self.row_frames = []
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(153, 5)
-        self.history_dir = "history_logs"  # 로그 파일을 저장할 디렉토리
+        self.history_dir = "history_logs"
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -162,7 +162,7 @@ class ModbusUI:
 
         self.show_bar(i, show=False)
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.display_history(i))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.show_history_graph(i))
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -221,6 +221,40 @@ class ModbusUI:
 
             with open(log_file, 'a') as file:
                 file.write(log_line)
+
+    def show_history_graph(self, box_index):
+        if self.history_window and self.history_window.winfo_exists():
+            self.history_window.destroy()
+
+        self.history_window = Toplevel(self.root)
+        self.history_window.title(f"History - Box {box_index}")
+        self.history_window.geometry("1200x800")
+
+        figure = plt.Figure(figsize=(12, 8), dpi=100)
+        ax = figure.add_subplot(111)
+
+        log_file = os.path.join(self.history_dir, f"box_{box_index}.log")
+
+        times = []
+        values = []
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as file:
+                for line in file:
+                    timestamp, value = line.strip().split(',')
+                    times.append(timestamp)
+                    values.append(value)
+
+        ax.plot(times, values, marker='o')
+        ax.set_title('History')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Value')
+        figure.autofmt_xdate()
+
+        canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
+
+        mplcursors.cursor(ax)
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
@@ -403,50 +437,6 @@ class ModbusUI:
             box_canvas = self.box_frames[box_index][1]
             self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
         self.root.after(100, self.process_queue)
-
-    def display_history(self, box_index):
-        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            self.history_frame.destroy()
-
-        self.history_frame = Frame(self.root, bg='white', bd=2, relief='solid')
-        self.history_frame.place(relx=0.5, rely=0.5, anchor='center', width=1200, height=800)
-
-        self.overlay = Frame(self.root, bg='', width=self.root.winfo_screenwidth(), height=self.root.winfo_screenheight())
-        self.overlay.place(x=0, y=0)
-        self.overlay.lower(self.history_frame)
-        self.overlay.bind("<Button-1>", self.hide_history)
-
-        figure = plt.Figure(figsize=(12, 8), dpi=100)
-        ax = figure.add_subplot(111)
-
-        log_file = os.path.join(self.history_dir, f"box_{box_index}.log")
-
-        times = []
-        values = []
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
-                for line in file:
-                    timestamp, value = line.strip().split(',')
-                    times.append(timestamp)
-                    values.append(value)
-
-        ax.plot(times, values, marker='o')
-        ax.set_title('History')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Value')
-        figure.autofmt_xdate()
-
-        canvas = FigureCanvasTkAgg(figure, master=self.history_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side='top', fill='both', expand=1)
-
-        mplcursors.cursor(ax)
-
-    def hide_history(self, event=None):
-        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            self.history_frame.destroy()
-        if hasattr(self, 'overlay') and self.overlay.winfo_exists():
-            self.overlay.destroy()
 
     def check_click(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
