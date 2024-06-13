@@ -21,7 +21,7 @@ class ModbusUI:
     def __init__(self, root, num_boxes):
         self.root = root
         self.virtual_keyboard = VirtualKeyboard(root)
-        self.ip_vars = []
+        self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
         self.entries = []
         self.action_buttons = []
         self.clients = {}
@@ -43,6 +43,8 @@ class ModbusUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
+        self.load_ip_settings(num_boxes)
+
         script_dir = os.path.dirname(os.path.abspath(__file__))
         connect_image_path = os.path.join(script_dir, "img/on.png")
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
@@ -50,10 +52,8 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (50, 70))
         self.disconnect_image = self.load_image(disconnect_image_path, (50, 70))
 
-        self.load_ip_settings(num_boxes)
-
-        for _ in range(num_boxes):
-            self.create_modbus_box()
+        for i in range(num_boxes):
+            self.create_modbus_box(i)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
@@ -102,10 +102,9 @@ class ModbusUI:
         self.on_focus_in(event, entry, placeholder)
         self.show_virtual_keyboard(entry)
 
-    def create_modbus_box(self):
-        i = len(self.box_frames)
-        row = i // 7
-        col = i % 7
+    def create_modbus_box(self, index):
+        row = index // 7
+        col = index % 7
 
         if col == 0:
             row_frame = Frame(self.box_frame)
@@ -132,15 +131,14 @@ class ModbusUI:
             "last_history_time": None,
             "last_history_value": None
         })
-        self.update_segment_display("    ", box_canvas, box_index=i)
+        self.update_segment_display("    ", box_canvas, box_index=index)
 
         control_frame = Frame(box_canvas, bg="black")
         control_frame.place(x=10, y=250)
 
-        ip_var = StringVar()
-        self.ip_vars.append(ip_var)
+        ip_var = self.ip_vars[index]
 
-        self.add_ip_row(control_frame, ip_var, i)
+        self.add_ip_row(control_frame, ip_var, index)
 
         circle_items = []
 
@@ -170,9 +168,9 @@ class ModbusUI:
 
         self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
 
-        self.show_bar(i, show=False)
+        self.show_bar(index, show=False)
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.on_segment_click(i))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
@@ -543,6 +541,6 @@ class ModbusUI:
             with open(self.SETTINGS_FILE, 'r') as file:
                 ip_settings = json.load(file)
                 for i in range(min(num_boxes, len(ip_settings))):
-                    self.ip_vars.append(StringVar(value=ip_settings[i]))
+                    self.ip_vars[i].set(ip_settings[i])
         else:
             self.ip_vars = [StringVar() for _ in range(num_boxes)]
