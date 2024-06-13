@@ -9,6 +9,7 @@ import sys
 import subprocess
 import os
 import json
+from cryptography.fernet import Fernet
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -20,17 +21,42 @@ box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
+KEY_FILE = "secret.key"
+
+# 암호화 키 생성 및 로드
+def generate_key():
+    key = Fernet.generate_key()
+    with open(KEY_FILE, "wb") as key_file:
+        key_file.write(key)
+
+def load_key():
+    if not os.path.exists(KEY_FILE):
+        generate_key()
+    with open(KEY_FILE, "rb") as key_file:
+        return key_file.read()
+
+key = load_key()
+cipher_suite = Fernet(key)
+
+def encrypt_data(data):
+    return cipher_suite.encrypt(data.encode())
+
+def decrypt_data(data):
+    return cipher_suite.decrypt(data).decode()
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as file:
-            return json.load(file)
+        with open(SETTINGS_FILE, 'rb') as file:
+            encrypted_data = file.read()
+        decrypted_data = decrypt_data(encrypted_data)
+        return json.loads(decrypted_data)
     else:
         return {"modbus_boxes": 14, "analog_boxes": 0, "admin_password": None}
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'w') as file:
-        json.dump(settings, file)
+    with open(SETTINGS_FILE, 'wb') as file:
+        encrypted_data = encrypt_data(json.dumps(settings))
+        file.write(encrypted_data)
 
 settings = load_settings()
 admin_password = settings.get("admin_password")
