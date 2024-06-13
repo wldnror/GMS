@@ -204,18 +204,22 @@ class AnalogUI:
         ax.set_ylabel('Value')
         figure.autofmt_xdate()
 
-        canvas = FigureCanvasTkAgg(figure, master=self.history_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+        if hasattr(self, 'canvas'):
+            self.canvas.get_tk_widget().destroy()
 
-        nav_frame = Frame(self.history_window)
-        nav_frame.pack(side="bottom")
+        self.canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
 
-        prev_button = Button(nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
-        prev_button.pack(side="left")
+        if not hasattr(self, 'nav_frame'):
+            self.nav_frame = Frame(self.history_window)
+            self.nav_frame.pack(side="bottom")
 
-        next_button = Button(nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
-        next_button.pack(side="right")
+            self.prev_button = Button(self.nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
+            self.prev_button.pack(side="left")
+
+            self.next_button = Button(self.nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
+            self.next_button.pack(side="right")
 
         mplcursors.cursor(ax)
 
@@ -223,4 +227,7 @@ class AnalogUI:
         self.current_file_index += direction
         if self.current_file_index < 0:
             self.current_file_index = 0
+        elif self.current_file_index >= self.get_log_file_index(box_index):
+            self.current_file_index = self.get_log_file_index(box_index) - 1
+
         self.update_history_graph(box_index, self.current_file_index)
