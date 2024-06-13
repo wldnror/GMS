@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label
@@ -15,6 +16,7 @@ from virtual_keyboard import VirtualKeyboard
 
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
+    SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
 
     def __init__(self, root, num_boxes):
         self.root = root
@@ -48,6 +50,8 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (50, 70))
         self.disconnect_image = self.load_image(disconnect_image_path, (50, 70))
 
+        self.load_ip_settings(num_boxes)
+
         for _ in range(num_boxes):
             self.create_modbus_box()
 
@@ -65,7 +69,10 @@ class ModbusUI:
     def add_ip_row(self, frame, ip_var, index):
         entry = Entry(frame, textvariable=ip_var, width=16, highlightthickness=0)
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
-        entry.insert(0, placeholder_text)
+        if ip_var.get() == '':
+            entry.insert(0, placeholder_text)
+            entry.config(fg="grey")
+
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
@@ -336,6 +343,7 @@ class ModbusUI:
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
+                self.save_ip_settings()  # 연결된 IP 저장
             else:
                 self.console.print(f"Failed to connect to {ip}")
 
@@ -353,6 +361,7 @@ class ModbusUI:
             self.update_circle_state([False, False, False, False], box_index=i)
             self.update_segment_display("    ", self.box_frames[i][1], box_index=i)
             self.show_bar(i, show=False)
+            self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -523,3 +532,17 @@ class ModbusUI:
             else:
                 self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
                 time.sleep(1)
+
+    def save_ip_settings(self):
+        ip_settings = [ip_var.get() for ip_var in self.ip_vars]
+        with open(self.SETTINGS_FILE, 'w') as file:
+            json.dump(ip_settings, file)
+
+    def load_ip_settings(self, num_boxes):
+        if os.path.exists(self.SETTINGS_FILE):
+            with open(self.SETTINGS_FILE, 'r') as file:
+                ip_settings = json.load(file)
+                for i in range(min(num_boxes, len(ip_settings))):
+                    self.ip_vars.append(StringVar(value=ip_settings[i]))
+        else:
+            self.ip_vars = [StringVar() for _ in range(num_boxes)]
