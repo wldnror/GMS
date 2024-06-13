@@ -1,14 +1,52 @@
 from tkinter import Frame, Canvas
 from common import SEGMENTS, create_segment_display, show_history_graph
+import sqlite3
+import time
+
+def initialize_database():
+    conn = sqlite3.connect('histories.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS history (
+            box_index INTEGER,
+            timestamp TEXT,
+            value TEXT,
+            last_value TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def save_history_to_db(box_index, timestamp, value, last_value):
+    conn = sqlite3.connect('histories.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO history (box_index, timestamp, value, last_value)
+        VALUES (?, ?, ?, ?)
+    ''', (box_index, timestamp, value, last_value))
+    conn.commit()
+    conn.close()
+
+def load_history_from_db(box_index):
+    conn = sqlite3.connect('histories.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT timestamp, value, last_value
+        FROM history
+        WHERE box_index = ?
+        ORDER BY timestamp DESC
+        LIMIT 100
+    ''', (box_index,))
+    histories = cursor.fetchall()
+    conn.close()
+    return histories
 
 class AnalogUI:
     def __init__(self, root, num_boxes):
         self.root = root
-
-        self.box_states = []
+        initialize_database()  # 데이터베이스 초기화 호출
         self.histories = [[] for _ in range(num_boxes)]  # 히스토리 저장을 위한 리스트 초기화
         self.graph_windows = [None for _ in range(num_boxes)]  # 그래프 윈도우 저장을 위한 리스트 초기화
-
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=40, pady=40)  # padding 증가
 
@@ -92,7 +130,12 @@ class AnalogUI:
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         # 세그먼트 클릭 시 히스토리를 그래프로 보여주는 이벤트 추가
-        box_canvas.bind("<Button-1>", lambda event, i=i: show_history_graph(self.root, i, self.histories, self.graph_windows))
+        box_canvas.bind("<Button-1>", lambda event, i=i: self.show_history(i))
+
+    def show_history(self, box_index):
+        history = load_history_from_db(box_index)
+        self.histories[box_index] = history
+        show_history_graph(self.root, box_index, self.histories, self.graph_windows)
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -151,7 +194,5 @@ class AnalogUI:
             if value != last_history_value:
                 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
                 last_value = self.box_states[box_index].get("last_value_40005", 0)
-                self.histories[box_index].append((timestamp, value, last_value))
+                save_history_to_db(box_index, timestamp, value, last_value)
                 self.box_states[box_index]["last_history_value"] = value
-                if len(self.histories[box_index]) > 100:  # 최대 기록 수를 제한
-                    self.histories[box_index].pop(0)
