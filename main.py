@@ -2,10 +2,7 @@ import tkinter as tk
 from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
 import random
 import time
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
-import signal
-import sys
+import psutil
 import subprocess
 import os
 import json
@@ -284,6 +281,31 @@ def restart_application():
     python = sys.executable
     os.execl(python, python, *sys.argv)
 
+def get_system_info():
+    cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
+    cpu_usage = psutil.cpu_percent(interval=1)
+    memory_usage = psutil.virtual_memory().percent
+    disk_usage = psutil.disk_usage('/').percent
+    net_io = psutil.net_io_counters()
+    network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
+    return f"IP: {get_ip_address()} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
+
+def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(0)
+    try:
+        s.connect(('10.254.254.254', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = 'N/A'
+    finally:
+        s.close()
+    return IP
+
+def update_status_label():
+    status_label.config(text=get_system_info())
+    root.after(5000, update_status_label)
+
 if __name__ == "__main__":
     root = Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -328,6 +350,11 @@ if __name__ == "__main__":
     settings_button.bind("<Leave>", on_leave)
 
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
+
+    status_label = Label(root, text="", font=("Arial", 10))
+    status_label.place(relx=0.0, rely=1.0, anchor='sw')
+
+    update_status_label()
 
     root.mainloop()
 
