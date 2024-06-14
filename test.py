@@ -1,3 +1,4 @@
+import time
 import Adafruit_ADS1x15
 
 # 각 ADS1115 모듈에 대한 인스턴스 생성
@@ -19,14 +20,18 @@ def read_adc(adc):
         values.append(current * 1000)  # mA로 변환
     return values
 
-# 4개 모듈에서 읽기
-values1 = read_adc(adc1)
-values2 = read_adc(adc2)
-values3 = read_adc(adc3)
-values4 = read_adc(adc4)
+# 데이터 읽기 및 출력 루프
+while True:
+    values1 = read_adc(adc1)
+    values2 = read_adc(adc2)
+    values3 = read_adc(adc3)
+    values4 = read_adc(adc4)
 
-# 결과 출력
-print("Module 1 Currents (mA): ", values1)
-print("Module 2 Currents (mA): ", values2)
-print("Module 3 Currents (mA): ", values3)
-print("Module 4 Currents (mA): ", values4)
+    # 결과 출력
+    print("Module 1 Currents (mA): ", values1)
+    print("Module 2 Currents (mA): ", values2)
+    print("Module 3 Currents (mA): ", values3)
+    print("Module 4 Currents (mA): ", values4)
+    
+    # 1초 대기
+    time.sleep(1)
