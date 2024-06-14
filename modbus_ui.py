@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
@@ -130,7 +130,7 @@ class ModbusUI:
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
-            "pwr_blink_state": False  # PWR 깜빡임 상태 초기화
+            "pwr_blink_state": False  # 추가: PWR 깜빡임 상태
         })
         self.update_segment_display("    ", box_canvas, box_index=index)
 
@@ -340,9 +340,9 @@ class ModbusUI:
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=i)
+                self.blink_pwr(i)  # PWR 깜빡이기 시작
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
-                self.blink_pwr(i)  # PWR 깜빡이기 시작
                 self.save_ip_settings()  # 연결된 IP 저장
             else:
                 self.console.print(f"Failed to connect to {ip}")
@@ -534,6 +534,23 @@ class ModbusUI:
                 self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
                 time.sleep(1)
 
+    def blink_pwr(self, box_index):
+        stop_flag = self.stop_flags[self.ip_vars[box_index].get()]
+        threading.Thread(target=self._blink_pwr_thread, args=(box_index, stop_flag)).start()
+
+    def _blink_pwr_thread(self, box_index, stop_flag):
+        while not stop_flag.is_set():
+            current_state = self.box_states[box_index]["pwr_blink_state"]
+            color = 'blue' if current_state else 'green'
+            self.root.after(0, self.update_circle_state, [False, False, True, False], box_index)
+            self.root.after(0, self._set_pwr_color, box_index, color)
+            self.box_states[box_index]["pwr_blink_state"] = not current_state
+            time.sleep(0.6)
+
+    def _set_pwr_color(self, box_index, color):
+        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+        box_canvas.itemconfig(circle_items[2], fill=color)
+
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
         with open(self.SETTINGS_FILE, 'w') as file:
@@ -547,15 +564,3 @@ class ModbusUI:
                     self.ip_vars[i].set(ip_settings[i])
         else:
             self.ip_vars = [StringVar() for _ in range(num_boxes)]
-
-    def blink_pwr(self, box_index):
-        def toggle_color():
-            if self.box_states[box_index]["pwr_blink_state"]:
-                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="blue", outline="blue")
-            else:
-                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="green", outline="green")
-            self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
-            if self.ip_vars[box_index].get() in self.connected_clients:
-                self.root.after(600, toggle_color)
-
-        toggle_color()
