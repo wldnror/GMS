@@ -7,15 +7,15 @@ adc2 = Adafruit_ADS1x15.ADS1115(address=0x49)
 adc3 = Adafruit_ADS1x15.ADS1115(address=0x4A)
 adc4 = Adafruit_ADS1x15.ADS1115(address=0x4B)
 
-# ADS1115의 게인 설정 (1 -> +/-4.096V 범위)
-GAIN = 1
+# ADS1115의 게인 설정 (2/3 -> +/-6.144V 범위)
+GAIN = 2/3
 
 # 각 모듈에서 아날로그 입력 읽기 (여기서는 단일 엔드 모드로 읽음)
 def read_adc(adc):
     values = []
     for i in range(4):
         value = adc.read_adc(i, gain=GAIN)
-        voltage = value * 4.096 / 32767
+        voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
         current = voltage / 250  # 저항 250Ω 사용
         values.append(current * 1000)  # mA로 변환
     return values
