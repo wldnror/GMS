@@ -6,12 +6,21 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, create_segment_display
+import Adafruit_ADS1x15
 
 class AnalogUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
 
     def __init__(self, root, num_boxes):
         self.root = root
+
+        self.adc_modules = [
+            Adafruit_ADS1x15.ADS1115(address=0x48),
+            Adafruit_ADS1x15.ADS1115(address=0x49),
+            Adafruit_ADS1x15.ADS1115(address=0x4A),
+            Adafruit_ADS1x15.ADS1115(address=0x4B)
+        ]
+        self.GAIN = 2/3
 
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
@@ -34,6 +43,12 @@ class AnalogUI:
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
+
+        # 데이터를 주기적으로 읽어서 업데이트하는 스레드 시작
+        self.stop_flag = threading.Event()
+        self.data_thread = threading.Thread(target=self.read_analog_data)
+        self.data_thread.daemon = True
+        self.data_thread.start()
 
     def create_analog_box(self):
         i = len(self.box_frames)
@@ -235,3 +250,36 @@ class AnalogUI:
             self.current_file_index = self.get_log_file_index(box_index) - 1
 
         self.update_history_graph(box_index, self.current_file_index)
+
+    def read_analog_data(self):
+        while not self.stop_flag.is_set():
+            for module_index, adc in enumerate(self.adc_modules):
+                values = self.read_adc_values(adc)
+                for channel_index, value in enumerate(values):
+                    box_index = module_index * 4 + channel_index
+                    if box_index < len(self.box_frames):
+                        self.update_segment_display(f"{value:04.0f}", self.box_frames[box_index][1], box_index=box_index)
+            time.sleep(1)
+
+    def read_adc_values(self, adc):
+        values = []
+        for i in range(4):
+            value = adc.read_adc(i, gain=self.GAIN)
+            voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
+            current = voltage / 250  # 저항 250Ω 사용
+            values.append(current * 1000)  # mA로 변환
+        return values
+
+    def stop(self):
+        self.stop_flag.set()
+        self.data_thread.join()
+
+# 사용 예시
+if __name__ == "__main__":
+    import tkinter as tk
+
+    root = tk.Tk()
+    root.title("Analog UI Test")
+    analog_ui = AnalogUI(root, 16)
+    root.protocol("WM_DELETE_WINDOW", analog_ui.stop)
+    root.mainloop()
