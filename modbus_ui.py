@@ -545,7 +545,7 @@ class ModbusUI:
             self.root.after(0, self.update_circle_state, [False, False, True, False], box_index)
             self.root.after(0, self._set_pwr_color, box_index, color)
             self.box_states[box_index]["pwr_blink_state"] = not current_state
-            time.sleep(0.6)
+            time.sleep(0.2)
 
     def _set_pwr_color(self, box_index, color):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
