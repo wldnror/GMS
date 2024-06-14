@@ -258,7 +258,8 @@ class AnalogUI:
                 for channel_index, value in enumerate(values):
                     box_index = module_index * 4 + channel_index
                     if box_index < len(self.box_frames):
-                        self.update_segment_display(f"{value:04.0f}", self.box_frames[box_index][1], box_index=box_index)
+                        display_value = self.convert_current_to_display_value(value)
+                        self.update_segment_display(f"{display_value:04.0f}", self.box_frames[box_index][1], box_index=box_index)
             time.sleep(1)
 
     def read_adc_values(self, adc):
@@ -269,6 +270,20 @@ class AnalogUI:
             current = voltage / 250  # 저항 250Ω 사용
             values.append(current * 1000)  # mA로 변환
         return values
+
+    def convert_current_to_display_value(self, current):
+        """4~20mA를 0~9999로 변환"""
+        min_current = 4.0
+        max_current = 20.0
+        min_display = 0
+        max_display = 9999
+
+        if current < min_current:
+            return min_display
+        elif current > max_current:
+            return max_display
+        else:
+            return (current - min_current) / (max_current - min_current) * (max_display - min_display) + min_display
 
     def stop(self):
         self.stop_flag.set()
