@@ -339,7 +339,7 @@ class ModbusUI:
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
-                self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
+                self.connected_clients[ip] = threading.Thread(target=self.,
                                                               args=(ip, client, stop_flag, i))
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
@@ -377,7 +377,7 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
-        interval = 1.0
+        interval = 0.4
         next_call = time.time()
         while not stop_flag.is_set():
             try:
