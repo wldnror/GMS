@@ -130,7 +130,7 @@ class ModbusUI:
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
-            "pwr_blink_state": False,  # PWR 블링크 상태 추가
+            "pwr_blink_state": False  # PWR 깜빡임 상태 초기화
         })
         self.update_segment_display("    ", box_canvas, box_index=index)
 
@@ -326,11 +326,6 @@ class ModbusUI:
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
-        if ip in self.connected_clients:
-            self.console.print(f"{ip} 이미 연결됨.")
-            messagebox.showwarning("연결 실패", f"{ip} IP 주소는 이미 연결되어 있습니다.")
-            return
-
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502)
             if self.connect_to_server(ip, client):
@@ -341,23 +336,23 @@ class ModbusUI:
                                                               args=(ip, client, stop_flag, i))
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
-                self.console.print(f"{ip} 데이터 스레드 시작")
+                self.console.print(f"Started data thread for {ip}")
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=i)
-                self.blink_pwr(box_index)  # PWR 깜빡이기 시작
                 self.show_bar(i, show=True)
-                self.virtual_keyboard.hide()
+                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
+                self.blink_pwr(i)  # PWR 깜빡이기 시작
                 self.save_ip_settings()  # 연결된 IP 저장
             else:
-                self.console.print(f"{ip} 연결 실패")
+                self.console.print(f"Failed to connect to {ip}")
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
             self.stop_flags[ip].set()
             self.clients[ip].close()
-            self.console.print(f"{ip} 연결 해제")
+            self.console.print(f"Disconnected from {ip}")
             self.connected_clients[ip].join()
             self.cleanup_client(ip)
             self.ip_vars[i].set('')
@@ -450,9 +445,9 @@ class ModbusUI:
                                 self.data_queue.put((box_index, error_display, False))
                                 self.update_circle_state([False, False, True, False], box_index=box_index)
                     else:
-                        self.console.print(f"{ip}에서 오류 발생: {result_40007}")
+                        self.console.print(f"Error from {ip}: {result_40007}")
                 else:
-                    self.console.print(f"{ip}에서 오류 발생: {result_40005}")
+                    self.console.print(f"Error from {ip}: {result_40005}")
 
                 if not result_40011.isError():
                     value_40011 = result_40011.registers[0]
@@ -466,12 +461,12 @@ class ModbusUI:
                     next_call = time.time()
 
             except ConnectionException:
-                self.console.print(f"{ip} 연결이 끊어짐. 재연결 시도 중...")
+                self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
             except AttributeError as e:
-                self.console.print(f"{ip} 데이터 읽기 오류: {e}")
+                self.console.print(f"Error reading data from {ip}: {e}")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
@@ -496,10 +491,10 @@ class ModbusUI:
         retries = 5
         for attempt in range(retries):
             if client.connect():
-                self.console.print(f"{ip} Modbus 서버에 연결됨")
+                self.console.print(f"Connected to the Modbus server at {ip}")
                 return True
             else:
-                self.console.print(f"{ip} 연결 시도 {attempt + 1} 실패. 5초 후 재시도...")
+                self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
                 time.sleep(5)
         return False
 
@@ -526,27 +521,18 @@ class ModbusUI:
     def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
             if client.connect():
-                self.console.print(f"{ip} Modbus 서버에 재연결됨")
+                self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=box_index)
-                self.blink_pwr(box_index)  # 재연결 후 PWR 깜빡이기 시작
+                self.blink_pwr(box_index)  # PWR 깜빡이기 시작
                 self.show_bar(box_index, show=True)
                 break
             else:
-                self.console.print(f"{ip} 재연결 시도 실패. 1초 후 재시도...")
+                self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
                 time.sleep(1)
-
-    def blink_pwr(self, box_index):
-        state = self.box_states[box_index]["pwr_blink_state"]
-        color = 'blue' if state else 'green'
-        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
-        box_canvas.itemconfig(circle_items[2], fill=color, outline=color)  # PWR 아이템 색상 변경
-        self.box_states[box_index]["pwr_blink_state"] = not state
-        if self.ip_vars[box_index].get() in self.connected_clients:
-            self.root.after(600, self.blink_pwr, box_index)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
@@ -561,3 +547,15 @@ class ModbusUI:
                     self.ip_vars[i].set(ip_settings[i])
         else:
             self.ip_vars = [StringVar() for _ in range(num_boxes)]
+
+    def blink_pwr(self, box_index):
+        def toggle_color():
+            if self.box_states[box_index]["pwr_blink_state"]:
+                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="blue", outline="blue")
+            else:
+                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="green", outline="green")
+            self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
+            if self.ip_vars[box_index].get() in self.connected_clients:
+                self.root.after(600, toggle_color)
+
+        toggle_color()
