@@ -61,6 +61,9 @@ class ModbusUI:
         self.root.after(100, self.process_queue)
         self.root.bind("<Button-1>", self.check_click)
 
+        self.pwr_blink_state = False
+        self.start_pwr_blink()
+
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")
         img.thumbnail(size, Image.LANCZOS)
@@ -148,7 +151,7 @@ class ModbusUI:
         circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
         box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(30, 200, 40, 190, tags='PWR'))
+        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
         box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
@@ -184,10 +187,9 @@ class ModbusUI:
         outline_color_off = '#000000'
 
         for i, state in enumerate(states):
-            if i == 2 and blink_power:
-                color = 'blue' if state else '#e0fbba'  # PWR의 깜빡임을 파란색으로 설정
-            else:
-                color = colors_on[i] if state else colors_off[i]
+            color = colors_on[i] if state else colors_off[i]
+            if blink_power and i == 2:
+                color = 'blue' if self.pwr_blink_state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         if states[0]:
@@ -200,6 +202,12 @@ class ModbusUI:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
+
+    def start_pwr_blink(self):
+        self.pwr_blink_state = not self.pwr_blink_state
+        for box_index in range(len(self.box_frames)):
+            self.update_circle_state([False, False, True, False], box_index=box_index, blink_power=True)
+        self.root.after(500, self.start_pwr_blink)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
@@ -328,18 +336,13 @@ class ModbusUI:
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
-        if ip in self.connected_clients:
-            self.console.print(f"{ip} 이미 연결됨.")
-            messagebox.showwarning("연결 실패", f"{ip} IP 주소는 이미 연결되어 있습니다.")
-            return
-
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502)
             if self.connect_to_server(ip, client):
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
-                self.connected_clients[ip] = threading.Thread(target=self.,
+                self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
                                                               args=(ip, client, stop_flag, i))
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
@@ -458,8 +461,6 @@ class ModbusUI:
                 if not result_40011.isError():
                     value_40011 = result_40011.registers[0]
                     self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
-
-                self.update_circle_state([False, False, True, False], box_index=box_index, blink_power=True)  # PWR 깜빡임
 
                 next_call += interval
                 sleep_time = next_call - time.time()
