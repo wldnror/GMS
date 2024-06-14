@@ -61,9 +61,6 @@ class ModbusUI:
         self.root.after(100, self.process_queue)
         self.root.bind("<Button-1>", self.check_click)
 
-        self.pwr_blink_state = False
-        self.start_pwr_blink()
-
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")
         img.thumbnail(size, Image.LANCZOS)
@@ -132,7 +129,8 @@ class ModbusUI:
             "previous_value_40011": None,
             "previous_segment_display": None,
             "last_history_time": None,
-            "last_history_value": None
+            "last_history_value": None,
+            "pwr_blink_state": False,  # PWR 블링크 상태 추가
         })
         self.update_segment_display("    ", box_canvas, box_index=index)
 
@@ -178,7 +176,7 @@ class ModbusUI:
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
-    def update_circle_state(self, states, box_index=0, blink_power=False):
+    def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
         colors_on = ['red', 'red', 'green', 'yellow']
@@ -188,8 +186,6 @@ class ModbusUI:
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
-            if blink_power and i == 2:
-                color = 'blue' if self.pwr_blink_state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         if states[0]:
@@ -202,12 +198,6 @@ class ModbusUI:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
-
-    def start_pwr_blink(self):
-        self.pwr_blink_state = not self.pwr_blink_state
-        for box_index in range(len(self.box_frames)):
-            self.update_circle_state([False, False, True, False], box_index=box_index, blink_power=True)
-        self.root.after(500, self.start_pwr_blink)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
@@ -336,6 +326,11 @@ class ModbusUI:
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
+        if ip in self.connected_clients:
+            self.console.print(f"{ip} 이미 연결됨.")
+            messagebox.showwarning("연결 실패", f"{ip} IP 주소는 이미 연결되어 있습니다.")
+            return
+
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502)
             if self.connect_to_server(ip, client):
@@ -350,6 +345,7 @@ class ModbusUI:
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=i)
+                self.blink_pwr(box_index)  # PWR 깜빡이기 시작
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
                 self.save_ip_settings()  # 연결된 IP 저장
@@ -454,9 +450,9 @@ class ModbusUI:
                                 self.data_queue.put((box_index, error_display, False))
                                 self.update_circle_state([False, False, True, False], box_index=box_index)
                     else:
-                        self.console.print(f"{ip} 오류: {result_40007}")
+                        self.console.print(f"{ip}에서 오류 발생: {result_40007}")
                 else:
-                    self.console.print(f"{ip} 오류: {result_40005}")
+                    self.console.print(f"{ip}에서 오류 발생: {result_40005}")
 
                 if not result_40011.isError():
                     value_40011 = result_40011.registers[0]
@@ -536,11 +532,21 @@ class ModbusUI:
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=box_index)
+                self.blink_pwr(box_index)  # 재연결 후 PWR 깜빡이기 시작
                 self.show_bar(box_index, show=True)
                 break
             else:
                 self.console.print(f"{ip} 재연결 시도 실패. 1초 후 재시도...")
                 time.sleep(1)
+
+    def blink_pwr(self, box_index):
+        state = self.box_states[box_index]["pwr_blink_state"]
+        color = 'blue' if state else 'green'
+        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+        box_canvas.itemconfig(circle_items[2], fill=color, outline=color)  # PWR 아이템 색상 변경
+        self.box_states[box_index]["pwr_blink_state"] = not state
+        if self.ip_vars[box_index].get() in self.connected_clients:
+            self.root.after(600, self.blink_pwr, box_index)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
