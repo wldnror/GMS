@@ -148,7 +148,7 @@ class ModbusUI:
         circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
         box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
+        circle_items.append(box_canvas.create_oval(30, 200, 40, 190, tags='PWR'))
         box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
@@ -175,7 +175,7 @@ class ModbusUI:
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
-    def update_circle_state(self, states, box_index=0):
+    def update_circle_state(self, states, box_index=0, blink_power=False):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
         colors_on = ['red', 'red', 'green', 'yellow']
@@ -184,7 +184,10 @@ class ModbusUI:
         outline_color_off = '#000000'
 
         for i, state in enumerate(states):
-            color = colors_on[i] if state else colors_off[i]
+            if i == 2 and blink_power:
+                color = 'blue' if state else '#e0fbba'  # PWR의 깜빡임을 파란색으로 설정
+            else:
+                color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         if states[0]:
@@ -345,7 +348,7 @@ class ModbusUI:
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
-                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
+                self.virtual_keyboard.hide()
                 self.save_ip_settings()  # 연결된 IP 저장
             else:
                 self.console.print(f"{ip} 연결 실패")
@@ -448,13 +451,15 @@ class ModbusUI:
                                 self.data_queue.put((box_index, error_display, False))
                                 self.update_circle_state([False, False, True, False], box_index=box_index)
                     else:
-                        self.console.print(f"Error from {ip}: {result_40007}")
+                        self.console.print(f"{ip} 오류: {result_40007}")
                 else:
-                    self.console.print(f"Error from {ip}: {result_40005}")
+                    self.console.print(f"{ip} 오류: {result_40005}")
 
                 if not result_40011.isError():
                     value_40011 = result_40011.registers[0]
                     self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
+
+                self.update_circle_state([False, False, True, False], box_index=box_index, blink_power=True)  # PWR 깜빡임
 
                 next_call += interval
                 sleep_time = next_call - time.time()
