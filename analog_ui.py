@@ -2,11 +2,11 @@ import os
 import time
 import threading
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
+import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, create_segment_display
-import Adafruit_ADS1x15
 
 class AnalogUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
@@ -15,12 +15,12 @@ class AnalogUI:
         "ORG": 9999,
         "ARF-T": 5000,
         "HMDS": 3000,
-        "HC-100": 5000,
+        "HC-100": 5000
     }
 
     def __init__(self, root, num_boxes, gas_types):
         self.root = root
-
+        self.gas_types = gas_types
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
         self.graph_windows = [None for _ in range(num_boxes)]
@@ -37,18 +37,13 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.gas_types = gas_types
-
         for i in range(num_boxes):
             self.create_analog_box(i)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.adc_modules = [Adafruit_ADS1x15.ADS1115(address=address) for address in [0x48, 0x49, 0x4A, 0x4B]]
-        self.GAIN = 2/3
-
-        self.read_adc_data()
+        self.start_adc_thread()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -69,6 +64,9 @@ class AnalogUI:
 
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
+
+        gas_type = self.gas_types.get(f"box_{index}", "ORG")
+        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         create_segment_display(box_canvas)
         self.box_states.append({
@@ -94,9 +92,6 @@ class AnalogUI:
 
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
-
-        gas_type = self.gas_types.get(f"analog_{index}", "ORG")
-        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
@@ -252,23 +247,27 @@ class AnalogUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     def read_adc_data(self):
-        def read_adc(adc):
-            values = []
-            for i in range(4):
-                value = adc.read_adc(i, gain=self.GAIN)
-                voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
-                current = voltage / 250  # 저항 250Ω 사용
-                values.append(current * 1000)  # mA로 변환
-            return values
-
+        adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
+        adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
+        GAIN = 2 / 3
         while True:
-            for module_index, adc in enumerate(self.adc_modules):
-                values = read_adc(adc)
-                for i, value in enumerate(values):
-                    box_index = module_index * 4 + i
-                    gas_type = self.gas_types.get(f"analog_{box_index}", "ORG")
-                    full_scale = self.GAS_FULL_SCALE.get(gas_type, 9999)
-                    scaled_value = int((value / 20.0) * full_scale)
-                    formatted_value = f"{scaled_value:04d}"
-                    self.update_segment_display(formatted_value, self.box_frames[box_index][1], box_index=box_index)
+            for box_index, adc in enumerate(adcs):
+                values = []
+                for channel in range(4):
+                    value = adc.read_adc(channel, gain=GAIN)
+                    voltage = value * 6.144 / 32767
+                    current = voltage / 250
+                    milliamp = current * 1000
+                    values.append(milliamp)
+
+                for channel, milliamp in enumerate(values):
+                    full_scale = self.GAS_FULL_SCALE[self.gas_types.get(f"box_{box_index*4 + channel}", "ORG")]
+                    formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
+                    formatted_value = max(0, min(formatted_value, full_scale))
+                    self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index*4 + channel][1], box_index=box_index*4 + channel)
             time.sleep(1)
+
+    def start_adc_thread(self):
+        adc_thread = threading.Thread(target=self.read_adc_data)
+        adc_thread.daemon = True
+        adc_thread.start()
