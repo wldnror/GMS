@@ -195,11 +195,6 @@ def show_password_prompt():
             show_settings()
         else:
             attempt_count += 1
-            if password_entry.get() == admin_password:
-            password_window.destroy()
-            show_settings()
-        else:
-            attempt_count += 1
             if attempt_count >= 5:
                 lock_time = time.time() + 60  # 60초 잠금
                 attempt_count = 0
@@ -307,7 +302,7 @@ def update_system():
             root.after(2000, restart_application)
     except Exception as e:
         message = f"업데이트 중 오류 발생: {e}"
-    
+
     messagebox.showinfo("시스템 업데이트", message)
 
 def restart_application():
