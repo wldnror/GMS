@@ -69,7 +69,7 @@ admin_password = settings.get("admin_password")
 
 def create_keypad(entry):
     keypad_frame = Frame(entry.master)
-    keypad_frame.grid(row=1, column=0, columnspan=2)  # Use grid manager for keypad_frame
+    keypad_frame.place(relx=1.0, rely=0.5, anchor='e')  # Use place manager for keypad_frame to position it next to the entry
 
     def on_button_click(char):
         if char == 'DEL':
@@ -258,8 +258,8 @@ def show_box_settings():
         var.set(settings["gas_types"].get(f"box_{i}", GAS_TYPES[0]))
 
     for i, var in enumerate(gas_type_vars):
-        Label(box_settings_window, text=f"Box {i + 1} 가스 유형", font=("Arial", 12)).grid(row=(i // 2) + 2, column=(i % 2) * 2, pady=5)
-        OptionMenu(box_settings_window, var, *GAS_TYPES).grid(row=(i // 2) + 2, column=(i % 2) * 2 + 1, pady=5)
+        Label(box_settings_window, text=f"Box {i + 1} 가스 유형", font=("Arial", 12)).grid(row=(i // 4) + 2, column=(i % 4) * 2, pady=5)
+        OptionMenu(box_settings_window, var, *GAS_TYPES).grid(row=(i // 4) + 2, column=(i % 4) * 2 + 1, pady=5)
 
     def save_and_close():
         try:
@@ -274,7 +274,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=(len(gas_type_vars) // 2) + 2, column=0, columnspan=4, pady=10)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=(len(gas_type_vars) // 4) + 2, column=0, columnspan=4, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
