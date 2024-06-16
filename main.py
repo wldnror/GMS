@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox
+from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, OptionMenu, StringVar
 import random
 import time
 from modbus_ui import ModbusUI
@@ -26,6 +26,8 @@ new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
 KEY_FILE = "secret.key"
+GAS_TYPES = ["ORG", "ARF-T", "HMDS", "HC-100"]
+GAS_FULL_SCALE = {"ORG": 9999, "ARF-T": 5000, "HMDS": 3000, "HC-100": 5000}
 
 # 암호화 키 생성 및 로드
 def generate_key():
@@ -247,26 +249,20 @@ def show_box_settings():
     analog_entry.pack(pady=5)
     create_keypad(analog_entry)
 
-    gas_type_entries = {}
-    for i in range(settings["modbus_boxes"]):
-        Label(box_settings_window, text=f"Modbus 상자 {i + 1} 가스 종류", font=("Arial", 12)).pack(pady=5)
-        gas_type_entry = Entry(box_settings_window, font=("Arial", 12))
-        gas_type_entry.insert(0, settings["gas_types"].get(f"box_{i}", "ORG"))
-        gas_type_entry.pack(pady=5)
-        gas_type_entries[f"box_{i}"] = gas_type_entry
+    gas_type_vars = [StringVar(box_settings_window) for _ in range(settings["modbus_boxes"] + settings["analog_boxes"])]
+    for i, var in enumerate(gas_type_vars):
+        var.set(settings["gas_types"].get(f"box_{i}", GAS_TYPES[0]))
 
-    for i in range(settings["analog_boxes"]):
-        Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 가스 종류", font=("Arial", 12)).pack(pady=5)
-        gas_type_entry = Entry(box_settings_window, font=("Arial", 12))
-        gas_type_entry.insert(0, settings["gas_types"].get(f"box_{i + settings['modbus_boxes']}", "ORG"))
-        gas_type_entry.pack(pady=5)
-        gas_type_entries[f"box_{i + settings['modbus_boxes']}"] = gas_type_entry
+    for i, var in enumerate(gas_type_vars):
+        Label(box_settings_window, text=f"Box {i + 1} 가스 유형", font=("Arial", 12)).pack(pady=5)
+        OptionMenu(box_settings_window, var, *GAS_TYPES).pack(pady=5)
 
     def save_and_close():
         try:
             settings["modbus_boxes"] = int(modbus_entry.get())
             settings["analog_boxes"] = int(analog_entry.get())
-            settings["gas_types"] = {key: entry.get() for key, entry in gas_type_entries.items()}
+            for i, var in enumerate(gas_type_vars):
+                settings["gas_types"][f"box_{i}"] = var.get()
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
             box_settings_window.destroy()
