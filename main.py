@@ -69,7 +69,7 @@ admin_password = settings.get("admin_password")
 
 def create_keypad(entry):
     keypad_frame = Frame(entry.master)
-    keypad_frame.pack()
+    keypad_frame.grid(row=1, column=0, columnspan=2)  # Use grid manager instead of pack
 
     def on_button_click(char):
         if char == 'DEL':
@@ -92,7 +92,7 @@ def create_keypad(entry):
         b = Button(keypad_frame, text=button, width=5, height=2,
                    command=lambda b=button: on_button_click(b))
         b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
-    
+
     return keypad_frame
 
 def prompt_new_password():
@@ -236,6 +236,11 @@ def show_box_settings():
     box_settings_window = Toplevel(root)
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
+
+    box_settings_window.grid_columnconfigure(0, weight=1)
+    box_settings_window.grid_columnconfigure(1, weight=1)
+    box_settings_window.grid_columnconfigure(2, weight=1)
+    box_settings_window.grid_columnconfigure(3, weight=1)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, pady=5)
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
