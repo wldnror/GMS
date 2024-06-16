@@ -63,12 +63,6 @@ def save_settings(settings):
         file.write(encrypted_data)
 
 settings = load_settings()
-
-# Ensure gas_types is in settings
-if "gas_types" not in settings:
-    settings["gas_types"] = {}
-    save_settings(settings)
-
 admin_password = settings.get("admin_password")
 
 def create_keypad(entry):
@@ -253,24 +247,26 @@ def show_box_settings():
     analog_entry.pack(pady=5)
     create_keypad(analog_entry)
 
-    Label(box_settings_window, text="가스 유형 설정", font=("Arial", 12)).pack(pady=5)
-    
-    gas_entries = {}
-    gas_types = ["ORG", "ARF-T", "HMDS", "HC-100"]
-    for i in range(settings["modbus_boxes"] + settings["analog_boxes"]):
-        Label(box_settings_window, text=f"Box {i+1} 가스 유형", font=("Arial", 12)).pack(pady=5)
-        gas_entry = Entry(box_settings_window, font=("Arial", 12))
-        gas_entry.insert(0, settings["gas_types"].get(f"box_{i}", "ORG"))
-        gas_entry.pack(pady=5)
-        create_keypad(gas_entry)
-        gas_entries[f"box_{i}"] = gas_entry
+    gas_type_entries = {}
+    for i in range(settings["modbus_boxes"]):
+        Label(box_settings_window, text=f"Modbus 상자 {i + 1} 가스 종류", font=("Arial", 12)).pack(pady=5)
+        gas_type_entry = Entry(box_settings_window, font=("Arial", 12))
+        gas_type_entry.insert(0, settings["gas_types"].get(f"box_{i}", "ORG"))
+        gas_type_entry.pack(pady=5)
+        gas_type_entries[f"box_{i}"] = gas_type_entry
+
+    for i in range(settings["analog_boxes"]):
+        Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 가스 종류", font=("Arial", 12)).pack(pady=5)
+        gas_type_entry = Entry(box_settings_window, font=("Arial", 12))
+        gas_type_entry.insert(0, settings["gas_types"].get(f"box_{i + settings['modbus_boxes']}", "ORG"))
+        gas_type_entry.pack(pady=5)
+        gas_type_entries[f"box_{i + settings['modbus_boxes']}"] = gas_type_entry
 
     def save_and_close():
         try:
             settings["modbus_boxes"] = int(modbus_entry.get())
             settings["analog_boxes"] = int(analog_entry.get())
-            for i, entry in gas_entries.items():
-                settings["gas_types"][i] = entry.get()
+            settings["gas_types"] = {key: entry.get() for key, entry in gas_type_entries.items()}
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
             box_settings_window.destroy()
