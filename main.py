@@ -1,18 +1,18 @@
-import tkinter as tk
-from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, OptionMenu, StringVar
-import random
+import json
+import os
 import time
+from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu
+import random
+import threading
+import queue
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import psutil
 import signal
 import sys
 import subprocess
-import os
-import json
-from cryptography.fernet import Fernet
 import socket
-import threading
+from cryptography.fernet import Fernet
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -26,8 +26,6 @@ new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
 KEY_FILE = "secret.key"
-GAS_TYPES = ["ORG", "ARF-T", "HMDS", "HC-100"]
-GAS_FULL_SCALE = {"ORG": 9999, "ARF-T": 5000, "HMDS": 3000, "HC-100": 5000}
 
 # 암호화 키 생성 및 로드
 def generate_key():
@@ -57,7 +55,12 @@ def load_settings():
         decrypted_data = decrypt_data(encrypted_data)
         return json.loads(decrypted_data)
     else:
-        return {"modbus_boxes": 14, "analog_boxes": 0, "admin_password": None, "gas_types": {}}
+        return {
+            "modbus_boxes": 14,
+            "analog_boxes": 0,
+            "admin_password": None,
+            "gas_types": {}
+        }
 
 def save_settings(settings):
     with open(SETTINGS_FILE, 'wb') as file:
@@ -67,9 +70,9 @@ def save_settings(settings):
 settings = load_settings()
 admin_password = settings.get("admin_password")
 
-def create_keypad(entry, window):
-    keypad_frame = Frame(window)
-    keypad_frame.grid(row=3, column=0, columnspan=2)  # Use grid manager for keypad_frame
+def create_keypad(entry):
+    keypad_frame = Frame(entry.master)
+    keypad_frame.grid(row=1, column=0, columnspan=2)
 
     def on_button_click(char):
         if char == 'DEL':
@@ -92,7 +95,7 @@ def create_keypad(entry, window):
         b = Button(keypad_frame, text=button, width=5, height=2,
                    command=lambda b=button: on_button_click(b))
         b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
-
+    
     return keypad_frame
 
 def prompt_new_password():
@@ -105,17 +108,17 @@ def prompt_new_password():
     new_password_window.title("관리자 비밀번호 설정")
     new_password_window.attributes("-topmost", True)
 
-    Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).grid(row=0, column=0, columnspan=2, pady=10)
+    Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
-    new_password_entry.grid(row=1, column=0, columnspan=2, pady=5)
-    create_keypad(new_password_entry, new_password_window)
+    new_password_entry.pack(pady=5)
+    create_keypad(new_password_entry)
 
     def confirm_password():
         new_password = new_password_entry.get()
         new_password_window.destroy()
         prompt_confirm_password(new_password)
 
-    Button(new_password_window, text="다음", command=confirm_password).grid(row=2, column=0, columnspan=2, pady=5)
+    Button(new_password_window, text="다음", command=confirm_password).pack(pady=5)
 
 def prompt_confirm_password(new_password):
     global new_password_window
@@ -127,10 +130,10 @@ def prompt_confirm_password(new_password):
     new_password_window.title("비밀번호 확인")
     new_password_window.attributes("-topmost", True)
 
-    Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).grid(row=0, column=0, columnspan=2, pady=10)
+    Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
-    confirm_password_entry.grid(row=1, column=0, columnspan=2, pady=5)
-    create_keypad(confirm_password_entry, new_password_window)
+    confirm_password_entry.pack(pady=5)
+    create_keypad(confirm_password_entry)
 
     def save_new_password():
         confirm_password = confirm_password_entry.get()
@@ -145,7 +148,7 @@ def prompt_confirm_password(new_password):
             new_password_window.destroy()
             prompt_new_password()
 
-    Button(new_password_window, text="저장", command=save_new_password).grid(row=2, column=0, columnspan=2, pady=5)
+    Button(new_password_window, text="저장", command=save_new_password).pack(pady=5)
 
 def show_password_prompt():
     global attempt_count, lock_time, password_window, settings_window, lock_window
@@ -183,10 +186,10 @@ def show_password_prompt():
     password_window.title("비밀번호 입력")
     password_window.attributes("-topmost", True)
 
-    Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).grid(row=0, column=0, columnspan=2, pady=10)
+    Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
-    password_entry.grid(row=1, column=0, columnspan=2, pady=5)
-    create_keypad(password_entry, password_window)
+    password_entry.pack(pady=5)
+    create_keypad(password_entry)
 
     def check_password():
         global attempt_count, lock_time
@@ -201,9 +204,9 @@ def show_password_prompt():
                 password_window.destroy()
                 show_password_prompt()
             else:
-                Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").grid(row=3, column=0, columnspan=2, pady=5)
+                Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
 
-    Button(password_window, text="확인", command=check_password).grid(row=2, column=0, columnspan=2, pady=5)
+    Button(password_window, text="확인", command=check_password).pack(pady=5)
 
 def show_settings():
     global settings_window
@@ -215,17 +218,17 @@ def show_settings():
     settings_window.title("설정 메뉴")
     settings_window.attributes("-topmost", True)
 
-    Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).grid(row=0, column=0, columnspan=2, pady=10)
+    Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
 
     button_font = ("Arial", 14)
     button_style = {'font': button_font, 'width': 25, 'height': 2, 'padx': 10, 'pady': 10}
 
-    Button(settings_window, text="상자 설정", command=show_box_settings, **button_style).grid(row=1, column=0, columnspan=2, pady=5)
-    Button(settings_window, text="비밀번호 변경", command=prompt_new_password, **button_style).grid(row=2, column=0, columnspan=2, pady=5)
-    Button(settings_window, text="창 크기 설정", command=exit_fullscreen, **button_style).grid(row=3, column=0, columnspan=2, pady=5)
-    Button(settings_window, text="전체 화면 설정", command=enter_fullscreen, **button_style).grid(row=4, column=0, columnspan=2, pady=5)
-    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).grid(row=5, column=0, columnspan=2, pady=5)
-    Button(settings_window, text="애플리케이션 종료", command=exit_application, **button_style).grid(row=6, column=0, columnspan=2, pady=5)
+    Button(settings_window, text="상자 설정", command=show_box_settings, **button_style).pack(pady=5)
+    Button(settings_window, text="비밀번호 변경", command=prompt_new_password, **button_style).pack(pady=5)
+    Button(settings_window, text="창 크기 설정", command=exit_fullscreen, **button_style).pack(pady=5)
+    Button(settings_window, text="전체 화면 설정", command=enter_fullscreen, **button_style).pack(pady=5)
+    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).pack(pady=5)
+    Button(settings_window, text="애플리케이션 종료", command=exit_application, **button_style).pack(pady=5)
 
 def show_box_settings():
     global box_settings_window
@@ -236,30 +239,28 @@ def show_box_settings():
     box_settings_window = Toplevel(root)
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
-    box_settings_window.grid_columnconfigure(0, weight=1)
-    box_settings_window.grid_columnconfigure(1, weight=1)
-    box_settings_window.grid_columnconfigure(2, weight=1)
-    box_settings_window.grid_columnconfigure(3, weight=1)
 
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, pady=5)
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
     modbus_entry.insert(0, settings["modbus_boxes"])
-    modbus_entry.grid(row=0, column=1, pady=5)
-    create_keypad(modbus_entry, box_settings_window)
+    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
 
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, pady=5)
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
     analog_entry = Entry(box_settings_window, font=("Arial", 12))
     analog_entry.insert(0, settings["analog_boxes"])
-    analog_entry.grid(row=1, column=1, pady=5)
-    create_keypad(analog_entry, box_settings_window)
+    analog_entry.grid(row=1, column=1, padx=5, pady=5)
 
-    gas_type_vars = [StringVar(box_settings_window) for _ in range(settings["modbus_boxes"] + settings["analog_boxes"])]
-    for i, var in enumerate(gas_type_vars):
-        var.set(settings["gas_types"].get(f"box_{i}", GAS_TYPES[0]))
+    create_keypad(modbus_entry)
+    create_keypad(analog_entry)
 
-    for i, var in enumerate(gas_type_vars):
-        Label(box_settings_window, text=f"Box {i + 1} 가스 유형", font=("Arial", 12)).grid(row=(i // 4) + 2, column=(i % 4) * 2, pady=5)
-        OptionMenu(box_settings_window, var, *GAS_TYPES).grid(row=(i // 4) + 2, column=(i % 4) * 2 + 1, pady=5)
+    gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
+    gas_type_vars = []
+
+    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
+        gas_type_var = StringVar(value=settings["gas_types"].get(f"box_{i}", "ORG"))
+        gas_type_vars.append(gas_type_var)
+        Label(box_settings_window, text=f"상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
+        OptionMenu(box_settings_window, gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
 
     def save_and_close():
         try:
@@ -274,7 +275,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=(len(gas_type_vars) // 4) + 2, column=0, columnspan=4, pady=10)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=2, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
@@ -301,7 +302,7 @@ def update_system():
             root.after(2000, restart_application)
     except Exception as e:
         message = f"업데이트 중 오류 발생: {e}"
-
+    
     messagebox.showinfo("시스템 업데이트", message)
 
 def restart_application():
