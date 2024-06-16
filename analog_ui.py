@@ -21,6 +21,7 @@ class AnalogUI:
     def __init__(self, root, num_boxes, gas_types):
         self.root = root
         self.gas_types = gas_types
+        self.num_boxes = num_boxes
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
         self.graph_windows = [None for _ in range(num_boxes)]
@@ -251,7 +252,7 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         GAIN = 2 / 3
         while True:
-            for box_index, adc in enumerate(adcs):
+            for adc_index, adc in enumerate(adcs):
                 values = []
                 for channel in range(4):
                     value = adc.read_adc(channel, gain=GAIN)
@@ -261,10 +262,14 @@ class AnalogUI:
                     values.append(milliamp)
 
                 for channel, milliamp in enumerate(values):
-                    full_scale = self.GAS_FULL_SCALE[self.gas_types.get(f"box_{box_index*4 + channel}", "ORG")]
+                    box_index = adc_index * 4 + channel
+                    if box_index >= self.num_boxes:
+                        continue
+                    gas_type = self.gas_types.get(f"box_{box_index}", "ORG")
+                    full_scale = self.GAS_FULL_SCALE[gas_type]
                     formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
                     formatted_value = max(0, min(formatted_value, full_scale))
-                    self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index*4 + channel][1], box_index=box_index*4 + channel)
+                    self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
             time.sleep(1)
 
     def start_adc_thread(self):
