@@ -18,7 +18,7 @@ class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
 
-    def __init__(self, root, num_boxes):
+    def __init__(self, root, num_boxes, gas_types):
         self.root = root
         self.virtual_keyboard = VirtualKeyboard(root)
         self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
@@ -39,6 +39,7 @@ class ModbusUI:
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(153, 5)
         self.history_dir = "history_logs"
+        self.gas_types = gas_types
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -155,7 +156,8 @@ class ModbusUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type = self.gas_types.get(f"box_{index}", "ORG")
+        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
