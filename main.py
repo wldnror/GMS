@@ -195,6 +195,11 @@ def show_password_prompt():
             show_settings()
         else:
             attempt_count += 1
+            if password_entry.get() == admin_password:
+            password_window.destroy()
+            show_settings()
+        else:
+            attempt_count += 1
             if attempt_count >= 5:
                 lock_time = time.time() + 60  # 60초 잠금
                 attempt_count = 0
