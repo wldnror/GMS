@@ -237,16 +237,16 @@ def show_box_settings():
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
 
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, pady=5)
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
     modbus_entry.insert(0, settings["modbus_boxes"])
-    modbus_entry.pack(pady=5)
+    modbus_entry.grid(row=0, column=1, pady=5)
     create_keypad(modbus_entry)
 
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, pady=5)
     analog_entry = Entry(box_settings_window, font=("Arial", 12))
     analog_entry.insert(0, settings["analog_boxes"])
-    analog_entry.pack(pady=5)
+    analog_entry.grid(row=1, column=1, pady=5)
     create_keypad(analog_entry)
 
     gas_type_vars = [StringVar(box_settings_window) for _ in range(settings["modbus_boxes"] + settings["analog_boxes"])]
@@ -254,8 +254,8 @@ def show_box_settings():
         var.set(settings["gas_types"].get(f"box_{i}", GAS_TYPES[0]))
 
     for i, var in enumerate(gas_type_vars):
-        Label(box_settings_window, text=f"Box {i + 1} 가스 유형", font=("Arial", 12)).pack(pady=5)
-        OptionMenu(box_settings_window, var, *GAS_TYPES).pack(pady=5)
+        Label(box_settings_window, text=f"Box {i + 1} 가스 유형", font=("Arial", 12)).grid(row=(i // 2) + 2, column=(i % 2) * 2, pady=5)
+        OptionMenu(box_settings_window, var, *GAS_TYPES).grid(row=(i // 2) + 2, column=(i % 2) * 2 + 1, pady=5)
 
     def save_and_close():
         try:
@@ -270,7 +270,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).pack(pady=10)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=(len(gas_type_vars) // 2) + 3, column=0, columnspan=2, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
