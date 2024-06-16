@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
@@ -18,14 +18,7 @@ class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
 
-    GAS_FULL_SCALE = {
-        "ORG": 9999,
-        "ARF-T": 5000,
-        "HMDS": 3000,
-        "HC-100": 5000,
-    }
-
-    def __init__(self, root, num_boxes, gas_types):
+    def __init__(self, root, num_boxes):
         self.root = root
         self.virtual_keyboard = VirtualKeyboard(root)
         self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
@@ -46,7 +39,6 @@ class ModbusUI:
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(153, 5)
         self.history_dir = "history_logs"
-        self.gas_types = gas_types
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -137,7 +129,8 @@ class ModbusUI:
             "previous_value_40011": None,
             "previous_segment_display": None,
             "last_history_time": None,
-            "last_history_value": None
+            "last_history_value": None,
+            "pwr_blink_state": False  # PWR 깜빡임 상태 초기화
         })
         self.update_segment_display("    ", box_canvas, box_index=index)
 
@@ -162,8 +155,7 @@ class ModbusUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        gas_type = self.gas_types.get(f"modbus_{index}", "ORG")
-        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
@@ -350,6 +342,7 @@ class ModbusUI:
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
+                self.blink_pwr(i)  # PWR 깜빡이기 시작
                 self.save_ip_settings()  # 연결된 IP 저장
             else:
                 self.console.print(f"Failed to connect to {ip}")
@@ -509,10 +502,7 @@ class ModbusUI:
         while not self.data_queue.empty():
             box_index, value, blink = self.data_queue.get()
             box_canvas = self.box_frames[box_index][1]
-            gas_type = self.gas_types.get(f"modbus_{box_index}", "ORG")
-            full_scale = self.GAS_FULL_SCALE.get(gas_type, 9999)
-            scaled_value = int((int(value) / 9999) * full_scale)
-            self.update_segment_display(f"{scaled_value:04d}", box_canvas, blink=blink, box_index=box_index)
+            self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
         self.root.after(100, self.process_queue)
 
     def check_click(self, event):
@@ -537,6 +527,7 @@ class ModbusUI:
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=box_index)
+                self.blink_pwr(box_index)  # PWR 깜빡이기 시작
                 self.show_bar(box_index, show=True)
                 break
             else:
@@ -556,3 +547,15 @@ class ModbusUI:
                     self.ip_vars[i].set(ip_settings[i])
         else:
             self.ip_vars = [StringVar() for _ in range(num_boxes)]
+
+    def blink_pwr(self, box_index):
+        def toggle_color():
+            if self.box_states[box_index]["pwr_blink_state"]:
+                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="blue", outline="blue")
+            else:
+                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="green", outline="green")
+            self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
+            if self.ip_vars[box_index].get() in self.connected_clients:
+                self.root.after(600, toggle_color)
+
+        toggle_color()
