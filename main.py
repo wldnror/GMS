@@ -353,39 +353,39 @@ if __name__ == "__main__":
 
     if not admin_password:
         prompt_new_password()
+    else:
+        modbus_boxes = settings["modbus_boxes"]
+        analog_boxes = settings["analog_boxes"]
 
-    modbus_boxes = settings["modbus_boxes"]
-    analog_boxes = settings["analog_boxes"]
+        main_frame = Frame(root)
+        main_frame.grid(row=0, column=0)
 
-    main_frame = Frame(root)
-    main_frame.grid(row=0, column=0)
+        modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
+        analog_ui = AnalogUI(main_frame, analog_boxes, settings["gas_types"])
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["gas_types"])
+        modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
+        analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
-    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
-    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
+        settings_button = Button(root, text="⚙", command=show_password_prompt, font=("Arial", 20))
+        def on_enter(event):
+            event.widget.config(background="#b2b2b2", foreground="black")
+        def on_leave(event):
+            event.widget.config(background="#b2b2b2", foreground="black")
 
-    settings_button = Button(root, text="⚙", command=show_password_prompt, font=("Arial", 20))
-    def on_enter(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
-    def on_leave(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
+        settings_button.bind("<Enter>", on_enter)
+        settings_button.bind("<Leave>", on_leave)
 
-    settings_button.bind("<Enter>", on_enter)
-    settings_button.bind("<Leave>", on_leave)
+        settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
-    settings_button.place(relx=1.0, rely=1.0, anchor='se')
+        status_label = Label(root, text="", font=("Arial", 10))
+        status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    status_label = Label(root, text="", font=("Arial", 10))
-    status_label.place(relx=0.0, rely=1.0, anchor='sw')
+        def system_info_thread():
+            while True:
+                update_status_label()
+                time.sleep(1)
 
-    def system_info_thread():
-        while True:
-            update_status_label()
-            time.sleep(1)
-
-    threading.Thread(target=system_info_thread, daemon=True).start()
+        threading.Thread(target=system_info_thread, daemon=True).start()
 
     root.mainloop()
 
