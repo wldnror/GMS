@@ -143,7 +143,7 @@ class AnalogUI:
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
-            box_canvas.itemconfig(circle_items[i], fill(color, outline=color))
+            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         if states[0]:
             outline_color = outline_colors[0]
@@ -355,3 +355,20 @@ class AnalogUI:
                     self.root.after(600, toggle_color)
 
         toggle_color()
+
+# main.py에서 AnalogUI 클래스의 인스턴스를 생성하는 코드
+if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
+    with open('settings.json') as f:
+        settings = json.load(f)
+
+    root = Tk()
+    main_frame = Frame(root)
+    main_frame.pack()
+
+    analog_boxes = settings["analog_boxes"]
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+
+    root.mainloop()
