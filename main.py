@@ -72,7 +72,7 @@ admin_password = settings.get("admin_password")
 
 def create_keypad(entry, parent):
     keypad_frame = Frame(parent)
-    keypad_frame.pack()
+    keypad_frame.grid(row=entry.grid_info()['row'] + 1, column=entry.grid_info()['column'], columnspan=2)
 
     def on_button_click(char):
         if char == 'DEL':
