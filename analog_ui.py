@@ -87,7 +87,9 @@ class AnalogUI:
             "gas_type_text_id": gas_type_text_id,
             "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
             "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
-            "last_value": None  # 마지막 값을 저장하는 상태 추가
+            "last_value": None,  # 마지막 값을 저장하는 상태 추가
+            "blink_thread": None,  # 깜빡임을 처리하는 스레드 추가
+            "stop_blinking": threading.Event()  # 깜빡임을 중지하는 이벤트 추가
         })
 
         create_segment_display(box_canvas)
@@ -308,13 +310,18 @@ class AnalogUI:
                         if al2_on or al1_on:
                             if not self.box_states[box_index]["blinking_error"]:
                                 self.box_states[box_index]["blinking_error"] = True
-                            self.blink_alarm(al1_on, al2_on, box_index)
+                                self.box_states[box_index]["stop_blinking"].clear()
+                                if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                                    self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(al1_on, al2_on, box_index))
+                                    self.box_states[box_index]["blink_thread"].start()
                         else:
                             self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
                             self.box_states[box_index]["blinking_error"] = False
+                            self.box_states[box_index]["stop_blinking"].set()
                     else:
                         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
+                        self.box_states[box_index]["stop_blinking"].set()
 
             time.sleep(1)
 
@@ -332,7 +339,7 @@ class AnalogUI:
             self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
             if self.box_states[box_index]["last_value"] is not None:
                 self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
-            if self.box_states[box_index]["blinking_error"]:
+            if not self.box_states[box_index]["stop_blinking"].is_set():
                 self.root.after(600, toggle_color)
 
         toggle_color()
