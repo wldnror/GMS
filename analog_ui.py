@@ -82,7 +82,6 @@ class AnalogUI:
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
-            "previous_value_40011": None,
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
