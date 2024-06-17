@@ -162,7 +162,7 @@ def show_password_prompt():
         if not lock_window or not lock_window.winfo_exists():
             lock_window = Toplevel(root)
             lock_window.title("잠금")
-            lock_window.attributes("-topmost", True)
+            # lock_window.attributes("-topmost", True)
             lock_window.geometry("300x150")
             lock_label = Label(lock_window, text="", font=("Arial", 12))
             lock_label.pack(pady=10)
