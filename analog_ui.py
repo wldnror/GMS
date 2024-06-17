@@ -45,6 +45,8 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
+        self.adc_values = [[] for _ in range(num_boxes)]  # 각 박스에 대한 최근 ADC 값을 저장할 리스트
+
         for i in range(num_boxes):
             self.create_analog_box(i)
 
@@ -289,13 +291,21 @@ class AnalogUI:
                     box_index = adc_index * 4 + channel
                     if box_index >= self.num_boxes:
                         continue
+
+                    # 최근 10개의 값을 저장
+                    if len(self.adc_values[box_index]) >= 10:
+                        self.adc_values[box_index].pop(0)
+                    self.adc_values[box_index].append(milliamp)
+
+                    # 최근 값의 평균을 사용
+                    avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
                     gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                     full_scale = self.GAS_FULL_SCALE[gas_type]
                     alarm_levels = self.ALARM_LEVELS[gas_type]
-                    formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
+                    formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
                     formatted_value = max(0, min(formatted_value, full_scale))
 
-                    pwr_on = milliamp >= 1.5
+                    pwr_on = avg_milliamp >= 1.5
 
                     if pwr_on:
                         al2_on = formatted_value >= alarm_levels["AL2"]
