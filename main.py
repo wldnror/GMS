@@ -59,7 +59,8 @@ def load_settings():
             "modbus_boxes": 14,
             "analog_boxes": 0,
             "admin_password": None,
-            "gas_types": {}
+            "modbus_gas_types": {},
+            "analog_gas_types": {}
         }
 
 def save_settings(settings):
@@ -255,13 +256,20 @@ def show_box_settings():
     analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
-    gas_type_vars = []
+    modbus_gas_type_vars = []
+    analog_gas_type_vars = []
 
     for i in range(14):  # 최대 14개의 상자 설정을 표시
-        gas_type_var = StringVar(value=settings["gas_types"].get(f"box_{i}", "ORG"))
-        gas_type_vars.append(gas_type_var)
-        Label(box_settings_window, text=f"상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
-        OptionMenu(box_settings_window, gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
+        modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
+        modbus_gas_type_vars.append(modbus_gas_type_var)
+        Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
+        OptionMenu(box_settings_window, modbus_gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
+
+    for i in range(14):  # 최대 14개의 상자 설정을 표시
+        analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
+        analog_gas_type_vars.append(analog_gas_type_var)
+        Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
+        OptionMenu(box_settings_window, analog_gas_type_var, *gas_type_labels).grid(row=i + 2, column=3, padx=5, pady=5)
 
     def save_and_close():
         try:
@@ -272,8 +280,10 @@ def show_box_settings():
                 return
             settings["modbus_boxes"] = modbus_boxes
             settings["analog_boxes"] = analog_boxes
-            for i, var in enumerate(gas_type_vars):
-                settings["gas_types"][f"box_{i}"] = var.get()
+            for i, var in enumerate(modbus_gas_type_vars):
+                settings["modbus_gas_types"][f"modbus_box_{i}"] = var.get()
+            for i, var in enumerate(analog_gas_type_vars):
+                settings["analog_gas_types"][f"analog_box_{i}"] = var.get()
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
             box_settings_window.destroy()
@@ -281,7 +291,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=2, pady=10)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
@@ -367,8 +377,8 @@ if __name__ == "__main__":
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["gas_types"])
+    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"])
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
 
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
