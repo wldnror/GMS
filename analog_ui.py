@@ -94,10 +94,10 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
         box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
@@ -303,9 +303,11 @@ class AnalogUI:
                     self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
 
                     if pwr_on:
-                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                        blink = al2_on or al1_on
+                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=blink, box_index=box_index)
                     else:
                         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+
             time.sleep(1)
 
     def start_adc_thread(self):
