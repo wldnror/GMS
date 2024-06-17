@@ -85,7 +85,8 @@ class AnalogUI:
             "last_history_time": None,
             "last_history_value": None,
             "gas_type_text_id": gas_type_text_id,
-            "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()]
+            "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
+            "pwr_blink_state": False  # PWR 깜빡임 상태 초기화
         })
 
         create_segment_display(box_canvas)
@@ -290,12 +291,21 @@ class AnalogUI:
                     formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
                     formatted_value = max(0, min(formatted_value, full_scale))
 
-                    al1_on = formatted_value >= alarm_levels["AL1"]
-                    al2_on = formatted_value >= alarm_levels["AL2"]
                     pwr_on = milliamp >= 1.5
 
+                    if pwr_on:
+                        al2_on = formatted_value >= alarm_levels["AL2"]
+                        al1_on = formatted_value >= alarm_levels["AL1"]
+                    else:
+                        al1_on = False
+                        al2_on = False
+
                     self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
-                    self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+
+                    if pwr_on:
+                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                    else:
+                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
             time.sleep(1)
 
     def start_adc_thread(self):
