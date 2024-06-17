@@ -286,12 +286,17 @@ def show_box_settings():
                 settings["analog_gas_types"][f"analog_box_{i}"] = var.get()
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            update_ui_with_new_settings()
             box_settings_window.destroy()
-            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
+
+def update_ui_with_new_settings():
+    global modbus_ui, analog_ui
+    modbus_ui.update_boxes(settings["modbus_boxes"], settings["modbus_gas_types"])
+    analog_ui.update_boxes(settings["analog_boxes"], settings["analog_gas_types"])
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
