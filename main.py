@@ -243,13 +243,13 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_spinbox = Spinbox(box_settings_window, from_=0, to=7, font=("Arial", 12))
+    modbus_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
     modbus_spinbox.delete(0, "end")
     modbus_spinbox.insert(0, settings["modbus_boxes"])
     modbus_spinbox.grid(row=0, column=1, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_spinbox = Spinbox(box_settings_window, from_=0, to=7, font=("Arial", 12))
+    analog_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
     analog_spinbox.delete(0, "end")
     analog_spinbox.insert(0, settings["analog_boxes"])
     analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
@@ -257,7 +257,7 @@ def show_box_settings():
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     gas_type_vars = []
 
-    for i in range(7):  # 최대 7개의 상자 설정을 표시
+    for i in range(14):  # 최대 14개의 상자 설정을 표시
         gas_type_var = StringVar(value=settings["gas_types"].get(f"box_{i}", "ORG"))
         gas_type_vars.append(gas_type_var)
         Label(box_settings_window, text=f"상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
@@ -265,8 +265,13 @@ def show_box_settings():
 
     def save_and_close():
         try:
-            settings["modbus_boxes"] = int(modbus_spinbox.get())
-            settings["analog_boxes"] = int(analog_spinbox.get())
+            modbus_boxes = int(modbus_spinbox.get())
+            analog_boxes = int(analog_spinbox.get())
+            if modbus_boxes + analog_boxes > 14:
+                messagebox.showerror("입력 오류", "상자의 총합이 14개를 초과할 수 없습니다.")
+                return
+            settings["modbus_boxes"] = modbus_boxes
+            settings["analog_boxes"] = analog_boxes
             for i, var in enumerate(gas_type_vars):
                 settings["gas_types"][f"box_{i}"] = var.get()
             save_settings(settings)
@@ -276,7 +281,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=10, columnspan=2, pady=10)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=2, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
