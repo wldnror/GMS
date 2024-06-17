@@ -149,7 +149,7 @@ def prompt_confirm_password(new_password):
 
     Button(new_password_window, text="저장", command=save_new_password).pack(pady=5)
 
-def show_password_prompt():
+def show_password_prompt(callback):
     global attempt_count, lock_time, password_window, settings_window, lock_window
 
     if time.time() < lock_time:
@@ -194,14 +194,14 @@ def show_password_prompt():
         global attempt_count, lock_time
         if password_entry.get() == admin_password:
             password_window.destroy()
-            show_settings()
+            callback()
         else:
             attempt_count += 1
             if attempt_count >= 5:
                 lock_time = time.time() + 60  # 60초 잠금
                 attempt_count = 0
                 password_window.destroy()
-                show_password_prompt()
+                show_password_prompt(callback)
             else:
                 Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
 
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
-    settings_button = Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt, font=("Arial", 20))
+    settings_button = Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
