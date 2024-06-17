@@ -137,9 +137,13 @@ class ModbusUI:
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
-            "pwr_blink_state": False  # PWR 깜빡임 상태 초기화
+            "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
+            "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
+            "gas_type_text_id": None,
+            "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
         })
-        self.update_segment_display("    ", box_canvas, box_index=index)
+
+        self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
 
         control_frame = Frame(box_canvas, bg="black")
         control_frame.place(x=10, y=250)
@@ -162,10 +166,9 @@ class ModbusUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        gas_type_var = StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG"))
-        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
-        self.gas_types[f"modbus_box_{index}"] = gas_type_var.get()
-        box_canvas.create_text(129, 105, textvariable=gas_type_var, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_var = self.box_states[index]["gas_type_var"]
+        gas_type_text_id = box_canvas.create_text(129, 105, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
@@ -187,6 +190,9 @@ class ModbusUI:
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
         self.box_states[box_index]["full_scale"] = full_scale
+
+        box_canvas = self.box_frames[box_index][1]
+        box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
@@ -591,6 +597,7 @@ def show_box_settings():
         var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
         menu = OptionMenu(parent, var, *options)
         menu.grid(row=box_index, column=2, padx=5, pady=5)
+        var.trace_add("write", lambda *args, v=var, i=box_index: settings["gas_types"].update({f"box_{i}": v.get()}))
         return var
 
     gas_type_vars = []
