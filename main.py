@@ -1,18 +1,18 @@
-import tkinter as tk
+import json
+import os
+import time
 from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu
 import random
-import time
+import threading
+import queue
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
 import psutil
 import signal
 import sys
 import subprocess
-import os
-import json
-from cryptography.fernet import Fernet
 import socket
-import threading
+from cryptography.fernet import Fernet
 
 # 글로벌 변수로 설정 창을 참조합니다.
 settings_window = None
@@ -55,7 +55,12 @@ def load_settings():
         decrypted_data = decrypt_data(encrypted_data)
         return json.loads(decrypted_data)
     else:
-        return {"modbus_boxes": 14, "analog_boxes": 0, "admin_password": None, "gas_types": {}}
+        return {
+            "modbus_boxes": 14,
+            "analog_boxes": 0,
+            "admin_password": None,
+            "gas_types": {}
+        }
 
 def save_settings(settings):
     with open(SETTINGS_FILE, 'wb') as file:
@@ -65,19 +70,19 @@ def save_settings(settings):
 settings = load_settings()
 admin_password = settings.get("admin_password")
 
-def create_keypad(entry):
-    keypad_frame = Frame(entry.master)
+def create_keypad(entry, parent):
+    keypad_frame = Frame(parent)
     keypad_frame.pack()
 
     def on_button_click(char):
         if char == 'DEL':
             current_text = entry.get()
-            entry.delete(0, tk.END)
+            entry.delete(0, 'end')
             entry.insert(0, current_text[:-1])
         elif char == 'CLR':
-            entry.delete(0, tk.END)
+            entry.delete(0, 'end')
         else:
-            entry.insert(tk.END, char)
+            entry.insert('end', char)
 
     buttons = [str(i) for i in range(10)]
     random.shuffle(buttons)
@@ -87,10 +92,9 @@ def create_keypad(entry):
     rows = 4
     cols = 3
     for i, button in enumerate(buttons):
-        b = Button(keypad_frame, text=button, width=5, height=2,
-                   command=lambda b=button: on_button_click(b))
+        b = Button(keypad_frame, text=button, width=5, height=2, command=lambda b=button: on_button_click(b))
         b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
-    
+
     return keypad_frame
 
 def prompt_new_password():
@@ -106,7 +110,7 @@ def prompt_new_password():
     Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     new_password_entry.pack(pady=5)
-    create_keypad(new_password_entry)
+    create_keypad(new_password_entry, new_password_window)
 
     def confirm_password():
         new_password = new_password_entry.get()
@@ -128,7 +132,7 @@ def prompt_confirm_password(new_password):
     Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     confirm_password_entry.pack(pady=5)
-    create_keypad(confirm_password_entry)
+    create_keypad(confirm_password_entry, new_password_window)
 
     def save_new_password():
         confirm_password = confirm_password_entry.get()
@@ -184,7 +188,7 @@ def show_password_prompt():
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
     password_entry.pack(pady=5)
-    create_keypad(password_entry)
+    create_keypad(password_entry, password_window)
 
     def check_password():
         global attempt_count, lock_time
@@ -219,7 +223,6 @@ def show_settings():
     button_style = {'font': button_font, 'width': 25, 'height': 2, 'padx': 10, 'pady': 10}
 
     Button(settings_window, text="상자 설정", command=show_box_settings, **button_style).pack(pady=5)
-    Button(settings_window, text="가스명 설정", command=show_gas_settings, **button_style).pack(pady=5)
     Button(settings_window, text="비밀번호 변경", command=prompt_new_password, **button_style).pack(pady=5)
     Button(settings_window, text="창 크기 설정", command=exit_fullscreen, **button_style).pack(pady=5)
     Button(settings_window, text="전체 화면 설정", command=enter_fullscreen, **button_style).pack(pady=5)
@@ -236,22 +239,34 @@ def show_box_settings():
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
 
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).pack(pady=5)
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
     modbus_entry.insert(0, settings["modbus_boxes"])
-    modbus_entry.pack(pady=5)
-    create_keypad(modbus_entry)
+    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
 
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).pack(pady=5)
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
     analog_entry = Entry(box_settings_window, font=("Arial", 12))
     analog_entry.insert(0, settings["analog_boxes"])
-    analog_entry.pack(pady=5)
-    create_keypad(analog_entry)
+    analog_entry.grid(row=1, column=1, padx=5, pady=5)
+
+    create_keypad(modbus_entry, box_settings_window)
+    create_keypad(analog_entry, box_settings_window)
+
+    gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
+    gas_type_vars = []
+
+    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
+        gas_type_var = StringVar(value=settings["gas_types"].get(f"box_{i}", "ORG"))
+        gas_type_vars.append(gas_type_var)
+        Label(box_settings_window, text=f"상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
+        OptionMenu(box_settings_window, gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
 
     def save_and_close():
         try:
             settings["modbus_boxes"] = int(modbus_entry.get())
             settings["analog_boxes"] = int(analog_entry.get())
+            for i, var in enumerate(gas_type_vars):
+                settings["gas_types"][f"box_{i}"] = var.get()
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
             box_settings_window.destroy()
@@ -259,43 +274,7 @@ def show_box_settings():
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).pack(pady=10)
-
-def show_gas_settings():
-    global gas_settings_window
-    if gas_settings_window and gas_settings_window.winfo_exists():
-        gas_settings_window.focus()
-        return
-
-    gas_settings_window = Toplevel(root)
-    gas_settings_window.title("가스명 설정")
-    gas_settings_window.attributes("-topmost", True)
-
-    Label(gas_settings_window, text="Modbus TCP 가스명 설정", font=("Arial", 12)).pack(pady=5)
-    modbus_gas_names = [StringVar() for _ in range(settings["modbus_boxes"])]
-    for i, gas_name in enumerate(modbus_gas_names):
-        gas_name.set(settings["gas_types"].get(f"modbus_{i}", "ORG"))
-        Label(gas_settings_window, text=f"상자 {i+1}:", font=("Arial", 12)).pack(pady=2)
-        OptionMenu(gas_settings_window, gas_name, "ORG", "ARF-T", "HMDS", "HC-100").pack(pady=2)
-    
-    Label(gas_settings_window, text="4~20mA 가스명 설정", font=("Arial", 12)).pack(pady=5)
-    analog_gas_names = [StringVar() for _ in range(settings["analog_boxes"])]
-    for i, gas_name in enumerate(analog_gas_names):
-        gas_name.set(settings["gas_types"].get(f"analog_{i}", "ORG"))
-        Label(gas_settings_window, text=f"상자 {i+1}:", font=("Arial", 12)).pack(pady=2)
-        OptionMenu(gas_settings_window, gas_name, "ORG", "ARF-T", "HMDS", "HC-100").pack(pady=2)
-
-    def save_and_close():
-        for i, gas_name in enumerate(modbus_gas_names):
-            settings["gas_types"][f"modbus_{i}"] = gas_name.get()
-        for i, gas_name in enumerate(analog_gas_names):
-            settings["gas_types"][f"analog_{i}"] = gas_name.get()
-        save_settings(settings)
-        messagebox.showinfo("설정 저장", "가스명이 저장되었습니다.")
-        gas_settings_window.destroy()
-        restart_application()  # 설정이 변경되면 애플리케이션을 재시작
-
-    Button(gas_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).pack(pady=10)
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=2, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
