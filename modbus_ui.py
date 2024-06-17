@@ -17,6 +17,12 @@ from virtual_keyboard import VirtualKeyboard
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
+    GAS_FULL_SCALE = {
+        "ORG": 9999,
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
+    }
 
     def __init__(self, root, num_boxes, gas_types):
         self.root = root
@@ -156,8 +162,10 @@ class ModbusUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        gas_type = self.gas_types.get(f"box_{index}", "ORG")
-        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_var = StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG"))
+        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
+        self.gas_types[f"modbus_box_{index}"] = gas_type_var.get()
+        box_canvas.create_text(129, 105, textvariable=gas_type_var, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
@@ -174,6 +182,11 @@ class ModbusUI:
         self.show_bar(index, show=False)
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+
+    def update_full_scale(self, gas_type_var, box_index):
+        gas_type = gas_type_var.get()
+        full_scale = self.GAS_FULL_SCALE[gas_type]
+        self.box_states[box_index]["full_scale"] = full_scale
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
