@@ -357,3 +357,4 @@ class AnalogUI:
                     self.root.after(600, toggle_color)
 
         toggle_color()
+
