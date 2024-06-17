@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu
+from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu, Canvas
 import random
 import threading
 import queue
@@ -106,9 +106,6 @@ def prompt_new_password():
     new_password_window = Toplevel(root)
     new_password_window.title("관리자 비밀번호 설정")
     new_password_window.attributes("-topmost", True)
-    new_password_window.lift()
-    new_password_window.grab_set()
-    new_password_window.focus_force()
 
     Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
@@ -131,9 +128,6 @@ def prompt_confirm_password(new_password):
     new_password_window = Toplevel(root)
     new_password_window.title("비밀번호 확인")
     new_password_window.attributes("-topmost", True)
-    new_password_window.lift()
-    new_password_window.grab_set()
-    new_password_window.focus_force()
 
     Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
@@ -162,7 +156,7 @@ def show_password_prompt():
         if not lock_window or not lock_window.winfo_exists():
             lock_window = Toplevel(root)
             lock_window.title("잠금")
-            # lock_window.attributes("-topmost", True)
+            lock_window.attributes("-topmost", True)
             lock_window.geometry("300x150")
             lock_label = Label(lock_window, text="", font=("Arial", 12))
             lock_label.pack(pady=10)
@@ -190,9 +184,6 @@ def show_password_prompt():
     password_window = Toplevel(root)
     password_window.title("비밀번호 입력")
     password_window.attributes("-topmost", True)
-    password_window.lift()
-    password_window.grab_set()
-    password_window.focus_force()
 
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
@@ -225,9 +216,6 @@ def show_settings():
     settings_window = Toplevel(root)
     settings_window.title("설정 메뉴")
     settings_window.attributes("-topmost", True)
-    settings_window.lift()
-    settings_window.grab_set()
-    settings_window.focus_force()
 
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
 
@@ -250,9 +238,6 @@ def show_box_settings():
     box_settings_window = Toplevel(root)
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
-    box_settings_window.lift()
-    box_settings_window.grab_set()
-    box_settings_window.focus_force()
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
     modbus_entry = Entry(box_settings_window, font=("Arial", 12))
@@ -366,14 +351,14 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    main_frame = Frame(root)
+    main_frame.grid(row=0, column=0)
+
     if not admin_password:
         prompt_new_password()
     else:
         modbus_boxes = settings["modbus_boxes"]
         analog_boxes = settings["analog_boxes"]
-
-        main_frame = Frame(root)
-        main_frame.grid(row=0, column=0)
 
         modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
         analog_ui = AnalogUI(main_frame, analog_boxes, settings["gas_types"])
@@ -404,5 +389,6 @@ if __name__ == "__main__":
 
     root.mainloop()
 
-    for _, client in modbus_ui.clients.items():
-        client.close()
+    if 'modbus_ui' in locals():
+        for _, client in modbus_ui.clients.items():
+            client.close()
