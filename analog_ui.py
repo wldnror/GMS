@@ -317,64 +317,48 @@ class AnalogUI:
         ui_update_thread.start()
 
     def update_ui_from_queue(self):
-    while True:
-        try:
-            box_index, avg_milliamp = self.adc_queue.get(timeout=1)
-            gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
-            full_scale = self.GAS_FULL_SCALE[gas_type]
-            alarm_levels = self.ALARM_LEVELS[gas_type]
-            formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-            formatted_value = max(0, min(formatted_value, full_scale))
+        while True:
+            try:
+                box_index, avg_milliamp = self.adc_queue.get(timeout=1)
+                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+                full_scale = self.GAS_FULL_SCALE[gas_type]
+                alarm_levels = self.ALARM_LEVELS[gas_type]
+                formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
+                formatted_value = max(0, min(formatted_value, full_scale))
 
-            pwr_on = avg_milliamp >= 1.5
+                pwr_on = avg_milliamp >= 1.5
 
-            self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-            self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-            self.box_states[box_index]["last_value"] = formatted_value
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+                self.box_states[box_index]["last_value"] = formatted_value
 
-            print(f"Box {box_index} - Value: {formatted_value}, AL1: {self.box_states[box_index]['alarm1_on']}, AL2: {self.box_states[box_index]['alarm2_on']}")
+                print(f"Box {box_index} - Value: {formatted_value}, AL1: {self.box_states[box_index]['alarm1_on']}, AL2: {self.box_states[box_index]['alarm2_on']}")
 
-            if pwr_on:
-                if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
-                    if not self.box_states[box_index]["blinking_error"]:
-                        self.box_states[box_index]["blinking_error"] = True
-                        self.box_states[box_index]["stop_blinking"].clear()
-                        if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
-                            self.box_states[box_index]["blink_thread"].start()
+                if pwr_on:
+                    if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
+                        if not self.box_states[box_index]["blinking_error"]:
+                            self.box_states[box_index]["blinking_error"] = True
+                            self.box_states[box_index]["stop_blinking"].clear()
+                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
+                                self.box_states[box_index]["blink_thread"].start()
+                    else:
+                        with self.box_states[box_index]["blink_lock"]:
+                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                            self.box_states[box_index]["blinking_error"] = False
+                            self.box_states[box_index]["stop_blinking"].set()
                 else:
                     with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
-            else:
-                with self.box_states[box_index]["blink_lock"]:
-                    self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-                    self.box_states[box_index]["blinking_error"] = False
-                    self.box_states[box_index]["stop_blinking"].set()
 
-        except queue.Empty:
-            continue
-        except Exception as e:
-            print(f"Error updating UI from queue: {e}")
-
-def blink_alarm(self, box_index):
-    def toggle_color():
-        with self.box_states[box_index]["blink_lock"]:
-            if self.box_states[box_index]["alarm2_on"]:
-                self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-            elif self.box_states[box_index]["alarm1_on"]:
-                self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
-            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-            if self.box_states[box_index]["last_value"] is not None:
-                self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
-            if not self.box_states[box_index]["stop_blinking"].is_set():
-                self.root.after(600, toggle_color)
-
-    toggle_color()
-
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"Error updating UI from queue: {e}")
 
     def blink_alarm(self, box_index):
         def toggle_color():
