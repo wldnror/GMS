@@ -10,7 +10,7 @@ from common import SEGMENTS, create_segment_display
 import queue
 
 class AnalogUI:
-    LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
+    LOGS_PER_FILE = 10
 
     GAS_FULL_SCALE = {
         "ORG": 9999,
@@ -33,8 +33,8 @@ class AnalogUI:
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
         self.graph_windows = [None for _ in range(num_boxes)]
-        self.history_window = None  # 히스토리 창을 저장할 변수
-        self.history_lock = threading.Lock()  # 히스토리 창 중복 방지를 위한 락
+        self.history_window = None
+        self.history_lock = threading.Lock()
 
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=40, pady=40)
@@ -46,7 +46,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [[] for _ in range(num_boxes)]  # 각 박스에 대한 최근 ADC 값을 저장할 리스트
+        self.adc_values = [[] for _ in range(num_boxes)]
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -90,13 +90,13 @@ class AnalogUI:
             "last_history_value": None,
             "gas_type_text_id": gas_type_text_id,
             "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
-            "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
-            "last_value": None,  # 마지막 값을 저장하는 상태 추가
-            "blink_thread": None,  # 깜빡임을 처리하는 스레드 추가
-            "stop_blinking": threading.Event(),  # 깜빡임을 중지하는 이벤트 추가
-            "blink_lock": threading.Lock(),  # 깜빡임 상태를 보호하는 락 추가
-            "alarm1_on": False,  # 알람1 상태
-            "alarm2_on": False  # 알람2 상태
+            "pwr_blink_state": False,
+            "last_value": None,
+            "blink_thread": None,
+            "stop_blinking": threading.Event(),
+            "blink_lock": threading.Lock(),
+            "alarm1_on": False,
+            "alarm2_on": False
         })
 
         create_segment_display(box_canvas)
@@ -191,7 +191,6 @@ class AnalogUI:
             log_file_index = self.get_log_file_index(box_index)
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
 
-            # 비동기적으로 로그 파일에 기록
             threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
 
     def async_write_log(self, log_file, log_line):
@@ -199,7 +198,6 @@ class AnalogUI:
             file.write(log_line)
 
     def get_log_file_index(self, box_index):
-        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
         index = 0
         while True:
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
@@ -212,7 +210,6 @@ class AnalogUI:
             index += 1
 
     def load_log_files(self, box_index, file_index):
-        """특정 로그 파일을 로드하여 로그 목록을 반환"""
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
@@ -278,49 +275,36 @@ class AnalogUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     def read_adc_data(self):
-    adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
-    adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
-    GAIN = 2 / 3
-    while True:
-        for adc_index, adc in enumerate(adcs):
-            try:
-                values = []
-                for channel in range(4):
-                    value = adc.read_adc(channel, gain=GAIN)
-                    voltage = value * 6.144 / 32767
-                    current = voltage / 250
-                    milliamp = current * 1000
-                    values.append(milliamp)
+        adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
+        adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
+        GAIN = 2 / 3
+        while True:
+            for adc_index, adc in enumerate(adcs):
+                try:
+                    values = []
+                    for channel in range(4):
+                        value = adc.read_adc(channel, gain=GAIN)
+                        voltage = value * 6.144 / 32767
+                        current = voltage / 250
+                        milliamp = current * 1000
+                        values.append(milliamp)
 
-                for channel, milliamp in enumerate(values):
-                    box_index = adc_index * 4 + channel
-                    if box_index >= self.num_boxes:
-                        continue
+                    for channel, milliamp in enumerate(values):
+                        box_index = adc_index * 4 + channel
+                        if box_index >= self.num_boxes:
+                            continue
 
-                    if len(self.adc_values[box_index]) >= 10:
-                        self.adc_values[box_index].pop(0)
-                    self.adc_values[box_index].append(milliamp)
+                        if len(self.adc_values[box_index]) >= 10:
+                            self.adc_values[box_index].pop(0)
+                        self.adc_values[box_index].append(milliamp)
 
-                    avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                    print(f"Box {box_index}: {avg_milliamp} mA")
-                    self.adc_queue.put((box_index, avg_milliamp))
-            except Exception as e:
-                print(f"Error reading ADC data: {e}")
+                        avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
+                        print(f"Box {box_index}: {avg_milliamp} mA")
+                        self.adc_queue.put((box_index, avg_milliamp))
+                except Exception as e:
+                    print(f"Error reading ADC data: {e}")
 
-        time.sleep(0.1)
-
-
-
-                    # 최근 10개의 값을 저장
-                    if len(self.adc_values[box_index]) >= 10:
-                        self.adc_values[box_index].pop(0)
-                    self.adc_values[box_index].append(milliamp)
-
-                    # 최근 값의 평균을 사용
-                    avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                    self.adc_queue.put((box_index, avg_milliamp))
-
-            time.sleep(1)
+            time.sleep(0.1)  # 샘플링 속도 증가
 
     def start_adc_thread(self):
         adc_thread = threading.Thread(target=self.read_adc_data)
@@ -333,46 +317,46 @@ class AnalogUI:
         ui_update_thread.start()
 
     def update_ui_from_queue(self):
-    while True:
-        try:
-            box_index, avg_milliamp = self.adc_queue.get(timeout=1)
-            gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
-            full_scale = self.GAS_FULL_SCALE[gas_type]
-            alarm_levels = self.ALARM_LEVELS[gas_type]
-            formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-            formatted_value = max(0, min(formatted_value, full_scale))
+        while True:
+            try:
+                box_index, avg_milliamp = self.adc_queue.get(timeout=1)
+                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+                full_scale = self.GAS_FULL_SCALE[gas_type]
+                alarm_levels = self.ALARM_LEVELS[gas_type]
+                formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
+                formatted_value = max(0, min(formatted_value, full_scale))
 
-            pwr_on = avg_milliamp >= 1.5
+                pwr_on = avg_milliamp >= 1.5
 
-            self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-            self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-            self.box_states[box_index]["last_value"] = formatted_value
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+                self.box_states[box_index]["last_value"] = formatted_value
 
-            if pwr_on:
-                if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
-                    if not self.box_states[box_index]["blinking_error"]:
-                        self.box_states[box_index]["blinking_error"] = True
-                        self.box_states[box_index]["stop_blinking"].clear()
-                        if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
-                            self.box_states[box_index]["blink_thread"].start()
+                if pwr_on:
+                    if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
+                        if not self.box_states[box_index]["blinking_error"]:
+                            self.box_states[box_index]["blinking_error"] = True
+                            self.box_states[box_index]["stop_blinking"].clear()
+                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
+                                self.box_states[box_index]["blink_thread"].start()
+                    else:
+                        with self.box_states[box_index]["blink_lock"]:
+                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                            self.box_states[box_index]["blinking_error"] = False
+                            self.box_states[box_index]["stop_blinking"].set()
                 else:
                     with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
-            else:
-                with self.box_states[box_index]["blink_lock"]:
-                    self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-                    self.box_states[box_index]["blinking_error"] = False
-                    self.box_states[box_index]["stop_blinking"].set()
-        except queue.Empty:
-            continue
-        except Exception as e:
-            print(f"Error updating UI from queue: {e}")
 
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"Error updating UI from queue: {e}")
 
     def blink_alarm(self, box_index):
         def toggle_color():
@@ -389,7 +373,6 @@ class AnalogUI:
 
         toggle_color()
 
-# main.py에서 AnalogUI 클래스의 인스턴스를 생성하는 코드
 if __name__ == "__main__":
     from tkinter import Tk
     import json
