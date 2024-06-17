@@ -86,7 +86,8 @@ class AnalogUI:
             "last_history_value": None,
             "gas_type_text_id": gas_type_text_id,
             "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
-            "pwr_blink_state": False  # PWR 깜빡임 상태 초기화
+            "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
+            "last_value": None  # 마지막 값을 저장하는 상태 추가
         })
 
         create_segment_display(box_canvas)
@@ -301,6 +302,7 @@ class AnalogUI:
                         al2_on = False
 
                     self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
+                    self.box_states[box_index]["last_value"] = formatted_value
 
                     if pwr_on:
                         if al2_on or al1_on:
@@ -324,8 +326,8 @@ class AnalogUI:
             elif al1_on:
                 self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
             self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-            if self.box_states[box_index]["last_value_40005"] is not None:
-                self.update_segment_display(str(self.box_states[box_index]["last_value_40005"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
+            if self.box_states[box_index]["last_value"] is not None:
+                self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
             self.root.after(600, toggle_color)
 
         toggle_color()
