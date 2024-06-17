@@ -98,7 +98,7 @@ class AnalogUI:
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
         # circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
-        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
+        # box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
         box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
