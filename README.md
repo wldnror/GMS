@@ -3,6 +3,16 @@
 ## 개요
 ModbusTCP를 통해 수신한 데이터를 화면에 깔끔하게 표시합니다.
 
+## 가상환경 활성화
+### 새로운 가상환경 만들기
+```bash
+python3 -m venv myenv
+```
+### 가상환경 연결
+```bash
+source myenv/bin/activate
+```
+
 ## 필요 라이브러리
 ```bash
 pip install pymodbus
