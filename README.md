@@ -20,6 +20,7 @@ pip install rich
 pip install Pillow
 pip install matplotlib
 pip install mplcursors
+pip install adafruit-ads1x15
 ```
 
 # 필수 설정
