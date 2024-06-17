@@ -188,7 +188,7 @@ class AnalogUI:
     def async_write_log(self, log_file, log_line):
         with open(log_file, 'a') as file:
             file.write(log_line)
-
+            
     def get_log_file_index(self, box_index):
         """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
         index = 0
