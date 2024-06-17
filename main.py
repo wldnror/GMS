@@ -70,9 +70,12 @@ def save_settings(settings):
 settings = load_settings()
 admin_password = settings.get("admin_password")
 
-def create_keypad(entry, parent, row, column, columnspan=1):
+def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="grid"):
     keypad_frame = Frame(parent)
-    keypad_frame.grid(row=row, column=column, columnspan=columnspan, pady=5)
+    if geometry == "grid":
+        keypad_frame.grid(row=row, column=column, columnspan=columnspan, pady=5)
+    elif geometry == "pack":
+        keypad_frame.pack()
 
     def on_button_click(char):
         if char == 'DEL':
@@ -110,7 +113,7 @@ def prompt_new_password():
     Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     new_password_entry.pack(pady=5)
-    create_keypad(new_password_entry, new_password_window, row=1, column=0)
+    create_keypad(new_password_entry, new_password_window, geometry="pack")
 
     def confirm_password():
         new_password = new_password_entry.get()
@@ -132,7 +135,7 @@ def prompt_confirm_password(new_password):
     Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     confirm_password_entry.pack(pady=5)
-    create_keypad(confirm_password_entry, new_password_window, row=1, column=0)
+    create_keypad(confirm_password_entry, new_password_window, geometry="pack")
 
     def save_new_password():
         confirm_password = confirm_password_entry.get()
@@ -188,7 +191,7 @@ def show_password_prompt(callback):
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
     password_entry.pack(pady=5)
-    create_keypad(password_entry, password_window, row=1, column=0)
+    create_keypad(password_entry, password_window, geometry="pack")
 
     def check_password():
         global attempt_count, lock_time
@@ -249,8 +252,8 @@ def show_box_settings():
     analog_entry.insert(0, settings["analog_boxes"])
     analog_entry.grid(row=1, column=1, padx=5, pady=5)
 
-    create_keypad(modbus_entry, box_settings_window, row=2, column=0, columnspan=2)
-    create_keypad(analog_entry, box_settings_window, row=3, column=0, columnspan=2)
+    create_keypad(modbus_entry, box_settings_window, row=2, column=0, columnspan=2, geometry="grid")
+    create_keypad(analog_entry, box_settings_window, row=3, column=0, columnspan=2, geometry="grid")
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     gas_type_vars = []
