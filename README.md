@@ -22,6 +22,8 @@ pip install matplotlib
 pip install mplcursors
 pip install adafruit-ads1x15
 pip install psutil
+pip install cryptography
+
 ```
 
 # 필수 설정
