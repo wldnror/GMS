@@ -89,7 +89,8 @@ class AnalogUI:
             "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
             "last_value": None,  # 마지막 값을 저장하는 상태 추가
             "blink_thread": None,  # 깜빡임을 처리하는 스레드 추가
-            "stop_blinking": threading.Event()  # 깜빡임을 중지하는 이벤트 추가
+            "stop_blinking": threading.Event(),  # 깜빡임을 중지하는 이벤트 추가
+            "blink_lock": threading.Lock()  # 깜빡임 상태를 보호하는 락 추가
         })
 
         create_segment_display(box_canvas)
@@ -315,13 +316,15 @@ class AnalogUI:
                                     self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(al1_on, al2_on, box_index))
                                     self.box_states[box_index]["blink_thread"].start()
                         else:
-                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                            with self.box_states[box_index]["blink_lock"]:
+                                self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                                self.box_states[box_index]["blinking_error"] = False
+                                self.box_states[box_index]["stop_blinking"].set()
+                    else:
+                        with self.box_states[box_index]["blink_lock"]:
+                            self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
                             self.box_states[box_index]["blinking_error"] = False
                             self.box_states[box_index]["stop_blinking"].set()
-                    else:
-                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-                        self.box_states[box_index]["blinking_error"] = False
-                        self.box_states[box_index]["stop_blinking"].set()
 
             time.sleep(1)
 
@@ -332,14 +335,15 @@ class AnalogUI:
 
     def blink_alarm(self, al1_on, al2_on, box_index):
         def toggle_color():
-            if al2_on:
-                self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-            elif al1_on:
-                self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
-            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-            if self.box_states[box_index]["last_value"] is not None:
-                self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
-            if not self.box_states[box_index]["stop_blinking"].is_set():
-                self.root.after(600, toggle_color)
+            with self.box_states[box_index]["blink_lock"]:
+                if al2_on:
+                    self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+                elif al1_on:
+                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
+                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+                if self.box_states[box_index]["last_value"] is not None:
+                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
+                if not self.box_states[box_index]["stop_blinking"].is_set():
+                    self.root.after(600, toggle_color)
 
         toggle_color()
