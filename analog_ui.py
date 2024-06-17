@@ -73,10 +73,10 @@ class AnalogUI:
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
-        gas_type = self.gas_types.get(f"analog_box_{index}", "ORG")
-        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
-
-        create_segment_display(box_canvas)
+        gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
+        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
+        self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
+        gas_type_text_id = box_canvas.create_text(129, 105, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
@@ -84,11 +84,16 @@ class AnalogUI:
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
-            "stop_blinking": threading.Event(),
-            "blink_thread": None,
-            "blink_lock": threading.Lock(),
-            "last_value": None
+            "gas_type_text_id": gas_type_text_id,
+            "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
+            "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
+            "last_value": None,  # 마지막 값을 저장하는 상태 추가
+            "blink_thread": None,  # 깜빡임을 처리하는 스레드 추가
+            "stop_blinking": threading.Event(),  # 깜빡임을 중지하는 이벤트 추가
+            "blink_lock": threading.Lock()  # 깜빡임 상태를 보호하는 락 추가
         })
+
+        create_segment_display(box_canvas)
         self.update_segment_display("    ", box_canvas, box_index=index)
 
         circle_items = []
@@ -112,6 +117,14 @@ class AnalogUI:
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+
+    def update_full_scale(self, gas_type_var, box_index):
+        gas_type = gas_type_var.get()
+        full_scale = self.GAS_FULL_SCALE[gas_type]
+        self.box_states[box_index]["full_scale"] = full_scale
+
+        box_canvas = self.box_frames[box_index][1]
+        box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
@@ -282,25 +295,36 @@ class AnalogUI:
                     formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
                     formatted_value = max(0, min(formatted_value, full_scale))
 
-                    self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
-
-                    pwr_on = milliamp > 1.5
-                    al1_on = formatted_value >= alarm_levels["AL1"]
-                    al2_on = formatted_value >= alarm_levels["AL2"]
-
-                    self.box_states[box_index]["last_value"] = formatted_value
-
-                    self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
+                    pwr_on = milliamp >= 1.5
 
                     if pwr_on:
-                        if al2_on:
-                            self.start_blinking(box_index, al2_on=True)
-                        elif al1_on:
-                            self.start_blinking(box_index, al1_on=True)
-                        else:
-                            self.stop_blinking(box_index)
+                        al2_on = formatted_value >= alarm_levels["AL2"]
+                        al1_on = formatted_value >= alarm_levels["AL1"]
                     else:
-                        self.stop_blinking(box_index)
+                        al1_on = False
+                        al2_on = False
+
+                    self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
+                    self.box_states[box_index]["last_value"] = formatted_value
+
+                    if pwr_on:
+                        if al2_on or al1_on:
+                            if not self.box_states[box_index]["blinking_error"]:
+                                self.box_states[box_index]["blinking_error"] = True
+                                self.box_states[box_index]["stop_blinking"].clear()
+                                if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                                    self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(al1_on, al2_on, box_index))
+                                    self.box_states[box_index]["blink_thread"].start()
+                        else:
+                            with self.box_states[box_index]["blink_lock"]:
+                                self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                                self.box_states[box_index]["blinking_error"] = False
+                                self.box_states[box_index]["stop_blinking"].set()
+                    else:
+                        with self.box_states[box_index]["blink_lock"]:
+                            self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+                            self.box_states[box_index]["blinking_error"] = False
+                            self.box_states[box_index]["stop_blinking"].set()
 
             time.sleep(1)
 
@@ -309,46 +333,17 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def start_blinking(self, box_index, al1_on=False, al2_on=False):
-        stop_blinking_event = self.box_states[box_index]["stop_blinking"]
-        stop_blinking_event.clear()
-
-        if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
-            self.box_states[box_index]["blink_thread"].start()
-
-        with self.box_states[box_index]["blink_lock"]:
-            self.box_states[box_index]["al1_on"] = al1_on
-            self.box_states[box_index]["al2_on"] = al2_on
-
-    def stop_blinking(self, box_index):
-        stop_blinking_event = self.box_states[box_index]["stop_blinking"]
-        stop_blinking_event.set()
-
-    def blink_alarm(self, box_index):
-        stop_blinking_event = self.box_states[box_index]["stop_blinking"]
-        box_canvas = self.box_frames[box_index][1]
-
-        while not stop_blinking_event.is_set():
+    def blink_alarm(self, al1_on, al2_on, box_index):
+        def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
-                al1_on = self.box_states[box_index].get("al1_on", False)
-                al2_on = self.box_states[box_index].get("al2_on", False)
-                current_value = self.box_states[box_index].get("last_value", "")
+                if al2_on:
+                    self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+                elif al1_on:
+                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
+                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+                if self.box_states[box_index]["last_value"] is not None:
+                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
+                if not self.box_states[box_index]["stop_blinking"].is_set():
+                    self.root.after(600, toggle_color)
 
-            if al2_on:
-                self.update_circle_state([True, False, True, False], box_index=box_index)
-                self.update_segment_display(current_value, box_canvas, blink=True, box_index=box_index)
-            elif al1_on:
-                self.update_circle_state([False, True, True, False], box_index=box_index)
-                self.update_segment_display(current_value, box_canvas, blink=True, box_index=box_index)
-
-            time.sleep(0.5)
-
-            if al2_on:
-                self.update_circle_state([False, False, True, False], box_index=box_index)
-                self.update_segment_display(current_value, box_canvas, blink=False, box_index=box_index)
-            elif al1_on:
-                self.update_circle_state([False, False, True, False], box_index=box_index)
-                self.update_segment_display(current_value, box_canvas, blink=False, box_index=box_index)
-
-            time.sleep(0.5)
+        toggle_color()
