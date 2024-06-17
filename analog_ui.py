@@ -66,8 +66,10 @@ class AnalogUI:
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
-        gas_type = self.gas_types.get(f"box_{index}", "ORG")
-        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
+        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
+        self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
+        box_canvas.create_text(129, 105, textvariable=gas_type_var, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         create_segment_display(box_canvas)
         self.box_states.append({
@@ -101,6 +103,11 @@ class AnalogUI:
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+
+    def update_full_scale(self, gas_type_var, box_index):
+        gas_type = gas_type_var.get()
+        full_scale = self.GAS_FULL_SCALE[gas_type]
+        self.box_states[box_index]["full_scale"] = full_scale
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
@@ -265,7 +272,7 @@ class AnalogUI:
                     box_index = adc_index * 4 + channel
                     if box_index >= self.num_boxes:
                         continue
-                    gas_type = self.gas_types.get(f"box_{box_index}", "ORG")
+                    gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                     full_scale = self.GAS_FULL_SCALE[gas_type]
                     formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
                     formatted_value = max(0, min(formatted_value, full_scale))
