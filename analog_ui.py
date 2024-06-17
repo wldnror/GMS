@@ -207,7 +207,7 @@ class AnalogUI:
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
+            with open(log_file, 'r') as file):
                 lines = file.readlines()
                 for line in lines:
                     timestamp, value = line.strip().split(',')
@@ -306,11 +306,15 @@ class AnalogUI:
 
                     if pwr_on:
                         if al2_on or al1_on:
-                            self.blink_alarm(al1_on, al2_on, box_index)
+                            if not self.box_states[box_index]["blinking_error"]:
+                                self.blink_alarm(al1_on, al2_on, box_index)
+                                self.box_states[box_index]["blinking_error"] = True
                         else:
                             self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                            self.box_states[box_index]["blinking_error"] = False
                     else:
                         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+                        self.box_states[box_index]["blinking_error"] = False
 
             time.sleep(1)
 
@@ -328,6 +332,7 @@ class AnalogUI:
             self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
             if self.box_states[box_index]["last_value"] is not None:
                 self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
-            self.root.after(600, toggle_color)
+            if self.box_states[box_index]["blinking_error"]:
+                self.root.after(600, toggle_color)
 
         toggle_color()
