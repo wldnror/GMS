@@ -188,7 +188,7 @@ class AnalogUI:
     def async_write_log(self, log_file, log_line):
         with open(log_file, 'a') as file:
             file.write(log_line)
-            
+
     def get_log_file_index(self, box_index):
         """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
         index = 0
@@ -207,7 +207,7 @@ class AnalogUI:
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
-            with open(log_file, 'r') as file):
+            with open(log_file, 'r') as file:
                 lines = file.readlines()
                 for line in lines:
                     timestamp, value = line.strip().split(',')
