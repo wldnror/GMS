@@ -92,7 +92,9 @@ class AnalogUI:
             "last_value": None,  # 마지막 값을 저장하는 상태 추가
             "blink_thread": None,  # 깜빡임을 처리하는 스레드 추가
             "stop_blinking": threading.Event(),  # 깜빡임을 중지하는 이벤트 추가
-            "blink_lock": threading.Lock()  # 깜빡임 상태를 보호하는 락 추가
+            "blink_lock": threading.Lock(),  # 깜빡임 상태를 보호하는 락 추가
+            "alarm1_on": False,  # 알람1 상태
+            "alarm2_on": False  # 알람2 상태
         })
 
         create_segment_display(box_canvas)
@@ -141,7 +143,7 @@ class AnalogUI:
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
-            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+            box_canvas.itemconfig(circle_items[i], fill(color, outline=color))
 
         if states[0]:
             outline_color = outline_colors[0]
@@ -307,23 +309,19 @@ class AnalogUI:
 
                     pwr_on = avg_milliamp >= 1.5
 
-                    if pwr_on:
-                        al2_on = formatted_value >= alarm_levels["AL2"]
-                        al1_on = formatted_value >= alarm_levels["AL1"]
-                    else:
-                        al1_on = False
-                        al2_on = False
+                    self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                    self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-                    self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
+                    self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
                     self.box_states[box_index]["last_value"] = formatted_value
 
                     if pwr_on:
-                        if al2_on or al1_on:
+                        if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
                             if not self.box_states[box_index]["blinking_error"]:
                                 self.box_states[box_index]["blinking_error"] = True
                                 self.box_states[box_index]["stop_blinking"].clear()
                                 if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                    self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(al1_on, al2_on, box_index))
+                                    self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
                                     self.box_states[box_index]["blink_thread"].start()
                         else:
                             with self.box_states[box_index]["blink_lock"]:
@@ -343,12 +341,12 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def blink_alarm(self, al1_on, al2_on, box_index):
+    def blink_alarm(self, box_index):
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
-                if al2_on:
+                if self.box_states[box_index]["alarm2_on"]:
                     self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-                elif al1_on:
+                elif self.box_states[box_index]["alarm1_on"]:
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                 if self.box_states[box_index]["last_value"] is not None:
@@ -357,4 +355,3 @@ class AnalogUI:
                     self.root.after(600, toggle_color)
 
         toggle_color()
-
