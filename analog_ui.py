@@ -18,6 +18,13 @@ class AnalogUI:
         "HC-100": 5000
     }
 
+    ALARM_LEVELS = {
+        "ORG": {"AL1": 9500, "AL2": 9999},
+        "ARF-T": {"AL1": 2000, "AL2": 4000},
+        "HMDS": {"AL1": 2640, "AL2": 3000},
+        "HC-100": {"AL1": 1500, "AL2": 3000}
+    }
+
     def __init__(self, root, num_boxes, gas_types):
         self.root = root
         self.gas_types = gas_types
@@ -279,8 +286,15 @@ class AnalogUI:
                         continue
                     gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                     full_scale = self.GAS_FULL_SCALE[gas_type]
+                    alarm_levels = self.ALARM_LEVELS[gas_type]
                     formatted_value = int((milliamp - 4) / (20 - 4) * full_scale)
                     formatted_value = max(0, min(formatted_value, full_scale))
+
+                    al1_on = formatted_value >= alarm_levels["AL1"]
+                    al2_on = formatted_value >= alarm_levels["AL2"]
+                    pwr_on = milliamp >= 1.5
+
+                    self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
                     self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
             time.sleep(1)
 
