@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, create_segment_display
+import queue
 
 class AnalogUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
@@ -53,7 +54,9 @@ class AnalogUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
+        self.adc_queue = queue.Queue()
         self.start_adc_thread()
+        self.start_ui_update_thread()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -300,38 +303,7 @@ class AnalogUI:
 
                     # 최근 값의 평균을 사용
                     avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                    gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
-                    full_scale = self.GAS_FULL_SCALE[gas_type]
-                    alarm_levels = self.ALARM_LEVELS[gas_type]
-                    formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-                    formatted_value = max(0, min(formatted_value, full_scale))
-
-                    pwr_on = avg_milliamp >= 1.5
-
-                    self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                    self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-
-                    self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-                    self.box_states[box_index]["last_value"] = formatted_value
-
-                    if pwr_on:
-                        if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
-                            if not self.box_states[box_index]["blinking_error"]:
-                                self.box_states[box_index]["blinking_error"] = True
-                                self.box_states[box_index]["stop_blinking"].clear()
-                                if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                    self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
-                                    self.box_states[box_index]["blink_thread"].start()
-                        else:
-                            with self.box_states[box_index]["blink_lock"]:
-                                self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
-                                self.box_states[box_index]["blinking_error"] = False
-                                self.box_states[box_index]["stop_blinking"].set()
-                    else:
-                        with self.box_states[box_index]["blink_lock"]:
-                            self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.box_states[box_index]["stop_blinking"].set()
+                    self.adc_queue.put((box_index, avg_milliamp))
 
             time.sleep(1)
 
@@ -339,6 +311,51 @@ class AnalogUI:
         adc_thread = threading.Thread(target=self.read_adc_data)
         adc_thread.daemon = True
         adc_thread.start()
+
+    def start_ui_update_thread(self):
+        ui_update_thread = threading.Thread(target=self.update_ui_from_queue)
+        ui_update_thread.daemon = True
+        ui_update_thread.start()
+
+    def update_ui_from_queue(self):
+        while True:
+            try:
+                box_index, avg_milliamp = self.adc_queue.get(timeout=1)
+                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+                full_scale = self.GAS_FULL_SCALE[gas_type]
+                alarm_levels = self.ALARM_LEVELS[gas_type]
+                formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
+                formatted_value = max(0, min(formatted_value, full_scale))
+
+                pwr_on = avg_milliamp >= 1.5
+
+                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+                self.box_states[box_index]["last_value"] = formatted_value
+
+                if pwr_on:
+                    if self.box_states[box_index]["alarm2_on"] or self.box_states[box_index]["alarm1_on"]:
+                        if not self.box_states[box_index]["blinking_error"]:
+                            self.box_states[box_index]["blinking_error"] = True
+                            self.box_states[box_index]["stop_blinking"].clear()
+                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index,))
+                                self.box_states[box_index]["blink_thread"].start()
+                    else:
+                        with self.box_states[box_index]["blink_lock"]:
+                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                            self.box_states[box_index]["blinking_error"] = False
+                            self.box_states[box_index]["stop_blinking"].set()
+                else:
+                    with self.box_states[box_index]["blink_lock"]:
+                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+                        self.box_states[box_index]["blinking_error"] = False
+                        self.box_states[box_index]["stop_blinking"].set()
+
+            except queue.Empty:
+                continue
 
     def blink_alarm(self, box_index):
         def toggle_color():
