@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
@@ -46,7 +47,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [[] for _ in range(num_boxes)]
+        self.adc_values = [deque(maxlen=30) for _ in range(num_boxes)]  # deque with maxlen of 30
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -104,10 +105,10 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
         box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
@@ -294,8 +295,6 @@ class AnalogUI:
                         if box_index >= self.num_boxes:
                             continue
 
-                        if len(self.adc_values[box_index]) >= 10:
-                            self.adc_values[box_index].pop(0)
                         self.adc_values[box_index].append(milliamp)
 
                         avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
@@ -369,8 +368,7 @@ class AnalogUI:
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                 if self.box_states[box_index]["last_value"] is not None:
-                    display_value = "    " if self.box_states[box_index]["blink_state"] else str(self.box_states[box_index]["last_value"]).zfill(4)
-                    self.update_segment_display(display_value, self.box_frames[box_index][1], blink=False, box_index=box_index)
+                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(600, toggle_color)
 
