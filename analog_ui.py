@@ -307,8 +307,8 @@ class AnalogUI:
                     if pwr_on:
                         if al2_on or al1_on:
                             if not self.box_states[box_index]["blinking_error"]:
-                                self.blink_alarm(al1_on, al2_on, box_index)
                                 self.box_states[box_index]["blinking_error"] = True
+                            self.blink_alarm(al1_on, al2_on, box_index)
                         else:
                             self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
                             self.box_states[box_index]["blinking_error"] = False
