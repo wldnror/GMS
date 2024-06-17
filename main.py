@@ -336,14 +336,6 @@ if __name__ == "__main__":
     root = Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
 
-    root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)
-
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-
-    root.bind("<Escape>", exit_fullscreen)
-
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
         root.destroy()
@@ -353,6 +345,14 @@ if __name__ == "__main__":
 
     if not admin_password:
         prompt_new_password()
+
+    root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)
+
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    root.bind("<Escape>", exit_fullscreen)
 
     modbus_boxes = settings["modbus_boxes"]
     analog_boxes = settings["analog_boxes"]
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
-    settings_button = Button(root, text="⚙", command=show_password_prompt, font=("Arial", 20))
+    settings_button = Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt, font=("Arial", 20))
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
