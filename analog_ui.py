@@ -57,7 +57,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.start_ui_update_thread()
+        self.schedule_ui_update()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -310,15 +310,13 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def start_ui_update_thread(self):
-        ui_update_thread = threading.Thread(target=self.update_ui_from_queue)
-        ui_update_thread.daemon = True
-        ui_update_thread.start()
+    def schedule_ui_update(self):
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
-        while True:
-            try:
-                box_index, avg_milliamp = self.adc_queue.get(timeout=1)
+        try:
+            while not self.adc_queue.empty():
+                box_index, avg_milliamp = self.adc_queue.get_nowait()
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
@@ -353,11 +351,10 @@ class AnalogUI:
                         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
-
-            except queue.Empty:
-                continue
-            except Exception as e:
-                print(f"Error updating UI from queue: {e}")
+        except Exception as e:
+            print(f"Error updating UI from queue: {e}")
+        
+        self.schedule_ui_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index):
         def toggle_color():
