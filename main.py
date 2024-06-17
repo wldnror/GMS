@@ -1,7 +1,10 @@
+main.py
+
+
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu, Spinbox
+from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu
 import random
 import threading
 import queue
@@ -59,8 +62,7 @@ def load_settings():
             "modbus_boxes": 14,
             "analog_boxes": 0,
             "admin_password": None,
-            "modbus_gas_types": {},
-            "analog_gas_types": {}
+            "gas_types": {}
         }
 
 def save_settings(settings):
@@ -71,22 +73,19 @@ def save_settings(settings):
 settings = load_settings()
 admin_password = settings.get("admin_password")
 
-def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="grid"):
-    keypad_frame = Frame(parent)
-    if geometry == "grid":
-        keypad_frame.grid(row=row, column=column, columnspan=columnspan, pady=5)
-    elif geometry == "pack":
-        keypad_frame.pack()
+def create_keypad(entry):
+    keypad_frame = Frame(entry.master)
+    keypad_frame.grid(row=1, column=0, columnspan=2)
 
     def on_button_click(char):
         if char == 'DEL':
             current_text = entry.get()
-            entry.delete(0, 'end')
+            entry.delete(0, tk.END)
             entry.insert(0, current_text[:-1])
         elif char == 'CLR':
-            entry.delete(0, 'end')
+            entry.delete(0, tk.END)
         else:
-            entry.insert('end', char)
+            entry.insert(tk.END, char)
 
     buttons = [str(i) for i in range(10)]
     random.shuffle(buttons)
@@ -96,9 +95,10 @@ def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="
     rows = 4
     cols = 3
     for i, button in enumerate(buttons):
-        b = Button(keypad_frame, text=button, width=5, height=2, command=lambda b=button: on_button_click(b))
+        b = Button(keypad_frame, text=button, width=5, height=2,
+                   command=lambda b=button: on_button_click(b))
         b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
-
+    
     return keypad_frame
 
 def prompt_new_password():
@@ -114,7 +114,7 @@ def prompt_new_password():
     Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     new_password_entry.pack(pady=5)
-    create_keypad(new_password_entry, new_password_window, geometry="pack")
+    create_keypad(new_password_entry)
 
     def confirm_password():
         new_password = new_password_entry.get()
@@ -136,7 +136,7 @@ def prompt_confirm_password(new_password):
     Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     confirm_password_entry.pack(pady=5)
-    create_keypad(confirm_password_entry, new_password_window, geometry="pack")
+    create_keypad(confirm_password_entry)
 
     def save_new_password():
         confirm_password = confirm_password_entry.get()
@@ -153,7 +153,7 @@ def prompt_confirm_password(new_password):
 
     Button(new_password_window, text="저장", command=save_new_password).pack(pady=5)
 
-def show_password_prompt(callback):
+def show_password_prompt():
     global attempt_count, lock_time, password_window, settings_window, lock_window
 
     if time.time() < lock_time:
@@ -192,20 +192,20 @@ def show_password_prompt(callback):
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
     password_entry.pack(pady=5)
-    create_keypad(password_entry, password_window, geometry="pack")
+    create_keypad(password_entry)
 
     def check_password():
         global attempt_count, lock_time
         if password_entry.get() == admin_password:
             password_window.destroy()
-            callback()
+            show_settings()
         else:
             attempt_count += 1
             if attempt_count >= 5:
                 lock_time = time.time() + 60  # 60초 잠금
                 attempt_count = 0
                 password_window.destroy()
-                show_password_prompt(callback)
+                show_password_prompt()
             else:
                 Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
 
@@ -244,59 +244,41 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
-    modbus_spinbox.delete(0, "end")
-    modbus_spinbox.insert(0, settings["modbus_boxes"])
-    modbus_spinbox.grid(row=0, column=1, padx=5, pady=5)
+    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
+    modbus_entry.insert(0, settings["modbus_boxes"])
+    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
-    analog_spinbox.delete(0, "end")
-    analog_spinbox.insert(0, settings["analog_boxes"])
-    analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
+    analog_entry = Entry(box_settings_window, font=("Arial", 12))
+    analog_entry.insert(0, settings["analog_boxes"])
+    analog_entry.grid(row=1, column=1, padx=5, pady=5)
+
+    create_keypad(modbus_entry)
+    create_keypad(analog_entry)
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
-    modbus_gas_type_vars = []
-    analog_gas_type_vars = []
+    gas_type_vars = []
 
-    for i in range(14):  # 최대 14개의 상자 설정을 표시
-        modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
-        modbus_gas_type_vars.append(modbus_gas_type_var)
-        Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
-        OptionMenu(box_settings_window, modbus_gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
-
-    for i in range(14):  # 최대 14개의 상자 설정을 표시
-        analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
-        analog_gas_type_vars.append(analog_gas_type_var)
-        Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
-        OptionMenu(box_settings_window, analog_gas_type_var, *gas_type_labels).grid(row=i + 2, column=3, padx=5, pady=5)
+    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
+        gas_type_var = StringVar(value=settings["gas_types"].get(f"box_{i}", "ORG"))
+        gas_type_vars.append(gas_type_var)
+        Label(box_settings_window, text=f"상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
+        OptionMenu(box_settings_window, gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
 
     def save_and_close():
         try:
-            modbus_boxes = int(modbus_spinbox.get())
-            analog_boxes = int(analog_spinbox.get())
-            if modbus_boxes + analog_boxes > 14:
-                messagebox.showerror("입력 오류", "상자의 총합이 14개를 초과할 수 없습니다.")
-                return
-            settings["modbus_boxes"] = modbus_boxes
-            settings["analog_boxes"] = analog_boxes
-            for i, var in enumerate(modbus_gas_type_vars):
-                settings["modbus_gas_types"][f"modbus_box_{i}"] = var.get()
-            for i, var in enumerate(analog_gas_type_vars):
-                settings["analog_gas_types"][f"analog_box_{i}"] = var.get()
+            settings["modbus_boxes"] = int(modbus_entry.get())
+            settings["analog_boxes"] = int(analog_entry.get())
+            for i, var in enumerate(gas_type_vars):
+                settings["gas_types"][f"box_{i}"] = var.get()
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
-            update_ui_with_new_settings()
             box_settings_window.destroy()
+            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
-
-def update_ui_with_new_settings():
-    global modbus_ui, analog_ui
-    modbus_ui.update_boxes(settings["modbus_boxes"], settings["modbus_gas_types"])
-    analog_ui.update_boxes(settings["analog_boxes"], settings["analog_gas_types"])
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=2, pady=10)
 
 def exit_fullscreen(event=None):
     root.attributes("-fullscreen", False)
@@ -358,6 +340,14 @@ if __name__ == "__main__":
     root = Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
 
+    root.attributes("-fullscreen", True)
+    root.attributes("-topmost", True)
+
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    root.bind("<Escape>", exit_fullscreen)
+
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
         root.destroy()
@@ -368,27 +358,19 @@ if __name__ == "__main__":
     if not admin_password:
         prompt_new_password()
 
-    root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)
-
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-
-    root.bind("<Escape>", exit_fullscreen)
-
     modbus_boxes = settings["modbus_boxes"]
     analog_boxes = settings["analog_boxes"]
 
     main_frame = Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"])
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["gas_types"])
 
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
-    settings_button = Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    settings_button = Button(root, text="⚙", command=show_password_prompt, font=("Arial", 20))
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
