@@ -1,6 +1,3 @@
-main.py
-
-
 import json
 import os
 import time
