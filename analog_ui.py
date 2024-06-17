@@ -94,10 +94,10 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
         box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
@@ -303,8 +303,10 @@ class AnalogUI:
                     self.update_circle_state([al1_on, al2_on, pwr_on, False], box_index=box_index)
 
                     if pwr_on:
-                        blink = al2_on or al1_on
-                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=blink, box_index=box_index)
+                        if al2_on or al1_on:
+                            self.blink_alarm(al1_on, al2_on, box_index)
+                        else:
+                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
                     else:
                         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
 
@@ -314,3 +316,16 @@ class AnalogUI:
         adc_thread = threading.Thread(target=self.read_adc_data)
         adc_thread.daemon = True
         adc_thread.start()
+
+    def blink_alarm(self, al1_on, al2_on, box_index):
+        def toggle_color():
+            if al2_on:
+                self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+            elif al1_on:
+                self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
+            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+            if self.box_states[box_index]["last_value_40005"] is not None:
+                self.update_segment_display(str(self.box_states[box_index]["last_value_40005"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
+            self.root.after(600, toggle_color)
+
+        toggle_color()
