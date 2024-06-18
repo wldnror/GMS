@@ -24,6 +24,7 @@ box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
 update_notification_frame = None  # 업데이트 알림 프레임
 ignore_commit = None  # 건너뛸 커밋
+branch_window = None  # 브랜치 변경 창을 위한 글로벌 변수
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -234,6 +235,7 @@ def show_settings():
     Button(settings_window, text="창 크기 설정", command=exit_fullscreen, **button_style).pack(pady=5)
     Button(settings_window, text="전체 화면 설정", command=enter_fullscreen, **button_style).pack(pady=5)
     Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).pack(pady=5)
+    Button(settings_window, text="브랜치 변경", command=change_branch, **button_style).pack(pady=5)  # 브랜치 변경 버튼 추가
     Button(settings_window, text="애플리케이션 종료", command=exit_application, **button_style).pack(pady=5)
 
 def show_box_settings():
@@ -335,6 +337,7 @@ def check_for_updates():
         
         time.sleep(1)
 
+
 def show_update_notification(remote_commit):
     global update_notification_frame
     if update_notification_frame and update_notification_frame.winfo_exists():
@@ -399,6 +402,38 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
+
+def change_branch():
+    global branch_window
+    if branch_window and branch_window.winfo_exists():
+        branch_window.focus()
+        return
+
+    branch_window = Toplevel(root)
+    branch_window.title("브랜치 변경")
+    branch_window.attributes("-topmost", True)
+
+    current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+    Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
+
+    branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
+    branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
+
+    selected_branch = StringVar(branch_window)
+    selected_branch.set(branches[0])
+    OptionMenu(branch_window, selected_branch, *branches).pack(pady=5)
+
+    def switch_branch():
+        new_branch = selected_branch.get()
+        try:
+            subprocess.check_output(['git', 'checkout', new_branch])
+            messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
+            branch_window.destroy()
+            restart_application()
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
+
+    Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
 if __name__ == "__main__":
     root = Tk()
