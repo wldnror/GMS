@@ -22,6 +22,7 @@ lock_time = 0
 lock_window = None
 box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
+update_notification_window = None  # 업데이트 알림 창
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -321,6 +322,36 @@ def update_system():
     
     messagebox.showinfo("시스템 업데이트", message)
 
+def check_for_updates():
+    while True:
+        try:
+            local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+            remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
+
+            if local_commit != remote_commit:
+                show_update_notification()
+        except Exception as e:
+            print(f"Error checking for updates: {e}")
+        
+        time.sleep(1)
+
+def show_update_notification():
+    global update_notification_window
+    if update_notification_window and update_notification_window.winfo_exists():
+        return
+
+    update_notification_window = Toplevel(root)
+    update_notification_window.title("업데이트 알림")
+    update_notification_window.attributes("-topmost", True)
+
+    Label(update_notification_window, text="업데이트가 있습니다. 하시겠습니까?", font=("Arial", 12), fg="red").pack(pady=10)
+    Button(update_notification_window, text="예", command=start_update).pack(side="left", padx=20, pady=5)
+    Button(update_notification_window, text="아니오", command=update_notification_window.destroy).pack(side="right", padx=20, pady=5)
+
+def start_update():
+    update_notification_window.destroy()
+    threading.Thread(target=update_system).start()
+
 def restart_application():
     python = sys.executable
     os.execl(python, python, *sys.argv)
@@ -403,6 +434,8 @@ if __name__ == "__main__":
             time.sleep(1)
 
     threading.Thread(target=system_info_thread, daemon=True).start()
+
+    threading.Thread(target=check_for_updates, daemon=True).start()
 
     root.mainloop()
 
