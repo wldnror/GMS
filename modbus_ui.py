@@ -1,10 +1,11 @@
 import json
 import os
 import time
+import asyncio
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
 import queue
-from pymodbus.client.asynchronous.tcp import AsyncModbusTCPClient
+from pymodbus.client import AsyncModbusTCPClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
@@ -13,7 +14,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 from virtual_keyboard import VirtualKeyboard
-import asyncio
 
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
