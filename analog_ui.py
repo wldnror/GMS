@@ -85,7 +85,7 @@ class AnalogUI:
         gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
-        gas_type_text_id = box_canvas.create_text(148, 115, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(148, 118, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
