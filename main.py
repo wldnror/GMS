@@ -236,8 +236,15 @@ def show_settings():
     Button(settings_window, text="전체 화면 설정", command=enter_fullscreen, **button_style).pack(pady=5)
     Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).pack(pady=5)
     Button(settings_window, text="브랜치 변경", command=change_branch, **button_style).pack(pady=5)  # 브랜치 변경 버튼 추가
-    Button(settings_window, text="애플리케이션 종료", command=exit_application, **button_style).pack(pady=5)
 
+    # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
+    frame = Frame(settings_window)
+    frame.pack(pady=5)
+    restart_button = Button(frame, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=restart_application)
+    restart_button.grid(row=0, column=0)
+    exit_button = Button(frame, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
+    exit_button.grid(row=0, column=1)
+    
 def show_box_settings():
     global box_settings_window
     if box_settings_window and box_settings_window.winfo_exists():
