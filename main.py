@@ -1,7 +1,8 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, OptionMenu, Spinbox, Toplevel
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import ttk
 import random
 import threading
 import queue
@@ -256,7 +257,7 @@ def show_settings():
     restart_button.grid(row=0, column=0)
     exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
     exit_button.grid(row=0, column=1)
-    
+
 def show_box_settings():
     global box_settings_window
     if box_settings_window and box_settings_window.winfo_exists():
@@ -268,18 +269,18 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
+    modbus_spinbox = ttk.Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
     modbus_spinbox.delete(0, "end")
     modbus_spinbox.insert(0, settings["modbus_boxes"])
     modbus_spinbox.grid(row=0, column=1, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
+    analog_spinbox = ttk.Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
     analog_spinbox.delete(0, "end")
     analog_spinbox.insert(0, settings["analog_boxes"])
     analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
 
-    gas_type_labels = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
+    gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
     analog_gas_type_vars = []
 
@@ -287,13 +288,13 @@ def show_box_settings():
         modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
         modbus_gas_type_vars.append(modbus_gas_type_var)
         Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
-        OptionMenu(box_settings_window, modbus_gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
+        ttk.Combobox(box_settings_window, textvariable=modbus_gas_type_var, values=gas_type_labels, font=("Arial", 12)).grid(row=i + 2, column=1, padx=5, pady=5)
 
     for i in range(14):  # 최대 14개의 상자 설정을 표시
         analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
         analog_gas_type_vars.append(analog_gas_type_var)
         Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
-        OptionMenu(box_settings_window, analog_gas_type_var, *gas_type_labels).grid(row=i + 2, column=3, padx=5, pady=5)
+        ttk.Combobox(box_settings_window, textvariable=analog_gas_type_var, values=gas_type_labels, font=("Arial", 12)).grid(row=i + 2, column=3, padx=5, pady=5)
 
     def save_and_close():
         try:
@@ -355,7 +356,6 @@ def check_for_updates():
             print(f"Error checking for updates: {e}")
         
         time.sleep(1)
-
 
 def show_update_notification(remote_commit):
     global update_notification_frame
@@ -440,7 +440,7 @@ def change_branch():
 
     selected_branch = StringVar(branch_window)
     selected_branch.set(branches[0])
-    OptionMenu(branch_window, selected_branch, *branches).pack(pady=5)
+    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
 
     def switch_branch():
         new_branch = selected_branch.get()
