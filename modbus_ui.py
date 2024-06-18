@@ -4,7 +4,7 @@ import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
 import queue
-from pymodbus.client import ModbusTcpClient
+from pymodbus.client.asynchronous.tcp import AsyncModbusTCPClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
@@ -13,6 +13,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 from virtual_keyboard import VirtualKeyboard
+import asyncio
 
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
@@ -67,6 +68,7 @@ class ModbusUI:
 
         self.root.after(100, self.process_queue)
         self.root.bind("<Button-1>", self.check_click)
+        self.loop = asyncio.get_event_loop()
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")
@@ -343,13 +345,13 @@ class ModbusUI:
         if self.ip_vars[i].get() in self.connected_clients:
             self.disconnect(i)
         else:
-            threading.Thread(target=self.connect, args=(i,)).start()
+            asyncio.run_coroutine_threadsafe(self.connect(i), self.loop)
 
-    def connect(self, i):
+    async def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.connected_clients:
-            client = ModbusTcpClient(ip, port=502)
-            if self.connect_to_server(ip, client):
+            client = AsyncModbusTCPClient(schedulers.ASYNC_IO, host=ip, port=502)
+            if await self.connect_to_server(ip, client):
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
@@ -389,7 +391,7 @@ class ModbusUI:
         del self.clients[ip]
         del self.stop_flags[ip]
 
-    def read_modbus_data(self, ip, client, stop_flag, box_index):
+    async def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
         interval = 0.4
@@ -404,10 +406,10 @@ class ModbusUI:
                 address_40007 = 40008 - 1
                 address_40011 = 40011 - 1
                 count = 1
-                result_40001 = client.read_holding_registers(address_40001, count, unit=1)
-                result_40005 = client.read_holding_registers(address_40005, count, unit=1)
-                result_40007 = client.read_holding_registers(address_40007, count, unit=1)
-                result_40011 = client.read_holding_registers(address_40011, count, unit=1)
+                result_40001 = await client.read_holding_registers(address_40001, count, unit=1)
+                result_40005 = await client.read_holding_registers(address_40005, count, unit=1)
+                result_40007 = await client.read_holding_registers(address_40007, count, unit=1)
+                result_40011 = await client.read_holding_registers(address_40011, count, unit=1)
 
                 if not result_40001.isError():
                     value_40001 = result_40001.registers[0]
@@ -477,19 +479,19 @@ class ModbusUI:
                 next_call += interval
                 sleep_time = next_call - time.time()
                 if sleep_time > 0:
-                    time.sleep(sleep_time)
+                    await asyncio.sleep(sleep_time)
                 else:
                     next_call = time.time()
 
             except ConnectionException:
                 self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
                 self.handle_disconnection(box_index)
-                self.reconnect(ip, client, stop_flag, box_index)
+                await self.reconnect(ip, client, stop_flag, box_index)
                 break
             except AttributeError as e:
                 self.console.print(f"Error reading data from {ip}: {e}")
                 self.handle_disconnection(box_index)
-                self.reconnect(ip, client, stop_flag, box_index)
+                await self.reconnect(ip, client, stop_flag, box_index)
                 break
 
     def update_bar(self, value, bar_canvas, bar_item):
@@ -508,15 +510,15 @@ class ModbusUI:
         else:
             bar_canvas.itemconfig(bar_item, state='hidden')
 
-    def connect_to_server(self, ip, client):
+    async def connect_to_server(self, ip, client):
         retries = 5
         for attempt in range(retries):
-            if client.connect():
+            if await client.connect():
                 self.console.print(f"Connected to the Modbus server at {ip}")
                 return True
             else:
                 self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
-                time.sleep(5)
+                await asyncio.sleep(5)
         return False
 
     def process_queue(self):
@@ -539,9 +541,9 @@ class ModbusUI:
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
 
-    def reconnect(self, ip, client, stop_flag, box_index):
+    async def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
-            if client.connect():
+            if await client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
@@ -553,7 +555,7 @@ class ModbusUI:
                 break
             else:
                 self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
-                time.sleep(1)
+                await asyncio.sleep(1)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
@@ -633,5 +635,3 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
-
-# Rest of the main.py code remains the same
