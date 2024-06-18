@@ -167,7 +167,7 @@ class ModbusUI:
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
         gas_type_var = self.box_states[index]["gas_type_var"]
-        gas_type_text_id = box_canvas.create_text(148, 118, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(148, 122, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
