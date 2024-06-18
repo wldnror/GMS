@@ -1,4 +1,3 @@
-import asyncio
 import os
 import time
 import threading
@@ -10,6 +9,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, create_segment_display
 import queue
+import asyncio
+
+GAIN = 2 / 3  # 전역 변수로 설정
 
 class AnalogUI:
     LOGS_PER_FILE = 10
@@ -279,11 +281,10 @@ class AnalogUI:
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
-        GAIN = 2 / 3
         while True:
             tasks = []
             for adc_index, adc in enumerate(adcs):
-                task = asyncio.create_task(self.read_adc_values(adc, adc_index))
+                task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
             await asyncio.sleep(0.1)  # 샘플링 속도 증가
@@ -392,3 +393,19 @@ class AnalogUI:
                     self.root.after(1000 if is_second_alarm else 600, toggle_color)
 
         toggle_color()
+
+if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
+    with open('settings.json') as f:
+        settings = json.load(f)
+
+    root = Tk()
+    main_frame = Frame(root)
+    main_frame.pack()
+
+    analog_boxes = settings["analog_boxes"]
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+
+    root.mainloop()
