@@ -273,28 +273,59 @@ def show_box_settings():
     modbus_spinbox.delete(0, "end")
     modbus_spinbox.insert(0, settings["modbus_boxes"])
     modbus_spinbox.grid(row=0, column=1, padx=5, pady=5)
+    modbus_spinbox.bind("<<Increment>>", lambda e: update_gas_type_options())
+    modbus_spinbox.bind("<<Decrement>>", lambda e: update_gas_type_options())
+    modbus_spinbox.bind("<KeyRelease>", lambda e: update_gas_type_options())
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
     analog_spinbox = ttk.Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
     analog_spinbox.delete(0, "end")
     analog_spinbox.insert(0, settings["analog_boxes"])
     analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
+    analog_spinbox.bind("<<Increment>>", lambda e: update_gas_type_options())
+    analog_spinbox.bind("<<Decrement>>", lambda e: update_gas_type_options())
+    analog_spinbox.bind("<KeyRelease>", lambda e: update_gas_type_options())
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
     analog_gas_type_vars = []
+    modbus_gas_type_combos = []
+    analog_gas_type_combos = []
 
-    for i in range(14):  # 최대 14개의 상자 설정을 표시
-        modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
-        modbus_gas_type_vars.append(modbus_gas_type_var)
-        Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
-        ttk.Combobox(box_settings_window, textvariable=modbus_gas_type_var, values=gas_type_labels, font=("Arial", 12)).grid(row=i + 2, column=1, padx=5, pady=5)
+    def update_gas_type_options():
+        for combo in modbus_gas_type_combos:
+            combo.grid_remove()
+        for combo in analog_gas_type_combos:
+            combo.grid_remove()
 
-    for i in range(14):  # 최대 14개의 상자 설정을 표시
-        analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
-        analog_gas_type_vars.append(analog_gas_type_var)
-        Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
-        ttk.Combobox(box_settings_window, textvariable=analog_gas_type_var, values=gas_type_labels, font=("Arial", 12)).grid(row=i + 2, column=3, padx=5, pady=5)
+        modbus_boxes = int(modbus_spinbox.get())
+        analog_boxes = int(analog_spinbox.get())
+
+        for i in range(modbus_boxes):  # Modbus 상자 설정을 표시
+            if len(modbus_gas_type_combos) <= i:
+                modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
+                modbus_gas_type_vars.append(modbus_gas_type_var)
+                combo = ttk.Combobox(box_settings_window, textvariable=modbus_gas_type_var, values=gas_type_labels, font=("Arial", 12))
+                modbus_gas_type_combos.append(combo)
+            else:
+                combo = modbus_gas_type_combos[i]
+
+            Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
+            combo.grid(row=i + 2, column=1, padx=5, pady=5)
+
+        for i in range(analog_boxes):  # 4~20mA 상자 설정을 표시
+            if len(analog_gas_type_combos) <= i:
+                analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
+                analog_gas_type_vars.append(analog_gas_type_var)
+                combo = ttk.Combobox(box_settings_window, textvariable=analog_gas_type_var, values=gas_type_labels, font=("Arial", 12))
+                analog_gas_type_combos.append(combo)
+            else:
+                combo = analog_gas_type_combos[i]
+
+            Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
+            combo.grid(row=i + 2, column=3, padx=5, pady=5)
+
+    update_gas_type_options()
 
     def save_and_close():
         try:
