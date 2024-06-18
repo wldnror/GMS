@@ -241,15 +241,20 @@ def show_settings():
     windowed_button = Button(frame1, text="창 크기 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_fullscreen)
     windowed_button.grid(row=0, column=1)
 
-    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).pack(pady=5)
-    Button(settings_window, text="브랜치 변경", command=change_branch, **button_style).pack(pady=5)  # 브랜치 변경 버튼 추가
-
-    # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
+    # "시스템 업데이트"와 "브랜치 변경" 버튼을 한 줄에 나란히 배치
     frame2 = Frame(settings_window)
     frame2.pack(pady=5)
-    restart_button = Button(frame2, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=restart_application)
+    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=update_system).start())
+    update_button.grid(row=0, column=0)
+    branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
+    branch_button.grid(row=0, column=1)
+
+    # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
+    frame3 = Frame(settings_window)
+    frame3.pack(pady=5)
+    restart_button = Button(frame3, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=restart_application)
     restart_button.grid(row=0, column=0)
-    exit_button = Button(frame2, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
+    exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
     exit_button.grid(row=0, column=1)
     
 def show_box_settings():
