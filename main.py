@@ -23,10 +23,12 @@ lock_window = None
 box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
 update_notification_window = None  # 업데이트 알림 창
+ignore_commit = None  # 건너뛸 커밋
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
 KEY_FILE = "secret.key"
+IGNORE_COMMIT_FILE = "ignore_commit.txt"
 
 # 암호화 키 생성 및 로드
 def generate_key():
@@ -307,35 +309,32 @@ def exit_application():
     sys.exit(0)
 
 def update_system():
+    global checking_updates
+    checking_updates = False  # 업데이트 중에 확인을 중지
     try:
-        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
-        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
-
-        if local_commit == remote_commit:
-            message = "이미 최신 버전입니다."
-        else:
-            result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
-            message = "업데이트 완료. 애플리케이션을 재시작합니다."
-            root.after(2000, restart_application)
+        result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
+        message = "업데이트 완료. 애플리케이션을 재시작합니다."
+        root.after(2000, restart_application)
     except Exception as e:
         message = f"업데이트 중 오류 발생: {e}"
     
     messagebox.showinfo("시스템 업데이트", message)
 
 def check_for_updates():
-    while True:
+    global ignore_commit
+    while checking_updates:
         try:
             local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
             remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
 
-            if local_commit != remote_commit:
-                show_update_notification()
+            if local_commit != remote_commit and remote_commit != ignore_commit:
+                show_update_notification(remote_commit)
         except Exception as e:
             print(f"Error checking for updates: {e}")
         
         time.sleep(1)
 
-def show_update_notification():
+def show_update_notification(remote_commit):
     global update_notification_window
     if update_notification_window and update_notification_window.winfo_exists():
         return
@@ -345,12 +344,23 @@ def show_update_notification():
     update_notification_window.attributes("-topmost", True)
 
     Label(update_notification_window, text="업데이트가 있습니다. 하시겠습니까?", font=("Arial", 12), fg="red").pack(pady=10)
-    Button(update_notification_window, text="예", command=start_update).pack(side="left", padx=20, pady=5)
-    Button(update_notification_window, text="아니오", command=update_notification_window.destroy).pack(side="right", padx=20, pady=5)
+    Button(update_notification_window, text="예", command=lambda: start_update(remote_commit)).pack(side="left", padx=20, pady=5)
+    Button(update_notification_window, text="아니오", command=lambda: ignore_update(remote_commit)).pack(side="right", padx=20, pady=5)
 
-def start_update():
+def start_update(remote_commit):
+    global update_notification_window, ignore_commit
+    ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
     update_notification_window.destroy()
+    update_notification_window = None
     threading.Thread(target=update_system).start()
+
+def ignore_update(remote_commit):
+    global ignore_commit, update_notification_window
+    ignore_commit = remote_commit
+    with open(IGNORE_COMMIT_FILE, "w") as file:
+        file.write(ignore_commit.decode())
+    update_notification_window.destroy()
+    update_notification_window = None
 
 def restart_application():
     python = sys.executable
@@ -433,8 +443,13 @@ if __name__ == "__main__":
             update_status_label()
             time.sleep(1)
 
-    threading.Thread(target=system_info_thread, daemon=True).start()
+    # 기록된 ignore_commit을 로드
+    if os.path.exists(IGNORE_COMMIT_FILE):
+        with open(IGNORE_COMMIT_FILE, "r") as file:
+            ignore_commit = file.read().strip().encode()
 
+    checking_updates = True
+    threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=check_for_updates, daemon=True).start()
 
     root.mainloop()
