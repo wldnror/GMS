@@ -271,8 +271,6 @@ def show_box_settings():
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
     modbus_boxes_var = StringVar(value=settings["modbus_boxes"])
     modbus_box_count = int(modbus_boxes_var.get())
-    modbus_label = Label(box_settings_window, textvariable=modbus_boxes_var, font=("Arial", 12))
-    modbus_label.grid(row=0, column=1, padx=5, pady=5)
 
     def increase_modbus_boxes():
         nonlocal modbus_box_count
@@ -288,14 +286,15 @@ def show_box_settings():
             modbus_boxes_var.set(modbus_box_count)
             update_gas_type_options()
 
-    Button(box_settings_window, text="+", command=increase_modbus_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
-    Button(box_settings_window, text="-", command=decrease_modbus_boxes, font=("Arial", 12)).grid(row=0, column=3, padx=5, pady=5)
+    frame_modbus = Frame(box_settings_window)
+    frame_modbus.grid(row=0, column=1, padx=5, pady=5)
+    Button(frame_modbus, text="-", command=decrease_modbus_boxes, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
+    Button(frame_modbus, text="+", command=increase_modbus_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
     analog_boxes_var = StringVar(value=settings["analog_boxes"])
     analog_box_count = int(analog_boxes_var.get())
-    analog_label = Label(box_settings_window, textvariable=analog_boxes_var, font=("Arial", 12))
-    analog_label.grid(row=1, column=1, padx=5, pady=5)
 
     def increase_analog_boxes():
         nonlocal analog_box_count
@@ -311,8 +310,11 @@ def show_box_settings():
             analog_boxes_var.set(analog_box_count)
             update_gas_type_options()
 
-    Button(box_settings_window, text="+", command=increase_analog_boxes, font=("Arial", 12)).grid(row=1, column=2, padx=5, pady=5)
-    Button(box_settings_window, text="-", command=decrease_analog_boxes, font=("Arial", 12)).grid(row=1, column=3, padx=5, pady=5)
+    frame_analog = Frame(box_settings_window)
+    frame_analog.grid(row=1, column=1, padx=5, pady=5)
+    Button(frame_analog, text="-", command=decrease_analog_boxes, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
+    Button(frame_analog, text="+", command=increase_analog_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
