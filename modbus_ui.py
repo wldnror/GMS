@@ -19,9 +19,9 @@ class ModbusUI:
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
     GAS_FULL_SCALE = {
         "ORG": 9999,
-        "ARF-T": 5000,
+        "ARF-T   ": 5000,
         "HMDS  ": 3000,
-        "HC-100": 5000
+        "HC-100   ": 5000
     }
 
     def __init__(self, root, num_boxes, gas_types):
@@ -593,7 +593,7 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     def create_gas_type_menu(parent, box_index):
-        options = ["ORG", "ARF-T", "HMDS  ", "HC-100"]
+        options = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
         var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
         menu = OptionMenu(parent, var, *options)
         menu.grid(row=box_index, column=2, padx=5, pady=5)
