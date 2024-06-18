@@ -24,7 +24,7 @@ class ModbusUI:
         "HC-100   ": 5000
     }
 
-    def __init__(self, root, num_boxes, gas_types):
+    def __init__(self, root, num_boxes, gas_types, blink_screen):
         self.root = root
         self.virtual_keyboard = VirtualKeyboard(root)
         self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
@@ -46,6 +46,7 @@ class ModbusUI:
         self.gradient_bar = create_gradient_bar(153, 5)
         self.history_dir = "history_logs"
         self.gas_types = gas_types
+        self.blink_screen = blink_screen
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -421,12 +422,14 @@ class ModbusUI:
                         middle_fixed = True
                         middle_blink = True
                         self.record_history(box_index, 'A2')
+                        self.blink_screen('red')  # Red blink for AL2
                     elif bit_6_on:
                         blink_state_middle = not blink_state_middle
                         top_blink = False
                         middle_fixed = True
                         middle_blink = blink_state_middle
                         self.record_history(box_index, 'A1')
+                        self.blink_screen('red')  # Red blink for AL1
                     else:
                         top_blink = False
                         middle_blink = False
