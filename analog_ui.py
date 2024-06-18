@@ -1,44 +1,32 @@
 import os
 import time
 import threading
-from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
-import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, create_segment_display
-import queue
-import asyncio
-
-GAIN = 2 / 3  # 전역 변수로 설정
+import Adafruit_ADS1x15
 
 class AnalogUI:
-    LOGS_PER_FILE = 10
+    LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
 
-    GAS_FULL_SCALE = {
-        "ORG": 9999,
-        "ARF-T": 5000,
-        "HMDS": 3000,
-        "HC-100": 5000
-    }
-
-    ALARM_LEVELS = {
-        "ORG": {"AL1": 9500, "AL2": 9999},
-        "ARF-T": {"AL1": 2000, "AL2": 4000},
-        "HMDS": {"AL1": 2640, "AL2": 3000},
-        "HC-100": {"AL1": 1500, "AL2": 3000}
-    }
-
-    def __init__(self, root, num_boxes, gas_types):
+    def __init__(self, root, num_boxes):
         self.root = root
-        self.gas_types = gas_types
-        self.num_boxes = num_boxes
+
+        self.adc_modules = [
+            Adafruit_ADS1x15.ADS1115(address=0x48),
+            Adafruit_ADS1x15.ADS1115(address=0x49),
+            Adafruit_ADS1x15.ADS1115(address=0x4A),
+            Adafruit_ADS1x15.ADS1115(address=0x4B)
+        ]
+        self.GAIN = 2/3
+
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
         self.graph_windows = [None for _ in range(num_boxes)]
-        self.history_window = None
-        self.history_lock = threading.Lock()
+        self.history_window = None  # 히스토리 창을 저장할 변수
+        self.history_lock = threading.Lock()  # 히스토리 창 중복 방지를 위한 락
 
         self.box_frame = Frame(self.root)
         self.box_frame.grid(row=0, column=0, padx=40, pady=40)
@@ -50,21 +38,22 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=30) for _ in range(num_boxes)]  # deque with maxlen of 30
-
-        for i in range(num_boxes):
-            self.create_analog_box(i)
+        for _ in range(num_boxes):
+            self.create_analog_box()
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.adc_queue = queue.Queue()
-        self.start_adc_thread()
-        self.schedule_ui_update()
+        # 데이터를 주기적으로 읽어서 업데이트하는 스레드 시작
+        self.stop_flag = threading.Event()
+        self.data_thread = threading.Thread(target=self.read_analog_data)
+        self.data_thread.daemon = True
+        self.data_thread.start()
 
-    def create_analog_box(self, index):
-        row = index // 7
-        col = index % 7
+    def create_analog_box(self):
+        i = len(self.box_frames)
+        row = i // 7
+        col = i % 7
 
         if col == 0:
             row_frame = Frame(self.box_frame)
@@ -82,36 +71,23 @@ class AnalogUI:
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
-        gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
-        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
-        self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
-        gas_type_text_id = box_canvas.create_text(129, 105, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        create_segment_display(box_canvas)
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
+            "previous_value_40011": None,
             "previous_segment_display": None,
             "last_history_time": None,
-            "last_history_value": None,
-            "gas_type_text_id": gas_type_text_id,
-            "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
-            "pwr_blink_state": False,
-            "last_value": None,
-            "blink_thread": None,
-            "stop_blinking": threading.Event(),
-            "blink_lock": threading.Lock(),
-            "alarm1_on": False,
-            "alarm2_on": False
+            "last_history_value": None
         })
-
-        create_segment_display(box_canvas)
-        self.update_segment_display("    ", box_canvas, box_index=index)
+        self.update_segment_display("    ", box_canvas, box_index=i)
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
         box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
         box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
@@ -120,21 +96,15 @@ class AnalogUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
+        box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
-
-    def update_full_scale(self, gas_type_var, box_index):
-        gas_type = gas_type_var.get()
-        full_scale = self.GAS_FULL_SCALE[gas_type]
-        self.box_states[box_index]["full_scale"] = full_scale
-
-        box_canvas = self.box_frames[box_index][1]
-        box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.on_segment_click(i))
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
@@ -195,6 +165,7 @@ class AnalogUI:
             log_file_index = self.get_log_file_index(box_index)
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
 
+            # 비동기적으로 로그 파일에 기록
             threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
 
     def async_write_log(self, log_file, log_line):
@@ -202,6 +173,7 @@ class AnalogUI:
             file.write(log_line)
 
     def get_log_file_index(self, box_index):
+        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
         index = 0
         while True:
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
@@ -214,6 +186,7 @@ class AnalogUI:
             index += 1
 
     def load_log_files(self, box_index, file_index):
+        """특정 로그 파일을 로드하여 로그 목록을 반환"""
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
@@ -278,134 +251,50 @@ class AnalogUI:
 
         self.update_history_graph(box_index, self.current_file_index)
 
-    async def read_adc_data(self):
-        adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
-        adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
-        while True:
-            tasks = []
-            for adc_index, adc in enumerate(adcs):
-                task = self.read_adc_values(adc, adc_index)
-                tasks.append(task)
-            await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도 증가
+    def read_analog_data(self):
+        while not self.stop_flag.is_set():
+            for module_index, adc in enumerate(self.adc_modules):
+                values = self.read_adc_values(adc)
+                for channel_index, value in enumerate(values):
+                    box_index = module_index * 4 + channel_index
+                    if box_index < len(self.box_frames):
+                        display_value = self.convert_current_to_display_value(value)
+                        self.update_segment_display(f"{display_value:04.0f}", self.box_frames[box_index][1], box_index=box_index)
+            time.sleep(1)
 
-    async def read_adc_values(self, adc, adc_index):
-        try:
-            values = []
-            for channel in range(4):
-                value = adc.read_adc(channel, gain=GAIN)
-                voltage = value * 6.144 / 32767
-                current = voltage / 250
-                milliamp = current * 1000
-                values.append(milliamp)
+    def read_adc_values(self, adc):
+        values = []
+        for i in range(4):
+            value = adc.read_adc(i, gain=self.GAIN)
+            voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
+            current = voltage / 250  # 저항 250Ω 사용
+            values.append(current * 1000)  # mA로 변환
+        return values
 
-            for channel, milliamp in enumerate(values):
-                box_index = adc_index * 4 + channel
-                if box_index >= self.num_boxes:
-                    continue
+    def convert_current_to_display_value(self, current):
+        """4~20mA를 0~9999로 변환"""
+        min_current = 4.0
+        max_current = 20.0
+        min_display = 0
+        max_display = 9999
 
-                self.adc_values[box_index].append(milliamp)
+        if current < min_current:
+            return min_display
+        elif current > max_current:
+            return max_display
+        else:
+            return (current - min_current) / (max_current - min_current) * (max_display - min_display) + min_display
 
-                avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                print(f"Box {box_index}: {avg_milliamp} mA")
-                self.adc_queue.put((box_index, avg_milliamp))
-        except Exception as e:
-            print(f"Error reading ADC data: {e}")
+    def stop(self):
+        self.stop_flag.set()
+        self.data_thread.join()
 
-    def start_adc_thread(self):
-        loop = asyncio.get_event_loop()
-        adc_thread = threading.Thread(target=loop.run_until_complete, args=(self.read_adc_data(),))
-        adc_thread.daemon = True
-        adc_thread.start()
-
-    def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
-
-    def update_ui_from_queue(self):
-        try:
-            while not self.adc_queue.empty():
-                box_index, avg_milliamp = self.adc_queue.get_nowait()
-                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
-                full_scale = self.GAS_FULL_SCALE[gas_type]
-                alarm_levels = self.ALARM_LEVELS[gas_type]
-                formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-                formatted_value = max(0, min(formatted_value, full_scale))
-
-                pwr_on = avg_milliamp >= 1.5
-
-                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-
-                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-                self.box_states[box_index]["last_value"] = formatted_value
-
-                print(f"Box {box_index} - Value: {formatted_value}, AL1: {self.box_states[box_index]['alarm1_on']}, AL2: {self.box_states[box_index]['alarm2_on']}")
-
-                if pwr_on:
-                    if self.box_states[box_index]["alarm2_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
-                                self.box_states[box_index]["blink_thread"].start()
-                    elif self.box_states[box_index]["alarm1_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
-                                self.box_states[box_index]["blink_thread"].start()
-                    else:
-                        with self.box_states[box_index]["blink_lock"]:
-                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.box_states[box_index]["stop_blinking"].set()
-                else:
-                    with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-                        self.box_states[box_index]["blinking_error"] = False
-                        self.box_states[box_index]["stop_blinking"].set()
-        except Exception as e:
-            print(f"Error updating UI from queue: {e}")
-        
-        self.schedule_ui_update()  # 다음 업데이트 예약
-
-    def blink_alarm(self, box_index, is_second_alarm):
-        def toggle_color():
-            with self.box_states[box_index]["blink_lock"]:
-                if is_second_alarm:
-                    # 2차 알람 조건
-                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
-                else:
-                    # 1차 알람 조건
-                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
-                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
-
-                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-                self.box_frames[box_index][1].config(highlightbackground=outline_color)
-
-                if self.box_states[box_index]["last_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
-
-                if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000 if is_second_alarm else 600, toggle_color)
-
-        toggle_color()
-
+# 사용 예시
 if __name__ == "__main__":
-    from tkinter import Tk
-    import json
+    import tkinter as tk
 
-    with open('settings.json') as f:
-        settings = json.load(f)
-
-    root = Tk()
-    main_frame = Frame(root)
-    main_frame.pack()
-
-    analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
-
+    root = tk.Tk()
+    root.title("Analog UI Test")
+    analog_ui = AnalogUI(root, 16)
+    root.protocol("WM_DELETE_WINDOW", analog_ui.stop)
     root.mainloop()
