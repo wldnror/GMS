@@ -344,7 +344,7 @@ def show_update_notification(remote_commit):
     def on_no():
         ignore_update(remote_commit)
 
-    update_notification_label = Label(root, text="업데이트 하시겠습니까? 예 | 이번 버젼 건너뛰기", font=("Arial", 20), fg="red")
+    update_notification_label = Label(root, text="새로운 버젼이 있습니다 업데이트 하시겠습니까?, font=("Arial", 15), fg="red")
     update_notification_label.place(relx=0.5, rely=0.9, anchor='center')
 
     yes_button = Button(root, text="예", command=on_yes, font=("Arial", 14), fg="red")
