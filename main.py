@@ -1,7 +1,8 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, OptionMenu, Spinbox, Toplevel
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import ttk
 import random
 import threading
 import queue
@@ -241,17 +242,22 @@ def show_settings():
     windowed_button = Button(frame1, text="창 크기 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_fullscreen)
     windowed_button.grid(row=0, column=1)
 
-    Button(settings_window, text="시스템 업데이트", command=lambda: threading.Thread(target=update_system).start(), **button_style).pack(pady=5)
-    Button(settings_window, text="브랜치 변경", command=change_branch, **button_style).pack(pady=5)  # 브랜치 변경 버튼 추가
-
-    # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
+    # "시스템 업데이트"와 "브랜치 변경" 버튼을 한 줄에 나란히 배치
     frame2 = Frame(settings_window)
     frame2.pack(pady=5)
-    restart_button = Button(frame2, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=restart_application)
+    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=update_system).start())
+    update_button.grid(row=0, column=0)
+    branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
+    branch_button.grid(row=0, column=1)
+
+    # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
+    frame3 = Frame(settings_window)
+    frame3.pack(pady=5)
+    restart_button = Button(frame3, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=restart_application)
     restart_button.grid(row=0, column=0)
-    exit_button = Button(frame2, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
+    exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
     exit_button.grid(row=0, column=1)
-    
+
 def show_box_settings():
     global box_settings_window
     if box_settings_window and box_settings_window.winfo_exists():
@@ -263,37 +269,110 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
-    modbus_spinbox.delete(0, "end")
-    modbus_spinbox.insert(0, settings["modbus_boxes"])
-    modbus_spinbox.grid(row=0, column=1, padx=5, pady=5)
+    modbus_boxes_var = StringVar(value=settings["modbus_boxes"])
+    modbus_box_count = int(modbus_boxes_var.get())
+
+    def increase_modbus_boxes():
+        nonlocal modbus_box_count
+        if modbus_box_count < 14:
+            modbus_box_count += 1
+            modbus_boxes_var.set(modbus_box_count)
+            update_gas_type_options()
+
+    def decrease_modbus_boxes():
+        nonlocal modbus_box_count
+        if modbus_box_count > 0:
+            modbus_box_count -= 1
+            modbus_boxes_var.set(modbus_box_count)
+            update_gas_type_options()
+
+    frame_modbus = Frame(box_settings_window)
+    frame_modbus.grid(row=0, column=1, padx=5, pady=5)
+    Button(frame_modbus, text="-", command=decrease_modbus_boxes, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
+    Button(frame_modbus, text="+", command=increase_modbus_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_spinbox = Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
-    analog_spinbox.delete(0, "end")
-    analog_spinbox.insert(0, settings["analog_boxes"])
-    analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
+    analog_boxes_var = StringVar(value=settings["analog_boxes"])
+    analog_box_count = int(analog_boxes_var.get())
 
-    gas_type_labels = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
+    def increase_analog_boxes():
+        nonlocal analog_box_count
+        if analog_box_count < 14:
+            analog_box_count += 1
+            analog_boxes_var.set(analog_box_count)
+            update_gas_type_options()
+
+    def decrease_analog_boxes():
+        nonlocal analog_box_count
+        if analog_box_count > 0:
+            analog_box_count -= 1
+            analog_boxes_var.set(analog_box_count)
+            update_gas_type_options()
+
+    frame_analog = Frame(box_settings_window)
+    frame_analog.grid(row=1, column=1, padx=5, pady=5)
+    Button(frame_analog, text="-", command=decrease_analog_boxes, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
+    Button(frame_analog, text="+", command=increase_analog_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
+
+    gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
     analog_gas_type_vars = []
+    modbus_gas_type_combos = []
+    analog_gas_type_combos = []
+    modbus_labels = []
+    analog_labels = []
 
-    for i in range(14):  # 최대 14개의 상자 설정을 표시
-        modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
-        modbus_gas_type_vars.append(modbus_gas_type_var)
-        Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
-        OptionMenu(box_settings_window, modbus_gas_type_var, *gas_type_labels).grid(row=i + 2, column=1, padx=5, pady=5)
+    def update_gas_type_options():
+        for label in modbus_labels:
+            label.grid_remove()
+        for combo in modbus_gas_type_combos:
+            combo.grid_remove()
+        for label in analog_labels:
+            label.grid_remove()
+        for combo in analog_gas_type_combos:
+            combo.grid_remove()
 
-    for i in range(14):  # 최대 14개의 상자 설정을 표시
-        analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
-        analog_gas_type_vars.append(analog_gas_type_var)
-        Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
-        OptionMenu(box_settings_window, analog_gas_type_var, *gas_type_labels).grid(row=i + 2, column=3, padx=5, pady=5)
+        modbus_boxes = int(modbus_boxes_var.get())
+        analog_boxes = int(analog_boxes_var.get())
+
+        for i in range(modbus_boxes):  # Modbus 상자 설정을 표시
+            if len(modbus_gas_type_combos) <= i:
+                modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
+                modbus_gas_type_vars.append(modbus_gas_type_var)
+                combo = ttk.Combobox(box_settings_window, textvariable=modbus_gas_type_var, values=gas_type_labels, font=("Arial", 12))
+                modbus_gas_type_combos.append(combo)
+                label = Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12))
+                modbus_labels.append(label)
+            else:
+                combo = modbus_gas_type_combos[i]
+                label = modbus_labels[i]
+
+            label.grid(row=i + 2, column=0, padx=5, pady=5)
+            combo.grid(row=i + 2, column=1, padx=5, pady=5)
+
+        for i in range(analog_boxes):  # 4~20mA 상자 설정을 표시
+            if len(analog_gas_type_combos) <= i:
+                analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
+                analog_gas_type_vars.append(analog_gas_type_var)
+                combo = ttk.Combobox(box_settings_window, textvariable=analog_gas_type_var, values=gas_type_labels, font=("Arial", 12))
+                analog_gas_type_combos.append(combo)
+                label = Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12))
+                analog_labels.append(label)
+            else:
+                combo = analog_gas_type_combos[i]
+                label = analog_labels[i]
+
+            label.grid(row=i + 2, column=2, padx=5, pady=5)
+            combo.grid(row=i + 2, column=3, padx=5, pady=5)
+
+    update_gas_type_options()
 
     def save_and_close():
         try:
-            modbus_boxes = int(modbus_spinbox.get())
-            analog_boxes = int(analog_spinbox.get())
+            modbus_boxes = int(modbus_boxes_var.get())
+            analog_boxes = int(analog_boxes_var.get())
             if modbus_boxes + analog_boxes > 14:
                 messagebox.showerror("입력 오류", "상자의 총합이 14개를 초과할 수 없습니다.")
                 return
@@ -350,7 +429,6 @@ def check_for_updates():
             print(f"Error checking for updates: {e}")
         
         time.sleep(1)
-
 
 def show_update_notification(remote_commit):
     global update_notification_frame
@@ -435,7 +513,7 @@ def change_branch():
 
     selected_branch = StringVar(branch_window)
     selected_branch.set(branches[0])
-    OptionMenu(branch_window, selected_branch, *branches).pack(pady=5)
+    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
 
     def switch_branch():
         new_branch = selected_branch.get()
