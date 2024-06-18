@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox, OptionMenu
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
@@ -635,19 +635,3 @@ def show_box_settings():
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
 
 # Rest of the main.py code remains the same
-
-if __name__ == "__main__":
-    from tkinter import Tk
-    import json
-
-    with open('settings.json') as f:
-        settings = json.load(f)
-
-    root = Tk()
-    main_frame = Frame(root)
-    main_frame.pack()
-
-    modbus_boxes = settings["modbus_boxes"]
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
-
-    root.mainloop()
