@@ -30,11 +30,10 @@ class AnalogUI:
         "HC-100   ": {"AL1": 1500, "AL2": 3000}
     }
 
-    def __init__(self, root, num_boxes, gas_types, blink_screen):
+    def __init__(self, root, num_boxes, gas_types):
         self.root = root
         self.gas_types = gas_types
         self.num_boxes = num_boxes
-        self.blink_screen = blink_screen
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
         self.graph_windows = [None for _ in range(num_boxes)]
@@ -348,7 +347,6 @@ class AnalogUI:
                             if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
                                 self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
                                 self.box_states[box_index]["blink_thread"].start()
-                            self.blink_screen(alarm_type="AL2")
                     elif self.box_states[box_index]["alarm1_on"]:
                         if not self.box_states[box_index]["blinking_error"]:
                             self.box_states[box_index]["blinking_error"] = True
@@ -356,7 +354,6 @@ class AnalogUI:
                             if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
                                 self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
                                 self.box_states[box_index]["blink_thread"].start()
-                            self.blink_screen(alarm_type="AL1")
                     else:
                         with self.box_states[box_index]["blink_lock"]:
                             self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
@@ -407,21 +404,7 @@ if __name__ == "__main__":
     main_frame = Frame(root)
     main_frame.pack()
 
-    def blink_screen(alarm_type):
-        overlay = Toplevel(root)
-        overlay.attributes("-fullscreen", True)
-        overlay.attributes("-topmost", True)
-        overlay.attributes("-alpha", 0.5)
-
-        color = "red" if alarm_type == "AL2" else "yellow"
-        overlay.configure(bg=color)
-
-        def remove_overlay():
-            overlay.destroy()
-
-        root.after(500, remove_overlay)
-
     analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], blink_screen)
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
 
     root.mainloop()
