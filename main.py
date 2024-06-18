@@ -22,7 +22,7 @@ lock_time = 0
 lock_window = None
 box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
-update_notification_window = None  # 업데이트 알림 창
+update_notification_label = None  # 업데이트 알림 라벨
 ignore_commit = None  # 건너뛸 커밋
 
 # 설정 값을 저장할 파일 경로
@@ -335,32 +335,38 @@ def check_for_updates():
         time.sleep(1)
 
 def show_update_notification(remote_commit):
-    global update_notification_window
-    if update_notification_window and update_notification_window.winfo_exists():
+    global update_notification_label
+    if update_notification_label and update_notification_label.winfo_exists():
         return
 
-    update_notification_window = Toplevel(root)
-    update_notification_window.title("업데이트 알림")
-    update_notification_window.attributes("-topmost", True)
+    def on_yes():
+        start_update(remote_commit)
+    def on_no():
+        ignore_update(remote_commit)
 
-    Label(update_notification_window, text="업데이트가 있습니다. 하시겠습니까?", font=("Arial", 12), fg="red").pack(pady=10)
-    Button(update_notification_window, text="예", command=lambda: start_update(remote_commit)).pack(side="left", padx=20, pady=5)
-    Button(update_notification_window, text="아니오", command=lambda: ignore_update(remote_commit)).pack(side="right", padx=20, pady=5)
+    update_notification_label = Label(root, text="업데이트 하시겠습니까? 예 | 이번 버젼 건너뛰기", font=("Arial", 20), fg="red")
+    update_notification_label.place(relx=0.5, rely=0.9, anchor='center')
+
+    yes_button = Button(root, text="예", command=on_yes, font=("Arial", 14), fg="red")
+    yes_button.place(relx=0.45, rely=0.95, anchor='center')
+    
+    no_button = Button(root, text="이번 버젼 건너뛰기", command=on_no, font=("Arial", 14), fg="red")
+    no_button.place(relx=0.55, rely=0.95, anchor='center')
 
 def start_update(remote_commit):
-    global update_notification_window, ignore_commit
+    global update_notification_label, ignore_commit
     ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
-    update_notification_window.destroy()
-    update_notification_window = None
+    if update_notification_label and update_notification_label.winfo_exists():
+        update_notification_label.destroy()
     threading.Thread(target=update_system).start()
 
 def ignore_update(remote_commit):
-    global ignore_commit, update_notification_window
+    global ignore_commit, update_notification_label
     ignore_commit = remote_commit
     with open(IGNORE_COMMIT_FILE, "w") as file:
         file.write(ignore_commit.decode())
-    update_notification_window.destroy()
-    update_notification_window = None
+    if update_notification_label and update_notification_label.winfo_exists():
+        update_notification_label.destroy()
 
 def restart_application():
     python = sys.executable
