@@ -349,25 +349,8 @@ class ModbusUI:
     def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.connected_clients:
-            client = ModbusTcpClient(ip, port=502)
-            if self.connect_to_server(ip, client):
-                stop_flag = threading.Event()
-                self.stop_flags[ip] = stop_flag
-                self.clients[ip] = client
-                self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
-                                                              args=(ip, client, stop_flag, i))
-                self.connected_clients[ip].daemon = True
-                self.connected_clients[ip].start()
-                self.console.print(f"Started data thread for {ip}")
-                self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
-                self.update_circle_state([False, False, True, False], box_index=i)
-                self.show_bar(i, show=True)
-                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
-                self.blink_pwr(i)  # PWR 깜빡이기 시작
-                self.save_ip_settings()  # 연결된 IP 저장
-            else:
-                self.console.print(f"Failed to connect to {ip}")
+            client = AsyncModbusTCPClient(ip, port=502)
+            asyncio.run(self.connect_to_server(ip, client))
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
@@ -593,58 +576,3 @@ class ModbusUI:
                 self.root.after(600, toggle_color)
 
         toggle_color()
-
-# Main Application Code
-def show_box_settings():
-    global box_settings_window
-    if box_settings_window and box_settings_window.winfo_exists():
-        box_settings_window.focus()
-        return
-
-    box_settings_window = Toplevel(root)
-    box_settings_window.title("상자 설정")
-    box_settings_window.attributes("-topmost", True)
-
-    def create_gas_type_menu(parent, box_index):
-        options = ["ORG", "ARF-T", "HMDS", "HC-100"]
-        var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
-        menu = OptionMenu(parent, var, *options)
-        menu.grid(row=box_index, column=2, padx=5, pady=5)
-        var.trace_add("write", lambda *args, v=var, i=box_index: settings["gas_types"].update({f"box_{i}": v.get()}))
-        return var
-
-    gas_type_vars = []
-
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
-    modbus_entry.insert(0, settings["modbus_boxes"])
-    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
-    create_keypad(modbus_entry)
-
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_entry = Entry(box_settings_window, font=("Arial", 12))
-    analog_entry.insert(0, settings["analog_boxes"])
-    analog_entry.grid(row=1, column=1, padx=5, pady=5)
-    create_keypad(analog_entry)
-
-    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
-        Label(box_settings_window, text=f"상자 {i+1}:", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5)
-        gas_type_var = create_gas_type_menu(box_settings_window, i)
-        gas_type_vars.append(gas_type_var)
-
-    def save_and_close():
-        try:
-            settings["modbus_boxes"] = int(modbus_entry.get())
-            settings["analog_boxes"] = int(analog_entry.get())
-            for i, var in enumerate(gas_type_vars):
-                settings["gas_types"][f"box_{i}"] = var.get()
-            save_settings(settings)
-            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
-            box_settings_window.destroy()
-            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
-        except ValueError:
-            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
-
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
-
-# Rest of the main.py code remains the same
