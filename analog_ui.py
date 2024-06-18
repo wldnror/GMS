@@ -18,16 +18,16 @@ class AnalogUI:
 
     GAS_FULL_SCALE = {
         "ORG": 9999,
-        "ARF-T": 5000,
+        "ARF-T   ": 5000,
         "HMDS  ": 3000,
-        "HC-100": 5000
+        "HC-100   ": 5000
     }
 
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
-        "ARF-T": {"AL1": 2000, "AL2": 4000},
+        "ARF-T   ": {"AL1": 2000, "AL2": 4000},
         "HMDS  ": {"AL1": 2640, "AL2": 3000},
-        "HC-100": {"AL1": 1500, "AL2": 3000}
+        "HC-100   ": {"AL1": 1500, "AL2": 3000}
     }
 
     def __init__(self, root, num_boxes, gas_types):
