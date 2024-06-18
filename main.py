@@ -324,9 +324,10 @@ def check_for_updates():
     global ignore_commit
     while checking_updates:
         try:
+            current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
             local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
-            remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', 'HEAD']).split()[0]
-
+            remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
+            
             if local_commit != remote_commit and remote_commit != ignore_commit:
                 show_update_notification(remote_commit)
         except Exception as e:
