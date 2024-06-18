@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Toplevel, Label, Entry, messagebox, StringVar, OptionMenu, Spinbox
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, OptionMenu, Spinbox
 import random
 import threading
 import queue
@@ -22,7 +22,7 @@ lock_time = 0
 lock_window = None
 box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
 new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
-update_notification_label = None  # 업데이트 알림 라벨
+update_notification_frame = None  # 업데이트 알림 프레임
 ignore_commit = None  # 건너뛸 커밋
 
 # 설정 값을 저장할 파일 경로
@@ -335,8 +335,8 @@ def check_for_updates():
         time.sleep(1)
 
 def show_update_notification(remote_commit):
-    global update_notification_label
-    if update_notification_label and update_notification_label.winfo_exists():
+    global update_notification_frame
+    if update_notification_frame and update_notification_frame.winfo_exists():
         return
 
     def on_yes():
@@ -344,29 +344,32 @@ def show_update_notification(remote_commit):
     def on_no():
         ignore_update(remote_commit)
 
-    update_notification_label = Label(root, text="새로운 버젼이 있습니다 업데이트 하시겠습니까?", font=("Arial", 15), fg="red")
-    update_notification_label.place(relx=0.5, rely=0.9, anchor='center')
+    update_notification_frame = Frame(root)
+    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
 
-    yes_button = Button(root, text="예", command=on_yes, font=("Arial", 14), fg="red")
-    yes_button.place(relx=0.45, rely=0.95, anchor='center')
+    update_label = Label(update_notification_frame, text="새로운 버젼이 있습니다. 업데이트를 진행하시겠습니까?", font=("Arial", 15), fg="red")
+    update_label.pack(side="left", padx=5)
+
+    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
+    yes_button.pack(side="left", padx=5)
     
-    no_button = Button(root, text="이번 버젼 건너뛰기", command=on_no, font=("Arial", 14), fg="red")
-    no_button.place(relx=0.55, rely=0.95, anchor='center')
+    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
+    no_button.pack(side="left", padx=5)
 
 def start_update(remote_commit):
-    global update_notification_label, ignore_commit
+    global update_notification_frame, ignore_commit
     ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
-    if update_notification_label and update_notification_label.winfo_exists():
-        update_notification_label.destroy()
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        update_notification_frame.destroy()
     threading.Thread(target=update_system).start()
 
 def ignore_update(remote_commit):
-    global ignore_commit, update_notification_label
+    global ignore_commit, update_notification_frame
     ignore_commit = remote_commit
     with open(IGNORE_COMMIT_FILE, "w") as file:
         file.write(ignore_commit.decode())
-    if update_notification_label and update_notification_label.winfo_exists():
-        update_notification_label.destroy()
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        update_notification_frame.destroy()
 
 def restart_application():
     python = sys.executable
