@@ -68,7 +68,6 @@ class ModbusUI:
 
         self.root.after(100, self.process_queue)
         self.root.bind("<Button-1>", self.check_click)
-        self.loop = asyncio.get_event_loop()
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")
@@ -345,13 +344,13 @@ class ModbusUI:
         if self.ip_vars[i].get() in self.connected_clients:
             self.disconnect(i)
         else:
-            asyncio.run_coroutine_threadsafe(self.connect(i), self.loop)
+            threading.Thread(target=self.connect, args=(i,)).start()
 
-    async def connect(self, i):
+    def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.connected_clients:
-            client = AsyncModbusTCPClient(schedulers.ASYNC_IO, host=ip, port=502)
-            if await self.connect_to_server(ip, client):
+            client = ModbusTcpClient(ip, port=502)
+            if self.connect_to_server(ip, client):
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
@@ -515,6 +514,18 @@ class ModbusUI:
         for attempt in range(retries):
             if await client.connect():
                 self.console.print(f"Connected to the Modbus server at {ip}")
+                stop_flag = threading.Event()
+                self.stop_flags[ip] = stop_flag
+                self.clients[ip] = client
+                self.connected_clients[ip] = asyncio.create_task(self.read_modbus_data(ip, client, stop_flag, i))
+                self.console.print(f"Started data thread for {ip}")
+                self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
+                self.update_circle_state([False, False, True, False], box_index=i)
+                self.show_bar(i, show=True)
+                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
+                self.blink_pwr(i)  # PWR 깜빡이기 시작
+                self.save_ip_settings()  # 연결된 IP 저장
                 return True
             else:
                 self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
@@ -546,7 +557,7 @@ class ModbusUI:
             if await client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
-                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
+                asyncio.create_task(self.read_modbus_data(ip, client, stop_flag, box_index))
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=box_index)
@@ -635,3 +646,5 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
+
+# Rest of the main.py code remains the same
