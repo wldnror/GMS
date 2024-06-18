@@ -269,22 +269,50 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_spinbox = ttk.Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
-    modbus_spinbox.delete(0, "end")
-    modbus_spinbox.insert(0, settings["modbus_boxes"])
-    modbus_spinbox.grid(row=0, column=1, padx=5, pady=5)
-    modbus_spinbox.bind("<<Increment>>", lambda e: update_gas_type_options())
-    modbus_spinbox.bind("<<Decrement>>", lambda e: update_gas_type_options())
-    modbus_spinbox.bind("<KeyRelease>", lambda e: update_gas_type_options())
+    modbus_boxes_var = StringVar(value=settings["modbus_boxes"])
+    modbus_box_count = int(modbus_boxes_var.get())
+    modbus_label = Label(box_settings_window, textvariable=modbus_boxes_var, font=("Arial", 12))
+    modbus_label.grid(row=0, column=1, padx=5, pady=5)
+
+    def increase_modbus_boxes():
+        nonlocal modbus_box_count
+        if modbus_box_count < 14:
+            modbus_box_count += 1
+            modbus_boxes_var.set(modbus_box_count)
+            update_gas_type_options()
+
+    def decrease_modbus_boxes():
+        nonlocal modbus_box_count
+        if modbus_box_count > 0:
+            modbus_box_count -= 1
+            modbus_boxes_var.set(modbus_box_count)
+            update_gas_type_options()
+
+    Button(box_settings_window, text="+", command=increase_modbus_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
+    Button(box_settings_window, text="-", command=decrease_modbus_boxes, font=("Arial", 12)).grid(row=0, column=3, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_spinbox = ttk.Spinbox(box_settings_window, from_=0, to=14, font=("Arial", 12))
-    analog_spinbox.delete(0, "end")
-    analog_spinbox.insert(0, settings["analog_boxes"])
-    analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
-    analog_spinbox.bind("<<Increment>>", lambda e: update_gas_type_options())
-    analog_spinbox.bind("<<Decrement>>", lambda e: update_gas_type_options())
-    analog_spinbox.bind("<KeyRelease>", lambda e: update_gas_type_options())
+    analog_boxes_var = StringVar(value=settings["analog_boxes"])
+    analog_box_count = int(analog_boxes_var.get())
+    analog_label = Label(box_settings_window, textvariable=analog_boxes_var, font=("Arial", 12))
+    analog_label.grid(row=1, column=1, padx=5, pady=5)
+
+    def increase_analog_boxes():
+        nonlocal analog_box_count
+        if analog_box_count < 14:
+            analog_box_count += 1
+            analog_boxes_var.set(analog_box_count)
+            update_gas_type_options()
+
+    def decrease_analog_boxes():
+        nonlocal analog_box_count
+        if analog_box_count > 0:
+            analog_box_count -= 1
+            analog_boxes_var.set(analog_box_count)
+            update_gas_type_options()
+
+    Button(box_settings_window, text="+", command=increase_analog_boxes, font=("Arial", 12)).grid(row=1, column=2, padx=5, pady=5)
+    Button(box_settings_window, text="-", command=decrease_analog_boxes, font=("Arial", 12)).grid(row=1, column=3, padx=5, pady=5)
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
@@ -304,8 +332,8 @@ def show_box_settings():
         for combo in analog_gas_type_combos:
             combo.grid_remove()
 
-        modbus_boxes = int(modbus_spinbox.get())
-        analog_boxes = int(analog_spinbox.get())
+        modbus_boxes = int(modbus_boxes_var.get())
+        analog_boxes = int(analog_boxes_var.get())
 
         for i in range(modbus_boxes):  # Modbus 상자 설정을 표시
             if len(modbus_gas_type_combos) <= i:
@@ -341,8 +369,8 @@ def show_box_settings():
 
     def save_and_close():
         try:
-            modbus_boxes = int(modbus_spinbox.get())
-            analog_boxes = int(analog_spinbox.get())
+            modbus_boxes = int(modbus_boxes_var.get())
+            analog_boxes = int(analog_boxes_var.get())
             if modbus_boxes + analog_boxes > 14:
                 messagebox.showerror("입력 오류", "상자의 총합이 14개를 초과할 수 없습니다.")
                 return
