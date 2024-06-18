@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import threading
@@ -275,38 +276,44 @@ class AnalogUI:
 
         self.update_history_graph(box_index, self.current_file_index)
 
-    def read_adc_data(self):
+    async def read_adc_data(self):
         adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         GAIN = 2 / 3
         while True:
+            tasks = []
             for adc_index, adc in enumerate(adcs):
-                try:
-                    values = []
-                    for channel in range(4):
-                        value = adc.read_adc(channel, gain=GAIN)
-                        voltage = value * 6.144 / 32767
-                        current = voltage / 250
-                        milliamp = current * 1000
-                        values.append(milliamp)
+                task = asyncio.create_task(self.read_adc_values(adc, adc_index))
+                tasks.append(task)
+            await asyncio.gather(*tasks)
+            await asyncio.sleep(0.1)  # 샘플링 속도 증가
 
-                    for channel, milliamp in enumerate(values):
-                        box_index = adc_index * 4 + channel
-                        if box_index >= self.num_boxes:
-                            continue
+    async def read_adc_values(self, adc, adc_index):
+        try:
+            values = []
+            for channel in range(4):
+                value = adc.read_adc(channel, gain=GAIN)
+                voltage = value * 6.144 / 32767
+                current = voltage / 250
+                milliamp = current * 1000
+                values.append(milliamp)
 
-                        self.adc_values[box_index].append(milliamp)
+            for channel, milliamp in enumerate(values):
+                box_index = adc_index * 4 + channel
+                if box_index >= self.num_boxes:
+                    continue
 
-                        avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                        print(f"Box {box_index}: {avg_milliamp} mA")
-                        self.adc_queue.put((box_index, avg_milliamp))
-                except Exception as e:
-                    print(f"Error reading ADC data: {e}")
+                self.adc_values[box_index].append(milliamp)
 
-            time.sleep(0.1)  # 샘플링 속도 증가
+                avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
+                print(f"Box {box_index}: {avg_milliamp} mA")
+                self.adc_queue.put((box_index, avg_milliamp))
+        except Exception as e:
+            print(f"Error reading ADC data: {e}")
 
     def start_adc_thread(self):
-        adc_thread = threading.Thread(target=self.read_adc_data)
+        loop = asyncio.get_event_loop()
+        adc_thread = threading.Thread(target=loop.run_until_complete, args=(self.read_adc_data(),))
         adc_thread.daemon = True
         adc_thread.start()
 
@@ -385,19 +392,3 @@ class AnalogUI:
                     self.root.after(1000 if is_second_alarm else 600, toggle_color)
 
         toggle_color()
-
-if __name__ == "__main__":
-    from tkinter import Tk
-    import json
-
-    with open('settings.json') as f:
-        settings = json.load(f)
-
-    root = Tk()
-    main_frame = Frame(root)
-    main_frame.pack()
-
-    analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
-
-    root.mainloop()
