@@ -1,4 +1,3 @@
-
 import os
 import time
 import threading
@@ -340,8 +339,6 @@ class AnalogUI:
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
                 self.box_states[box_index]["last_value"] = formatted_value
 
-                print(f"Box {box_index} - Value: {formatted_value}, AL1: {self.box_states[box_index]['alarm1_on']}, AL2: {self.box_states[box_index]['alarm2_on']}")
-
                 if pwr_on:
                     if self.box_states[box_index]["alarm2_on"]:
                         if not self.box_states[box_index]["blinking_error"]:
@@ -359,17 +356,17 @@ class AnalogUI:
                                 self.box_states[box_index]["blink_thread"].start()
                     else:
                         with self.box_states[box_index]["blink_lock"]:
-                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], box_index=box_index)
+                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
                             self.box_states[box_index]["blinking_error"] = False
                             self.box_states[box_index]["stop_blinking"].set()
                 else:
                     with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+                        self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
-        
+
         self.schedule_ui_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm):
@@ -387,8 +384,9 @@ class AnalogUI:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                 self.box_frames[box_index][1].config(highlightbackground=outline_color)
 
+                # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
                 if self.box_states[box_index]["last_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=self.box_states[box_index]["blink_state"], box_index=box_index)
+                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000 if is_second_alarm else 600, toggle_color)
