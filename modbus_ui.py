@@ -1,11 +1,10 @@
 import json
 import os
 import time
-import asyncio
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox, OptionMenu
 import threading
 import queue
-from pymodbus.client import AsyncModbusTCPClient
+from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
@@ -349,8 +348,25 @@ class ModbusUI:
     def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.connected_clients:
-            client = AsyncModbusTCPClient(ip, port=502)
-            asyncio.run(self.connect_to_server(ip, client))
+            client = ModbusTcpClient(ip, port=502)
+            if self.connect_to_server(ip, client):
+                stop_flag = threading.Event()
+                self.stop_flags[ip] = stop_flag
+                self.clients[ip] = client
+                self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
+                                                              args=(ip, client, stop_flag, i))
+                self.connected_clients[ip].daemon = True
+                self.connected_clients[ip].start()
+                self.console.print(f"Started data thread for {ip}")
+                self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
+                self.update_circle_state([False, False, True, False], box_index=i)
+                self.show_bar(i, show=True)
+                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
+                self.blink_pwr(i)  # PWR 깜빡이기 시작
+                self.save_ip_settings()  # 연결된 IP 저장
+            else:
+                self.console.print(f"Failed to connect to {ip}")
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
@@ -373,7 +389,7 @@ class ModbusUI:
         del self.clients[ip]
         del self.stop_flags[ip]
 
-    async def read_modbus_data(self, ip, client, stop_flag, box_index):
+    def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
         interval = 0.4
@@ -388,10 +404,10 @@ class ModbusUI:
                 address_40007 = 40008 - 1
                 address_40011 = 40011 - 1
                 count = 1
-                result_40001 = await client.read_holding_registers(address_40001, count, unit=1)
-                result_40005 = await client.read_holding_registers(address_40005, count, unit=1)
-                result_40007 = await client.read_holding_registers(address_40007, count, unit=1)
-                result_40011 = await client.read_holding_registers(address_40011, count, unit=1)
+                result_40001 = client.read_holding_registers(address_40001, count, unit=1)
+                result_40005 = client.read_holding_registers(address_40005, count, unit=1)
+                result_40007 = client.read_holding_registers(address_40007, count, unit=1)
+                result_40011 = client.read_holding_registers(address_40011, count, unit=1)
 
                 if not result_40001.isError():
                     value_40001 = result_40001.registers[0]
@@ -461,19 +477,19 @@ class ModbusUI:
                 next_call += interval
                 sleep_time = next_call - time.time()
                 if sleep_time > 0:
-                    await asyncio.sleep(sleep_time)
+                    time.sleep(sleep_time)
                 else:
                     next_call = time.time()
 
             except ConnectionException:
                 self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
                 self.handle_disconnection(box_index)
-                await self.reconnect(ip, client, stop_flag, box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
                 break
             except AttributeError as e:
                 self.console.print(f"Error reading data from {ip}: {e}")
                 self.handle_disconnection(box_index)
-                await self.reconnect(ip, client, stop_flag, box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
                 break
 
     def update_bar(self, value, bar_canvas, bar_item):
@@ -492,27 +508,15 @@ class ModbusUI:
         else:
             bar_canvas.itemconfig(bar_item, state='hidden')
 
-    async def connect_to_server(self, ip, client):
+    def connect_to_server(self, ip, client):
         retries = 5
         for attempt in range(retries):
-            if await client.connect():
+            if client.connect():
                 self.console.print(f"Connected to the Modbus server at {ip}")
-                stop_flag = threading.Event()
-                self.stop_flags[ip] = stop_flag
-                self.clients[ip] = client
-                self.connected_clients[ip] = asyncio.create_task(self.read_modbus_data(ip, client, stop_flag, i))
-                self.console.print(f"Started data thread for {ip}")
-                self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
-                self.update_circle_state([False, False, True, False], box_index=i)
-                self.show_bar(i, show=True)
-                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
-                self.blink_pwr(i)  # PWR 깜빡이기 시작
-                self.save_ip_settings()  # 연결된 IP 저장
                 return True
             else:
                 self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
-                await asyncio.sleep(5)
+                time.sleep(5)
         return False
 
     def process_queue(self):
@@ -535,12 +539,12 @@ class ModbusUI:
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
 
-    async def reconnect(self, ip, client, stop_flag, box_index):
+    def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
-            if await client.connect():
+            if client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
-                asyncio.create_task(self.read_modbus_data(ip, client, stop_flag, box_index))
+                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
                 self.update_circle_state([False, False, True, False], box_index=box_index)
@@ -549,7 +553,7 @@ class ModbusUI:
                 break
             else:
                 self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
-                await asyncio.sleep(1)
+                time.sleep(1)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
@@ -576,3 +580,74 @@ class ModbusUI:
                 self.root.after(600, toggle_color)
 
         toggle_color()
+
+# Main Application Code
+def show_box_settings():
+    global box_settings_window
+    if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.focus()
+        return
+
+    box_settings_window = Toplevel(root)
+    box_settings_window.title("상자 설정")
+    box_settings_window.attributes("-topmost", True)
+
+    def create_gas_type_menu(parent, box_index):
+        options = ["ORG", "ARF-T", "HMDS", "HC-100"]
+        var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
+        menu = OptionMenu(parent, var, *options)
+        menu.grid(row=box_index, column=2, padx=5, pady=5)
+        var.trace_add("write", lambda *args, v=var, i=box_index: settings["gas_types"].update({f"box_{i}": v.get()}))
+        return var
+
+    gas_type_vars = []
+
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
+    modbus_entry.insert(0, settings["modbus_boxes"])
+    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
+    create_keypad(modbus_entry)
+
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
+    analog_entry = Entry(box_settings_window, font=("Arial", 12))
+    analog_entry.insert(0, settings["analog_boxes"])
+    analog_entry.grid(row=1, column=1, padx=5, pady=5)
+    create_keypad(analog_entry)
+
+    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
+        Label(box_settings_window, text=f"상자 {i+1}:", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5)
+        gas_type_var = create_gas_type_menu(box_settings_window, i)
+        gas_type_vars.append(gas_type_var)
+
+    def save_and_close():
+        try:
+            settings["modbus_boxes"] = int(modbus_entry.get())
+            settings["analog_boxes"] = int(analog_entry.get())
+            for i, var in enumerate(gas_type_vars):
+                settings["gas_types"][f"box_{i}"] = var.get()
+            save_settings(settings)
+            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            box_settings_window.destroy()
+            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+        except ValueError:
+            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
+
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
+
+# Rest of the main.py code remains the same
+
+if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
+    with open('settings.json') as f:
+        settings = json.load(f)
+
+    root = Tk()
+    main_frame = Frame(root)
+    main_frame.pack()
+
+    modbus_boxes = settings["modbus_boxes"]
+    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["gas_types"])
+
+    root.mainloop()
