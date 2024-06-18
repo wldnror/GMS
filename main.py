@@ -258,7 +258,7 @@ def show_box_settings():
     analog_spinbox.insert(0, settings["analog_boxes"])
     analog_spinbox.grid(row=1, column=1, padx=5, pady=5)
 
-    gas_type_labels = ["ORG", "ARF-T", "HMDS  ", "HC-100"]
+    gas_type_labels = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
     modbus_gas_type_vars = []
     analog_gas_type_vars = []
 
