@@ -281,25 +281,19 @@ class AnalogUI:
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
-        
-        # Set the data rate for each ADC to the maximum allowed value
-        data_rate = 860  # This is the maximum data rate for ADS1115
-        for adc in adcs:
-            adc.data_rate = data_rate
-        
         while True:
             tasks = []
             for adc_index, adc in enumerate(adcs):
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.01)  # 샘플링 속도 증가, 10ms로 줄임
+            await asyncio.sleep(0.1)  # 샘플링 속도 증가
 
     async def read_adc_values(self, adc, adc_index):
         try:
             values = []
             for channel in range(4):
-                value = adc.read_adc(channel, gain=GAIN, data_rate=860)  # data_rate를 최대값으로 설정
+                value = adc.read_adc(channel, gain=GAIN)
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
                 milliamp = current * 1000
@@ -325,7 +319,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
