@@ -291,10 +291,16 @@ def show_box_settings():
     analog_gas_type_vars = []
     modbus_gas_type_combos = []
     analog_gas_type_combos = []
+    modbus_labels = []
+    analog_labels = []
 
     def update_gas_type_options():
+        for label in modbus_labels:
+            label.grid_remove()
         for combo in modbus_gas_type_combos:
             combo.grid_remove()
+        for label in analog_labels:
+            label.grid_remove()
         for combo in analog_gas_type_combos:
             combo.grid_remove()
 
@@ -307,10 +313,13 @@ def show_box_settings():
                 modbus_gas_type_vars.append(modbus_gas_type_var)
                 combo = ttk.Combobox(box_settings_window, textvariable=modbus_gas_type_var, values=gas_type_labels, font=("Arial", 12))
                 modbus_gas_type_combos.append(combo)
+                label = Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12))
+                modbus_labels.append(label)
             else:
                 combo = modbus_gas_type_combos[i]
+                label = modbus_labels[i]
 
-            Label(box_settings_window, text=f"Modbus 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5, pady=5)
+            label.grid(row=i + 2, column=0, padx=5, pady=5)
             combo.grid(row=i + 2, column=1, padx=5, pady=5)
 
         for i in range(analog_boxes):  # 4~20mA 상자 설정을 표시
@@ -319,10 +328,13 @@ def show_box_settings():
                 analog_gas_type_vars.append(analog_gas_type_var)
                 combo = ttk.Combobox(box_settings_window, textvariable=analog_gas_type_var, values=gas_type_labels, font=("Arial", 12))
                 analog_gas_type_combos.append(combo)
+                label = Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12))
+                analog_labels.append(label)
             else:
                 combo = analog_gas_type_combos[i]
+                label = analog_labels[i]
 
-            Label(box_settings_window, text=f"4~20mA 상자 {i + 1} 유형", font=("Arial", 12)).grid(row=i + 2, column=2, padx=5, pady=5)
+            label.grid(row=i + 2, column=2, padx=5, pady=5)
             combo.grid(row=i + 2, column=3, padx=5, pady=5)
 
     update_gas_type_options()
