@@ -11,16 +11,15 @@ import Adafruit_ADS1x15
 class AnalogUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
 
-    def __init__(self, root, num_boxes):
-        self.root = root
+    GAS_FULL_SCALE = {
+        "ORG": 9999,
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000,
+    }
 
-        self.adc_modules = [
-            Adafruit_ADS1x15.ADS1115(address=0x48),
-            Adafruit_ADS1x15.ADS1115(address=0x49),
-            Adafruit_ADS1x15.ADS1115(address=0x4A),
-            Adafruit_ADS1x15.ADS1115(address=0x4B)
-        ]
-        self.GAIN = 2/3
+    def __init__(self, root, num_boxes, gas_types):
+        self.root = root
 
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
@@ -38,22 +37,22 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        for _ in range(num_boxes):
-            self.create_analog_box()
+        self.gas_types = gas_types
+
+        for i in range(num_boxes):
+            self.create_analog_box(i)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        # 데이터를 주기적으로 읽어서 업데이트하는 스레드 시작
-        self.stop_flag = threading.Event()
-        self.data_thread = threading.Thread(target=self.read_analog_data)
-        self.data_thread.daemon = True
-        self.data_thread.start()
+        self.adc_modules = [Adafruit_ADS1x15.ADS1115(address=address) for address in [0x48, 0x49, 0x4A, 0x4B]]
+        self.GAIN = 2/3
 
-    def create_analog_box(self):
-        i = len(self.box_frames)
-        row = i // 7
-        col = i % 7
+        self.read_adc_data()
+
+    def create_analog_box(self, index):
+        row = index // 7
+        col = index % 7
 
         if col == 0:
             row_frame = Frame(self.box_frame)
@@ -80,7 +79,7 @@ class AnalogUI:
             "last_history_time": None,
             "last_history_value": None
         })
-        self.update_segment_display("    ", box_canvas, box_index=i)
+        self.update_segment_display("    ", box_canvas, box_index=index)
 
         circle_items = []
 
@@ -96,7 +95,8 @@ class AnalogUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        box_canvas.create_text(129, 105, text="ORG", font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type = self.gas_types.get(f"analog_{index}", "ORG")
+        box_canvas.create_text(129, 105, text=gas_type, font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
@@ -104,7 +104,7 @@ class AnalogUI:
 
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=i: self.on_segment_click(i))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
     def on_segment_click(self, box_index):
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
@@ -251,50 +251,24 @@ class AnalogUI:
 
         self.update_history_graph(box_index, self.current_file_index)
 
-    def read_analog_data(self):
-        while not self.stop_flag.is_set():
+    def read_adc_data(self):
+        def read_adc(adc):
+            values = []
+            for i in range(4):
+                value = adc.read_adc(i, gain=self.GAIN)
+                voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
+                current = voltage / 250  # 저항 250Ω 사용
+                values.append(current * 1000)  # mA로 변환
+            return values
+
+        while True:
             for module_index, adc in enumerate(self.adc_modules):
-                values = self.read_adc_values(adc)
-                for channel_index, value in enumerate(values):
-                    box_index = module_index * 4 + channel_index
-                    if box_index < len(self.box_frames):
-                        display_value = self.convert_current_to_display_value(value)
-                        self.update_segment_display(f"{display_value:04.0f}", self.box_frames[box_index][1], box_index=box_index)
+                values = read_adc(adc)
+                for i, value in enumerate(values):
+                    box_index = module_index * 4 + i
+                    gas_type = self.gas_types.get(f"analog_{box_index}", "ORG")
+                    full_scale = self.GAS_FULL_SCALE.get(gas_type, 9999)
+                    scaled_value = int((value / 20.0) * full_scale)
+                    formatted_value = f"{scaled_value:04d}"
+                    self.update_segment_display(formatted_value, self.box_frames[box_index][1], box_index=box_index)
             time.sleep(1)
-
-    def read_adc_values(self, adc):
-        values = []
-        for i in range(4):
-            value = adc.read_adc(i, gain=self.GAIN)
-            voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
-            current = voltage / 250  # 저항 250Ω 사용
-            values.append(current * 1000)  # mA로 변환
-        return values
-
-    def convert_current_to_display_value(self, current):
-        """4~20mA를 0~9999로 변환"""
-        min_current = 4.0
-        max_current = 20.0
-        min_display = 0
-        max_display = 9999
-
-        if current < min_current:
-            return min_display
-        elif current > max_current:
-            return max_display
-        else:
-            return (current - min_current) / (max_current - min_current) * (max_display - min_display) + min_display
-
-    def stop(self):
-        self.stop_flag.set()
-        self.data_thread.join()
-
-# 사용 예시
-if __name__ == "__main__":
-    import tkinter as tk
-
-    root = tk.Tk()
-    root.title("Analog UI Test")
-    analog_ui = AnalogUI(root, 16)
-    root.protocol("WM_DELETE_WINDOW", analog_ui.stop)
-    root.mainloop()
