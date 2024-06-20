@@ -61,7 +61,7 @@ def load_settings():
         return json.loads(decrypted_data)
     else:
         return {
-            "modbus_boxes": 14,
+            "modbus_boxes": 28,
             "analog_boxes": 0,
             "admin_password": None,
             "modbus_gas_types": {},
