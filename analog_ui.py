@@ -65,7 +65,7 @@ def create_segment_display(canvas, scale=1.0):
             fill='#424242', outline='#424242', tags='segment_g')
     }
 
-    canvas.segment_canvas = segments
+    canvas.segments = segments
 
 class AnalogUI:
     LOGS_PER_FILE = 10
@@ -182,7 +182,7 @@ class AnalogUI:
 
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+        box_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
@@ -240,7 +240,7 @@ class AnalogUI:
 
             for j, state in enumerate(segments):
                 color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
+                box_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
 
         self.box_states[box_index]["blink_state"] = not blink_state
 
