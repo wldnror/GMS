@@ -458,7 +458,7 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    scale_factor = 1.0  # 원하는 배율로 조정 (예: 1.5, 0.5 등)
+    scale_factor = 0.5  # 원하는 배율로 조정 (예: 1.5, 0.5 등)
     analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], scale=scale_factor)
 
     root.mainloop()
