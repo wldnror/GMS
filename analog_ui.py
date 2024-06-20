@@ -11,7 +11,7 @@ from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
 
-GAIN = 2 / 3  # 전역 변수로 설정
+GAIN = 2 / 1  # 전역 변수로 설정
 
 class AnalogUI:
     LOGS_PER_FILE = 10
