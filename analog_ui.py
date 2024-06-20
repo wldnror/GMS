@@ -7,12 +7,65 @@ import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common import SEGMENTS, create_segment_display
+from common import SEGMENTS
 import queue
 import asyncio
 import json
 
 GAIN = 2 / 3  # 전역 변수로 설정
+
+def create_segment_display(canvas, scale=1.0):
+    segment_width = 14 * scale
+    segment_height = 20 * scale
+    segment_gap = 2 * scale
+
+    # Create segments
+    segments = {
+        'a': canvas.create_polygon(
+            segment_gap, segment_gap,
+            segment_width, segment_gap,
+            segment_width - segment_gap, segment_gap + segment_height / 2,
+            segment_gap, segment_height / 2,
+            fill='#424242', outline='#424242', tags='segment_a'),
+        'b': canvas.create_polygon(
+            segment_width, segment_gap,
+            segment_width + segment_width / 2, segment_gap + segment_height / 2,
+            segment_width, segment_height,
+            segment_width - segment_gap, segment_height,
+            fill='#424242', outline='#424242', tags='segment_b'),
+        'c': canvas.create_polygon(
+            segment_width, segment_height + segment_gap,
+            segment_width + segment_width / 2, segment_height + segment_gap + segment_height / 2,
+            segment_width, segment_height * 2 + segment_gap,
+            segment_width - segment_gap, segment_height * 2 + segment_gap,
+            fill='#424242', outline='#424242', tags='segment_c'),
+        'd': canvas.create_polygon(
+            segment_gap, segment_height * 2 + segment_gap,
+            segment_width, segment_height * 2 + segment_gap,
+            segment_width - segment_gap, segment_height * 2.5 + segment_gap,
+            segment_gap, segment_height * 2.5 + segment_gap,
+            fill='#424242', outline='#424242', tags='segment_d'),
+        'e': canvas.create_polygon(
+            segment_gap - segment_width / 2, segment_height + segment_gap,
+            segment_gap, segment_height + segment_gap + segment_height / 2,
+            segment_gap - segment_width / 2, segment_height * 2 + segment_gap,
+            segment_gap - segment_width, segment_height * 2 + segment_gap,
+            fill='#424242', outline='#424242', tags='segment_e'),
+        'f': canvas.create_polygon(
+            segment_gap - segment_width / 2, segment_gap,
+            segment_gap, segment_gap + segment_height / 2,
+            segment_gap - segment_width / 2, segment_height,
+            segment_gap - segment_width, segment_height,
+            fill='#424242', outline='#424242', tags='segment_f'),
+        'g': canvas.create_polygon(
+            segment_gap, segment_height,
+            segment_width, segment_height,
+            segment_width - segment_gap, segment_height + segment_gap,
+            segment_gap, segment_height + segment_gap,
+            fill='#424242', outline='#424242', tags='segment_g')
+    }
+
+    canvas.segment_canvas = segments
 
 class AnalogUI:
     LOGS_PER_FILE = 10
@@ -130,60 +183,6 @@ class AnalogUI:
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
-
-    def create_segment_display(canvas, scale=1.0):
-    segment_width = 14 * scale
-    segment_height = 20 * scale
-    segment_gap = 2 * scale
-
-    # Create segments
-    segments = {
-        'a': canvas.create_polygon(
-            segment_gap, segment_gap,
-            segment_width, segment_gap,
-            segment_width - segment_gap, segment_gap + segment_height / 2,
-            segment_gap, segment_height / 2,
-            fill='#424242', outline='#424242', tags='segment_a'),
-        'b': canvas.create_polygon(
-            segment_width, segment_gap,
-            segment_width + segment_width / 2, segment_gap + segment_height / 2,
-            segment_width, segment_height,
-            segment_width - segment_gap, segment_height,
-            fill='#424242', outline='#424242', tags='segment_b'),
-        'c': canvas.create_polygon(
-            segment_width, segment_height + segment_gap,
-            segment_width + segment_width / 2, segment_height + segment_gap + segment_height / 2,
-            segment_width, segment_height * 2 + segment_gap,
-            segment_width - segment_gap, segment_height * 2 + segment_gap,
-            fill='#424242', outline='#424242', tags='segment_c'),
-        'd': canvas.create_polygon(
-            segment_gap, segment_height * 2 + segment_gap,
-            segment_width, segment_height * 2 + segment_gap,
-            segment_width - segment_gap, segment_height * 2.5 + segment_gap,
-            segment_gap, segment_height * 2.5 + segment_gap,
-            fill='#424242', outline='#424242', tags='segment_d'),
-        'e': canvas.create_polygon(
-            segment_gap - segment_width / 2, segment_height + segment_gap,
-            segment_gap, segment_height + segment_gap + segment_height / 2,
-            segment_gap - segment_width / 2, segment_height * 2 + segment_gap,
-            segment_gap - segment_width, segment_height * 2 + segment_gap,
-            fill='#424242', outline='#424242', tags='segment_e'),
-        'f': canvas.create_polygon(
-            segment_gap - segment_width / 2, segment_gap,
-            segment_gap, segment_gap + segment_height / 2,
-            segment_gap - segment_width / 2, segment_height,
-            segment_gap - segment_width, segment_height,
-            fill='#424242', outline='#424242', tags='segment_f'),
-        'g': canvas.create_polygon(
-            segment_gap, segment_height,
-            segment_width, segment_height,
-            segment_width - segment_gap, segment_height + segment_gap,
-            segment_gap, segment_height + segment_gap,
-            fill='#424242', outline='#424242', tags='segment_g')
-    }
-
-    canvas.segment_canvas = segments
-
 
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
@@ -459,7 +458,7 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    scale_factor = 0.5  # 원하는 배율로 조정 (예: 1.5, 0.5 등)
+    scale_factor = 1.0  # 원하는 배율로 조정 (예: 1.5, 0.5 등)
     analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], scale=scale_factor)
 
     root.mainloop()
