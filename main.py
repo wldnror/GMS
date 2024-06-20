@@ -61,7 +61,7 @@ def load_settings():
         return json.loads(decrypted_data)
     else:
         return {
-            "modbus_boxes": 28,
+            "modbus_boxes": 14,
             "analog_boxes": 0,
             "admin_password": None,
             "modbus_gas_types": {},
@@ -373,8 +373,8 @@ def show_box_settings():
         try:
             modbus_boxes = int(modbus_boxes_var.get())
             analog_boxes = int(analog_boxes_var.get())
-            if modbus_boxes + analog_boxes > 14:
-                messagebox.showerror("입력 오류", "상자의 총합이 14개를 초과할 수 없습니다.")
+            if modbus_boxes + analog_boxes > 28:
+                messagebox.showerror("입력 오류", "상자의 총합이 28개를 초과할 수 없습니다.")
                 return
             settings["modbus_boxes"] = modbus_boxes
             settings["analog_boxes"] = analog_boxes
