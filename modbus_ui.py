@@ -110,8 +110,8 @@ class ModbusUI:
         self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        row = index // 7
-        col = index % 7
+        row = index // 10
+        col = index % 10
 
         if col == 0:
             row_frame = Frame(self.box_frame)
