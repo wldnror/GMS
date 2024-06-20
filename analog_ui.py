@@ -2,7 +2,7 @@ import os
 import time
 import threading
 from collections import deque
-from tkinter import Frame, Canvas, StringVar, Toplevel, Button, Tk
+from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -10,7 +10,6 @@ import mplcursors
 from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
-import json
 
 GAIN = 2 / 3  # 전역 변수로 설정
 
@@ -31,7 +30,7 @@ class AnalogUI:
         "HC-100   ": {"AL1": 1500, "AL2": 3000}
     }
 
-    def __init__(self, root, num_boxes, gas_types, scale=1.0):
+    def __init__(self, root, num_boxes, gas_types):
         self.root = root
         self.gas_types = gas_types
         self.num_boxes = num_boxes
@@ -40,10 +39,9 @@ class AnalogUI:
         self.graph_windows = [None for _ in range(num_boxes)]
         self.history_window = None
         self.history_lock = threading.Lock()
-        self.scale = scale
 
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=int(40 * self.scale), pady=int(40 * self.scale))
+        self.box_frame.grid(row=0, column=0, padx=40, pady=40)
 
         self.row_frames = []
         self.box_frames = []
@@ -76,19 +74,18 @@ class AnalogUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=int(20 * self.scale), pady=int(20 * self.scale))
+        box_frame.grid(row=0, column=col, padx=20, pady=20)
 
-        box_canvas = Canvas(box_frame, width=int(200 * self.scale), height=int(400 * self.scale),
-                            highlightthickness=int(4 * self.scale), highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, int(210 * self.scale), int(250 * self.scale), fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, int(250 * self.scale), int(210 * self.scale), int(410 * self.scale), fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
         gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
-        gas_type_text_id = box_canvas.create_text(int(148 * self.scale), int(118 * self.scale), text=gas_type_var.get(), font=("Helvetica", int(18 * self.scale), "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(148, 118, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
@@ -106,26 +103,26 @@ class AnalogUI:
             "alarm2_on": False
         })
 
-        create_segment_display(box_canvas, scale=self.scale)
+        create_segment_display(box_canvas)
         self.update_segment_display("    ", box_canvas, box_index=index)
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(77 * self.scale), int(200 * self.scale), int(87 * self.scale), int(190 * self.scale)))
-        box_canvas.create_text(int(95 * self.scale), int(220 * self.scale), text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(133 * self.scale), int(200 * self.scale), int(123 * self.scale), int(190 * self.scale)))
-        box_canvas.create_text(int(140 * self.scale), int(220 * self.scale), text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(30 * self.scale), int(200 * self.scale), int(40 * self.scale), int(190 * self.scale)))
-        box_canvas.create_text(int(35 * self.scale), int(220 * self.scale), text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
+        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
-        circle_items.append(box_canvas.create_oval(int(171 * self.scale), int(200 * self.scale), int(181 * self.scale), int(190 * self.scale)))
-        box_canvas.create_text(int(175 * self.scale), int(213 * self.scale), text="FUT", fill="#cccccc", anchor="n")
+        circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
+        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        box_canvas.create_text(int(107 * self.scale), int(360 * self.scale), text="GMS-1000", font=("Helvetica", int(22 * self.scale), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
-        box_canvas.create_text(int(107 * self.scale), int(395 * self.scale), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(9 * self.scale), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
@@ -397,6 +394,9 @@ class AnalogUI:
         toggle_color()
 
 if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
     with open('settings.json') as f:
         settings = json.load(f)
 
@@ -405,7 +405,6 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    scale_factor = 0.5  # 원하는 배율로 조정 (예: 1.5, 0.5 등)
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], scale=scale_factor)
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
 
     root.mainloop()
