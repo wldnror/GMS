@@ -128,7 +128,7 @@ def show_red_overlay():
     overlay = Toplevel(root)
     overlay.attributes('-fullscreen', True)
     overlay.attributes('-topmost', True)
-    overlay.attributes('-alpha', 0.7)
+    overlay.wm_attributes('-alpha', 0.7)  # 여기서 -alpha 속성을 설정합니다.
     overlay.configure(background='red')
     overlay.bind("<Escape>", lambda e: overlay.destroy())
 
