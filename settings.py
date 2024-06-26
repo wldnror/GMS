@@ -2,6 +2,7 @@ from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
 from tkinter import ttk
 import json
 import os
+import sys
 import threading
 import time
 import random
