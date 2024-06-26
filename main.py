@@ -14,7 +14,7 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -125,6 +125,10 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
+def create_red_overlay_image(width, height):
+    img = Image.new('RGBA', (width, height), (255, 0, 0, 127))  # 127 is the alpha value (0-255)
+    return img
+
 def show_red_overlay():
     overlay = Toplevel(root)
     overlay.attributes('-fullscreen', True)
@@ -134,9 +138,7 @@ def show_red_overlay():
     canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
     canvas.pack(fill=tk.BOTH, expand=True)
 
-    img_path = os.path.join(os.path.dirname(__file__), "img/red_overlay.png")
-    img = Image.open(img_path)
-    img = img.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
+    img = create_red_overlay_image(root.winfo_screenwidth(), root.winfo_screenheight())
     img_tk = ImageTk.PhotoImage(img)
     canvas.create_image(0, 0, anchor='nw', image=img_tk)
 
