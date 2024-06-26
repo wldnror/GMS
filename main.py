@@ -472,13 +472,18 @@ def restart_application():
     os.execl(python, python, *sys.argv)
 
 def get_system_info():
+    try:
+        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+    except subprocess.CalledProcessError:
+        current_branch = "N/A"
+        
     cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
     cpu_usage = psutil.cpu_percent(interval=1)
     memory_usage = psutil.virtual_memory().percent
     disk_usage = psutil.disk_usage('/').percent
     net_io = psutil.net_io_counters()
     network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
-    return f"IP: {get_ip_address()} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
+    return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
 
 def get_ip_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
