@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import time
+import random
 from cryptography.fernet import Fernet
 
 SETTINGS_FILE = "settings.json"
