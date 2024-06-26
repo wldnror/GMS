@@ -91,7 +91,7 @@ def update_system(root):
     
     messagebox.showinfo("시스템 업데이트", message)
 
-def check_for_updates():
+def check_for_updates(root):
     global checking_updates, ignore_commit
     while checking_updates:
         try:
@@ -100,19 +100,19 @@ def check_for_updates():
             remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
             
             if local_commit != remote_commit and remote_commit != ignore_commit:
-                show_update_notification(remote_commit)
+                show_update_notification(root, remote_commit)
         except Exception as e:
             print(f"Error checking for updates: {e}")
         
         time.sleep(1)
 
-def show_update_notification(remote_commit):
+def show_update_notification(root, remote_commit):
     global update_notification_frame
     if update_notification_frame and update_notification_frame.winfo_exists():
         return
 
     def on_yes():
-        start_update(remote_commit)
+        start_update(root, remote_commit)
     def on_no():
         ignore_update(remote_commit)
 
@@ -128,7 +128,7 @@ def show_update_notification(remote_commit):
     no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
     no_button.pack(side="left", padx=5)
 
-def start_update(remote_commit):
+def start_update(root, remote_commit):
     global update_notification_frame, ignore_commit
     ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
     if update_notification_frame and update_notification_frame.winfo_exists():
