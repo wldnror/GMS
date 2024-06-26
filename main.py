@@ -4,6 +4,8 @@ import os
 import time
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
 import threading
 import psutil
 import signal
