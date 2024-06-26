@@ -34,6 +34,8 @@ admin_password = settings.get("admin_password")  # settings를 불러온 후에 
 
 ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 초기화
 update_notification_frame = None  # update_notification_frame 변수를 전역 변수로 선언하고 초기화
+checking_updates = True  # 전역 변수로 선언 및 초기화
+branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
