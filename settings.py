@@ -22,21 +22,27 @@ lock_time = 0
 attempt_count = 0
 
 def load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'r') as file:
-            return json.load(file)
-    else:
-        return {
-            "modbus_boxes": 14,
-            "analog_boxes": 0,
-            "admin_password": None,
-            "modbus_gas_types": {},
-            "analog_gas_types": {}
-        }
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as file:
+                return json.load(file)
+    except (json.JSONDecodeError, IOError):
+        pass
+    return {
+        "modbus_boxes": 14,
+        "analog_boxes": 0,
+        "admin_password": None,
+        "modbus_gas_types": {},
+        "analog_gas_types": {}
+    }
+
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'w') as file:
-        json.dump(settings, file)
+    try:
+        with open(SETTINGS_FILE, 'w') as file:
+            json.dump(settings, file, indent=4)
+    except IOError as e:
+        messagebox.showerror("저장 오류", f"설정을 저장하는 중 오류가 발생했습니다: {e}")
 
 settings = load_settings()
 admin_password = settings.get("admin_password")
