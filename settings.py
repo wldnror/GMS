@@ -467,34 +467,3 @@ def ignore_update(remote_commit):
     if update_notification_frame and update_notification_frame.winfo_exists():
         update_notification_frame.destroy()
 
-def change_branch():
-    global branch_window
-    if branch_window and branch_window.winfo_exists():
-        branch_window.focus()
-        return
-
-    branch_window = Toplevel(root)
-    branch_window.title("브랜치 변경")
-    branch_window.attributes("-topmost", True)
-
-    current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-    Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
-
-    branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
-    branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
-
-    selected_branch = StringVar(branch_window)
-    selected_branch.set(branches[0])
-    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
-
-    def switch_branch():
-        new_branch = selected_branch.get()
-        try:
-            subprocess.check_output(['git', 'checkout', new_branch])
-            messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
-            branch_window.destroy()
-            restart_application()
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
-
-    Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
