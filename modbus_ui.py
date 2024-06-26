@@ -112,88 +112,88 @@ class ModbusUI:
     def create_modbus_box(self, index):
         row = index // 7
         col = index % 7
+        
+        if col == 0:
+            row_frame = Frame(self.box_frame)
+            row_frame.grid(row=row, column=0)
+            self.row_frames.append(row_frame)
+        else:
+            row_frame = self.row_frames[-1]
 
-    if col == 0:
-        row_frame = Frame(self.box_frame)
-        row_frame.grid(row=row, column=0)
-        self.row_frames.append(row_frame)
-    else:
-        row_frame = self.row_frames[-1]
+        box_frame = Frame(row_frame)
+        box_frame.grid(row=0, column=col, padx=20, pady=20)
 
-    box_frame = Frame(row_frame)
-    box_frame.grid(row=0, column=col, padx=20, pady=20)
+        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas.pack()
+        
+        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
-    box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
-    box_canvas.pack()
+        create_segment_display(box_canvas)
+        self.box_states.append({
+            "blink_state": False,
+            "blinking_error": False,
+            "previous_value_40011": None,
+            "previous_segment_display": None,
+            "last_history_time": None,
+            "last_history_value": None,
+            "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
+            "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
+            "gas_type_text_id": None,
+            "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
+        })
 
-    box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
-    box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
+        self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
 
-    create_segment_display(box_canvas)
-    self.box_states.append({
-        "blink_state": False,
-        "blinking_error": False,
-        "previous_value_40011": None,
-        "previous_segment_display": None,
-        "last_history_time": None,
-        "last_history_value": None,
-        "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
-        "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
-        "gas_type_text_id": None,
-        "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
-    })
+        control_frame = Frame(box_canvas, bg="black")
+        control_frame.place(x=10, y=250)
 
-    self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
+        ip_var = self.ip_vars[index]
 
-    control_frame = Frame(box_canvas, bg="black")
-    control_frame.place(x=10, y=250)
+        self.add_ip_row(control_frame, ip_var, index)
 
-    ip_var = self.ip_vars[index]
+        circle_items = []
 
-    self.add_ip_row(control_frame, ip_var, index)
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
 
-    circle_items = []
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
 
-    circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
-    box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
+        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
 
-    circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
-    box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
+        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-    circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
-    box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
+        gas_type_var = self.box_states[index]["gas_type_var"]
+        # 개별 위치 설정을 위해 좌표값을 각각 설정
+        gas_type_positions = {
+            0: (148, 122),
+            1: (140, 130),
+            2: (150, 140),
+            # 필요한 만큼 추가
+        }
 
-    circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
-    box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
+        pos_x, pos_y = gas_type_positions.get(index, (148, 122))  # 기본값은 (148, 122)
+        gas_type_text_id = box_canvas.create_text(pos_x, pos_y, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
-    gas_type_var = self.box_states[index]["gas_type_var"]
-    # 개별 위치 설정을 위해 좌표값을 각각 설정
-    gas_type_positions = {
-        0: (148, 122),
-        1: (140, 130),
-        2: (150, 140),
-        # 필요한 만큼 추가
-    }
+        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
-    pos_x, pos_y = gas_type_positions.get(index, (148, 122))  # 기본값은 (148, 122)
-    gas_type_text_id = box_canvas.create_text(pos_x, pos_y, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
-    self.box_states[index]["gas_type_text_id"] = gas_type_text_id
+        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
+    
+        bar_canvas = Canvas(box_canvas, width=153, height=5, bg="white", highlightthickness=0)
+        bar_canvas.place(x=27, y=98)
+    
+        bar_image = ImageTk.PhotoImage(self.gradient_bar)
+        bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
-    box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
+        self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
 
-    box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
+        self.show_bar(index, show=False)
 
-    bar_canvas = Canvas(box_canvas, width=153, height=5, bg="white", highlightthickness=0)
-    bar_canvas.place(x=27, y=98)
-
-    bar_image = ImageTk.PhotoImage(self.gradient_bar)
-    bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
-
-    self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
-
-    self.show_bar(index, show=False)
-
-    box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
 
     def update_full_scale(self, gas_type_var, box_index):
