@@ -2,6 +2,7 @@ import os
 import json
 import threading
 import subprocess
+import socket
 import time
 from tkinter import Toplevel, Label, Entry, Button, messagebox, StringVar, Frame
 from tkinter import ttk
