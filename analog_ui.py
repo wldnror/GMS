@@ -24,10 +24,10 @@ class AnalogUI:
     }
 
     GAS_TYPE_POSITIONS = {
-        "ORG": (149, 118),
-        "ARF-T": (140, 118),
-        "HMDS": (143, 118),
-        "HC-100": (139, 118)
+        "ORG": (149, 117),
+        "ARF-T": (140, 117),
+        "HMDS": (143, 117),
+        "HC-100": (137, 117)
     }
 
     ALARM_LEVELS = {
