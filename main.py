@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
 from tkinter import ttk
 import random
 import threading
@@ -499,6 +499,7 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
+    root.after(1000, update_status_label)  # 1초마다 업데이트
 
 def change_branch():
     global branch_window
@@ -531,6 +532,14 @@ def change_branch():
             messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
+
+def show_red_overlay():
+    overlay = Toplevel(root)
+    overlay.attributes('-fullscreen', True)
+    overlay.attributes('-topmost', True)
+    overlay.attributes('-alpha', 0.7)
+    overlay.configure(background='red')
+    overlay.bind("<Escape>", lambda e: overlay.destroy())
 
 if __name__ == "__main__":
     root = Tk()
@@ -584,6 +593,12 @@ if __name__ == "__main__":
         while True:
             update_status_label()
             time.sleep(1)
+
+    # 새로운 버튼을 추가합니다.
+    overlay_button = Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
+    overlay_button.bind("<Enter>", on_enter)
+    overlay_button.bind("<Leave>", on_leave)
+    overlay_button.place(relx=0.95, rely=1.0, anchor='se')
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(IGNORE_COMMIT_FILE):
