@@ -14,19 +14,7 @@ import sys
 import subprocess
 import socket
 from cryptography.fernet import Fernet
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings
-
-# 글로벌 변수로 설정 창을 참조합니다.
-settings_window = None
-password_window = None
-attempt_count = 0
-lock_time = 0
-lock_window = None
-box_settings_window = None  # box_settings_window 변수를 글로벌로 선언
-new_password_window = None  # 비밀번호 설정 창을 위한 글로벌 변수
-update_notification_frame = None  # 업데이트 알림 프레임
-ignore_commit = None  # 건너뛸 커밋
-branch_window = None  # 브랜치 변경 창을 위한 글로벌 변수
+from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -247,6 +235,8 @@ if __name__ == "__main__":
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
+
+    initialize_globals(root)
 
     if not admin_password:
         prompt_new_password()
