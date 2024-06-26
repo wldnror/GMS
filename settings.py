@@ -24,9 +24,10 @@ ignore_commit = None
 branch_window = None
 root = None
 
-def initialize_globals(main_root):
-    global root
+def initialize_globals(main_root, change_branch_func):
+    global root, change_branch
     root = main_root
+    change_branch = change_branch_func
 
 # 암호화 키 생성 및 로드
 def generate_key():
