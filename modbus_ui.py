@@ -19,16 +19,16 @@ class ModbusUI:
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
     GAS_FULL_SCALE = {
         "ORG": 9999,
-        "ARF-T   ": 5000,
-        "HMDS  ": 3000,
-        "HC-100   ": 5000
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
     }
     
     GAS_TYPE_POSITIONS = {
         "ORG": (148, 122),
-        "ARF-T   ": (148, 140),
-        "HMDS  ": (148, 160),
-        "HC-100   ": (148, 180)
+        "ARF-T": (148, 140),
+        "HMDS": (148, 160),
+        "HC-100": (148, 180)
     }
 
 
