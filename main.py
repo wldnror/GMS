@@ -128,7 +128,10 @@ def show_red_overlay():
     overlay = Toplevel(root)
     overlay.attributes('-fullscreen', True)
     overlay.attributes('-topmost', True)
-    overlay.wm_attributes('-alpha', 0.7)  # 여기서 -alpha 속성을 설정합니다.
+    try:
+        overlay.attributes('-alpha', 0.7)  # 일반적인 방법
+    except Exception as e:
+        print(f"Error setting alpha: {e}")
     overlay.configure(background='red')
     overlay.bind("<Escape>", lambda e: overlay.destroy())
 
