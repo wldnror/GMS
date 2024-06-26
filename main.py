@@ -46,6 +46,7 @@ settings = load_settings()  # 여기서 settings를 불러옵니다
 admin_password = settings.get("admin_password")  # settings를 불러온 후에 admin_password를 설정합니다
 
 ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 초기화
+update_notification_frame = None  # update_notification_frame 변수를 전역 변수로 선언하고 초기화
 
 def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="grid"):
     keypad_frame = Frame(parent)
