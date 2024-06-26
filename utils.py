@@ -11,6 +11,11 @@ from cryptography.fernet import Fernet
 KEY_FILE = "secret.key"
 IGNORE_COMMIT_FILE = "ignore_commit.txt"
 
+# 전역 변수
+checking_updates = False
+ignore_commit = None
+update_notification_frame = None
+
 # 암호화 키 생성 및 로드
 def generate_key():
     key = Fernet.generate_key()
@@ -87,7 +92,7 @@ def update_system(root):
     messagebox.showinfo("시스템 업데이트", message)
 
 def check_for_updates():
-    global ignore_commit
+    global checking_updates, ignore_commit
     while checking_updates:
         try:
             current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
@@ -101,7 +106,7 @@ def check_for_updates():
         
         time.sleep(1)
 
-def show_update_notification(root, remote_commit):
+def show_update_notification(remote_commit):
     global update_notification_frame
     if update_notification_frame and update_notification_frame.winfo_exists():
         return
