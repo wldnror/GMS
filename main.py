@@ -183,7 +183,7 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
-    root.after(1000, update_status_label)  # 1초마다 업데이트
+    # root.after(1000, update_status_label)  # 1초마다 업데이트
 
 def change_branch():
     global branch_window
