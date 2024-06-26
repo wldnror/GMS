@@ -236,7 +236,7 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    initialize_globals(root)
+    initialize_globals(root, change_branch)
 
     if not admin_password:
         prompt_new_password()
