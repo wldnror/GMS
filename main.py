@@ -280,11 +280,11 @@ if __name__ == "__main__":
             update_status_label()
             time.sleep(1)
 
-    # # 새로운 버튼을 추가합니다.
-    # overlay_button = Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
-    # overlay_button.bind("<Enter>", on_enter)
-    # overlay_button.bind("<Leave>", on_leave)
-    # overlay_button.place(relx=0.95, rely=1.0, anchor='se')
+    # 새로운 버튼을 추가합니다.
+    overlay_button = Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
+    overlay_button.bind("<Enter>", on_enter)
+    overlay_button.bind("<Leave>", on_leave)
+    overlay_button.place(relx=0.95, rely=1.0, anchor='se')
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(IGNORE_COMMIT_FILE):
