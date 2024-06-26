@@ -140,7 +140,6 @@ def show_red_overlay():
 
     img = create_red_overlay_image(root.winfo_screenwidth(), root.winfo_screenheight())
     img_tk = ImageTk.PhotoImage(img)
-
     canvas.create_image(0, 0, anchor='nw', image=img_tk)
 
     overlay.bind("<Escape>", lambda e: overlay.destroy())
@@ -218,10 +217,6 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
-
-    # Create a Canvas widget for overlay
-    canvas = tk.Canvas(root, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
-    canvas.place(x=0, y=0, relwidth=1, relheight=1)
 
     root.mainloop()
 
