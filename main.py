@@ -10,6 +10,8 @@ import signal
 import sys
 import subprocess
 import socket
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 
