@@ -200,7 +200,7 @@ def show_settings():
     # "시스템 업데이트"와 "브랜치 변경" 버튼을 한 줄에 나란히 배치
     frame2 = Frame(settings_window)
     frame2.pack(pady=5)
-    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=utils.update_system, args=(root,)).start())
+    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=check_and_update_system).start())
     update_button.grid(row=0, column=0)
     branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
     branch_button.grid(row=0, column=1)
@@ -212,6 +212,20 @@ def show_settings():
     restart_button.grid(row=0, column=0)
     exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_application(root))
     exit_button.grid(row=0, column=1)
+
+def check_and_update_system():
+    try:
+        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
+        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
+
+        if local_commit != remote_commit:
+            messagebox.showinfo("시스템 업데이트", "새로운 업데이트가 있습니다. 시스템을 업데이트합니다.")
+            utils.update_system(root)
+        else:
+            messagebox.showinfo("시스템 업데이트", "현재 최신 버전을 사용 중입니다.")
+    except Exception as e:
+        messagebox.showerror("시스템 업데이트 오류", f"업데이트 확인 중 오류가 발생했습니다: {e}")
 
 def show_box_settings():
     global box_settings_window
