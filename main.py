@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -14,8 +14,7 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
-import pygame
-from pygame.locals import *
+from PIL import Image, ImageTk
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -126,31 +125,27 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
+def create_red_overlay_image(width, height):
+    img = Image.new('RGBA', (width, height), (255, 0, 0, 127))  # 127 is the alpha value (0-255)
+    return img
+
 def show_red_overlay():
-    def overlay_thread():
-        pygame.init()
-        screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
-        screen = pygame.display.set_mode((screen_width, screen_height), pygame.NOFRAME)
-        pygame.display.set_caption('Red Overlay')
-        clock = pygame.time.Clock()
+    overlay = Toplevel(root)
+    overlay.attributes('-fullscreen', True)
+    overlay.attributes('-topmost', True)
+    overlay.overrideredirect(1)  # Remove window decorations
 
-        overlay = pygame.Surface((screen_width, screen_height))
-        overlay.set_alpha(180)  # 투명도 설정
-        overlay.fill((255, 0, 0))  # 빨간색으로 채우기
+    canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
+    canvas.pack(fill=tk.BOTH, expand=True)
 
-        running = True
-        while running:
-            for event in pygame.event.get():
-                if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
-                    running = False
+    img = create_red_overlay_image(root.winfo_screenwidth(), root.winfo_screenheight())
+    img_tk = ImageTk.PhotoImage(img)
+    canvas.create_image(0, 0, anchor='nw', image=img_tk)
 
-            screen.blit(overlay, (0, 0))
-            pygame.display.flip()
-            clock.tick(30)  # 프레임 속도 제한
+    overlay.bind("<Escape>", lambda e: overlay.destroy())
 
-        pygame.quit()
-
-    threading.Thread(target=overlay_thread).start()
+    # To keep a reference to the image object to prevent garbage collection
+    overlay.image = img_tk
 
 if __name__ == "__main__":
     root = tk.Tk()
