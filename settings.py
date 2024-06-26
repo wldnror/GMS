@@ -1,3 +1,4 @@
+# settings.py
 from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
 from tkinter import ttk
 import json
@@ -5,11 +6,9 @@ import os
 import sys
 import threading
 import time
-import random
-from cryptography.fernet import Fernet
+import utils
 
 SETTINGS_FILE = "settings.json"
-KEY_FILE = "secret.key"
 
 # 글로벌 변수 선언
 settings_window = None
@@ -30,25 +29,14 @@ def initialize_globals(main_root, change_branch_func):
     change_branch = change_branch_func
 
 # 암호화 키 생성 및 로드
-def generate_key():
-    key = Fernet.generate_key()
-    with open(KEY_FILE, "wb") as key_file:
-        key_file.write(key)
-
-def load_key():
-    if not os.path.exists(KEY_FILE):
-        generate_key()
-    with open(KEY_FILE, "rb") as key_file:
-        return key_file.read()
-
-key = load_key()
-cipher_suite = Fernet(key)
+key = utils.load_key()
+cipher_suite = utils.cipher_suite
 
 def encrypt_data(data):
-    return cipher_suite.encrypt(data.encode())
+    return utils.encrypt_data(data)
 
 def decrypt_data(data):
-    return cipher_suite.decrypt(data).decode()
+    return utils.decrypt_data(data)
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
@@ -73,36 +61,6 @@ def save_settings(settings):
 settings = load_settings()
 admin_password = settings.get("admin_password")
 
-def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="grid"):
-    keypad_frame = Frame(parent)
-    if geometry == "grid":
-        keypad_frame.grid(row=row, column=column, columnspan=columnspan, pady=5)
-    elif geometry == "pack":
-        keypad_frame.pack()
-
-    def on_button_click(char):
-        if char == 'DEL':
-            current_text = entry.get()
-            entry.delete(0, 'end')
-            entry.insert(0, current_text[:-1])
-        elif char == 'CLR':
-            entry.delete(0, 'end')
-        else:
-            entry.insert('end', char)
-
-    buttons = [str(i) for i in range(10)]
-    random.shuffle(buttons)
-    buttons.append('CLR')
-    buttons.append('DEL')
-
-    rows = 4
-    cols = 3
-    for i, button in enumerate(buttons):
-        b = Button(keypad_frame, text=button, width=5, height=2, command=lambda b=button: on_button_click(b))
-        b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
-
-    return keypad_frame
-
 def prompt_new_password():
     global new_password_window
     if new_password_window and new_password_window.winfo_exists():
@@ -116,7 +74,7 @@ def prompt_new_password():
     Label(new_password_window, text="새로운 관리자 비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     new_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     new_password_entry.pack(pady=5)
-    create_keypad(new_password_entry, new_password_window, geometry="pack")
+    utils.create_keypad(new_password_entry, new_password_window, geometry="pack")
 
     def confirm_password():
         new_password = new_password_entry.get()
@@ -138,7 +96,7 @@ def prompt_confirm_password(new_password):
     Label(new_password_window, text="비밀번호를 다시 입력하세요", font=("Arial", 12)).pack(pady=10)
     confirm_password_entry = Entry(new_password_window, show="*", font=("Arial", 12))
     confirm_password_entry.pack(pady=5)
-    create_keypad(confirm_password_entry, new_password_window, geometry="pack")
+    utils.create_keypad(confirm_password_entry, new_password_window, geometry="pack")
 
     def save_new_password():
         confirm_password = confirm_password_entry.get()
@@ -147,7 +105,7 @@ def prompt_confirm_password(new_password):
             save_settings(settings)
             messagebox.showinfo("비밀번호 설정", "새로운 비밀번호가 설정되었습니다.")
             new_password_window.destroy()
-            restart_application()
+            utils.restart_application()
         else:
             messagebox.showerror("비밀번호 오류", "비밀번호가 일치하지 않거나 유효하지 않습니다.")
             new_password_window.destroy()
@@ -194,7 +152,7 @@ def show_password_prompt(callback):
     Label(password_window, text="비밀번호를 입력하세요", font=("Arial", 12)).pack(pady=10)
     password_entry = Entry(password_window, show="*", font=("Arial", 12))
     password_entry.pack(pady=5)
-    create_keypad(password_entry, password_window, geometry="pack")
+    utils.create_keypad(password_entry, password_window, geometry="pack")
 
     def check_password():
         global attempt_count, lock_time
@@ -234,15 +192,15 @@ def show_settings():
     # "전체 화면 설정"과 "창 크기 설정" 버튼을 한 줄에 나란히 배치
     frame1 = Frame(settings_window)
     frame1.pack(pady=5)
-    fullscreen_button = Button(frame1, text="전체 화면 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=enter_fullscreen)
+    fullscreen_button = Button(frame1, text="전체 화면 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.enter_fullscreen(root))
     fullscreen_button.grid(row=0, column=0)
-    windowed_button = Button(frame1, text="창 크기 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_fullscreen)
+    windowed_button = Button(frame1, text="창 크기 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_fullscreen(root))
     windowed_button.grid(row=0, column=1)
 
     # "시스템 업데이트"와 "브랜치 변경" 버튼을 한 줄에 나란히 배치
     frame2 = Frame(settings_window)
     frame2.pack(pady=5)
-    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=update_system).start())
+    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=utils.update_system, args=(root,)).start())
     update_button.grid(row=0, column=0)
     branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
     branch_button.grid(row=0, column=1)
@@ -250,9 +208,9 @@ def show_settings():
     # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
     frame3 = Frame(settings_window)
     frame3.pack(pady=5)
-    restart_button = Button(frame3, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=restart_application)
+    restart_button = Button(frame3, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=utils.restart_application)
     restart_button.grid(row=0, column=0)
-    exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=exit_application)
+    exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_application(root))
     exit_button.grid(row=0, column=1)
 
 def show_box_settings():
@@ -382,89 +340,8 @@ def show_box_settings():
             save_settings(settings)
             messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
             box_settings_window.destroy()
-            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+            utils.restart_application()  # 설정이 변경되면 애플리케이션을 재시작
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
-
-def exit_fullscreen(event=None):
-    root.attributes("-fullscreen", False)
-    root.attributes("-topmost", False)
-
-def enter_fullscreen(event=None):
-    root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)
-
-def exit_application():
-    root.destroy()
-    sys.exit(0)
-
-def restart_application():
-    python = sys.executable
-    os.execl(python, python, *sys.argv)
-
-def update_system():
-    global checking_updates
-    checking_updates = False  # 업데이트 중에 확인을 중지
-    try:
-        result = subprocess.run(['git', 'pull'], capture_output=True, text=True)
-        message = "업데이트 완료. 애플리케이션을 재시작합니다."
-        root.after(2000, restart_application)
-    except Exception as e:
-        message = f"업데이트 중 오류 발생: {e}"
-    
-    messagebox.showinfo("시스템 업데이트", message)
-
-def check_for_updates():
-    global ignore_commit
-    while checking_updates:
-        try:
-            current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-            local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
-            remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
-            
-            if local_commit != remote_commit and remote_commit != ignore_commit:
-                show_update_notification(remote_commit)
-        except Exception as e:
-            print(f"Error checking for updates: {e}")
-        
-        time.sleep(1)
-
-def show_update_notification(remote_commit):
-    global update_notification_frame
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        return
-
-    def on_yes():
-        start_update(remote_commit)
-    def on_no():
-        ignore_update(remote_commit)
-
-    update_notification_frame = Frame(root)
-    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
-
-    update_label = Label(update_notification_frame, text="새로운 버젼이 있습니다. 업데이트를 진행하시겠습니까?", font=("Arial", 15), fg="red")
-    update_label.pack(side="left", padx=5)
-
-    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
-    yes_button.pack(side="left", padx=5)
-    
-    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
-    no_button.pack(side="left", padx=5)
-
-def start_update(remote_commit):
-    global update_notification_frame, ignore_commit
-    ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        update_notification_frame.destroy()
-    threading.Thread(target=update_system).start()
-
-def ignore_update(remote_commit):
-    global ignore_commit, update_notification_frame
-    ignore_commit = remote_commit
-    with open("ignore_commit.txt", "w") as file:
-        file.write(ignore_commit.decode())
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        update_notification_frame.destroy()
-
