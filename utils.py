@@ -63,7 +63,7 @@ def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="
     cols = 3
     for i, button in enumerate(buttons):
         b = Button(keypad_frame, text=button, width=5, height=2, command=lambda b=button: on_button_click(b))
-        b.grid(row=i // cols, column=i % cols, padx=5, pady=5)
+        b.grid(row=i // cols, column(i % cols, padx=5, pady=5)
 
     return keypad_frame
 
