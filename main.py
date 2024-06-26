@@ -20,27 +20,30 @@ import pygame
 from pygame.locals import *
 
 def show_red_overlay():
-    pygame.init()
-    screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
-    screen = pygame.display.set_mode((screen_width, screen_height), pygame.NOFRAME)
-    pygame.display.set_caption('Red Overlay')
-    clock = pygame.time.Clock()
-    
-    overlay = pygame.Surface((screen_width, screen_height))
-    overlay.set_alpha(180)  # 투명도 설정
-    overlay.fill((255, 0, 0))  # 빨간색으로 채우기
+    def overlay_thread():
+        pygame.init()
+        screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
+        screen = pygame.display.set_mode((screen_width, screen_height), pygame.NOFRAME)
+        pygame.display.set_caption('Red Overlay')
+        clock = pygame.time.Clock()
+        
+        overlay = pygame.Surface((screen_width, screen_height))
+        overlay.set_alpha(180)  # 투명도 설정
+        overlay.fill((255, 0, 0))  # 빨간색으로 채우기
 
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
-                running = False
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
+                    running = False
 
-        screen.blit(overlay, (0, 0))
-        pygame.display.flip()
-        clock.tick(30)  # 프레임 속도 제한
+            screen.blit(overlay, (0, 0))
+            pygame.display.flip()
+            clock.tick(30)  # 프레임 속도 제한
 
-    pygame.quit()
+        pygame.quit()
+
+    threading.Thread(target=overlay_thread).start()
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
