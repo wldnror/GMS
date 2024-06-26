@@ -45,6 +45,8 @@ def decrypt_data(data):
 settings = load_settings()  # 여기서 settings를 불러옵니다
 admin_password = settings.get("admin_password")  # settings를 불러온 후에 admin_password를 설정합니다
 
+ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 초기화
+
 def create_keypad(entry, parent, row=None, column=None, columnspan=1, geometry="grid"):
     keypad_frame = Frame(parent)
     if geometry == "grid":
@@ -236,7 +238,7 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    initialize_globals(root, change_branch)
+    initialize_globals(root, change_branch)  # change_branch 함수 전달
 
     if not admin_password:
         prompt_new_password()
