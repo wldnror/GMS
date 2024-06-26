@@ -201,7 +201,7 @@ if __name__ == "__main__":
 
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
-    threading.Thread(target=check_for_updates, args=(root,), daemon=True).start()
+    threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
     root.mainloop()
 
