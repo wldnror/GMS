@@ -18,16 +18,23 @@ class AnalogUI:
 
     GAS_FULL_SCALE = {
         "ORG": 9999,
-        "ARF-T   ": 5000,
-        "HMDS  ": 3000,
-        "HC-100   ": 5000
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
+    }
+
+    GAS_TYPE_POSITIONS = {
+        "ORG": (148, 118),
+        "ARF-T": (148, 136),
+        "HMDS": (148, 154),
+        "HC-100": (148, 172)
     }
 
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
-        "ARF-T   ": {"AL1": 2000, "AL2": 4000},
-        "HMDS  ": {"AL1": 2640, "AL2": 3000},
-        "HC-100   ": {"AL1": 1500, "AL2": 3000}
+        "ARF-T": {"AL1": 2000, "AL2": 4000},
+        "HMDS": {"AL1": 2640, "AL2": 3000},
+        "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
     def __init__(self, root, num_boxes, gas_types):
@@ -85,7 +92,7 @@ class AnalogUI:
         gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
-        gas_type_text_id = box_canvas.create_text(148, 118, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
@@ -134,6 +141,8 @@ class AnalogUI:
         self.box_states[box_index]["full_scale"] = full_scale
 
         box_canvas = self.box_frames[box_index][1]
+        position = self.GAS_TYPE_POSITIONS[gas_type]
+        box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
     def on_segment_click(self, box_index):
