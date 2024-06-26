@@ -50,7 +50,7 @@ def update_system():
     utils.update_system(root)
 
 def check_for_updates():
-    utils.check_for_updates()
+    utils.check_for_updates(root)
 
 def show_update_notification(remote_commit):
     utils.show_update_notification(root, remote_commit)
