@@ -19,10 +19,18 @@ class ModbusUI:
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
     GAS_FULL_SCALE = {
         "ORG": 9999,
-        "ARF-T": 5000,
-        "HMDS": 3000,
-        "HC-100": 5000
+        "ARF-T   ": 5000,
+        "HMDS  ": 3000,
+        "HC-100   ": 5000
     }
+    
+    GAS_TYPE_POSITIONS = {
+        "ORG": (148, 122),
+        "ARF-T   ": (148, 140),
+        "HMDS  ": (148, 160),
+        "HC-100   ": (148, 180)
+    }
+
 
     def __init__(self, root, num_boxes, gas_types):
         self.root = root
@@ -112,7 +120,7 @@ class ModbusUI:
     def create_modbus_box(self, index):
         row = index // 7
         col = index % 7
-        
+
         if col == 0:
             row_frame = Frame(self.box_frame)
             row_frame.grid(row=row, column=0)
@@ -125,7 +133,7 @@ class ModbusUI:
 
         box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
-        
+
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
@@ -167,25 +175,16 @@ class ModbusUI:
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
         gas_type_var = self.box_states[index]["gas_type_var"]
-        # 개별 위치 설정을 위해 좌표값을 각각 설정
-        gas_type_positions = {
-            0: (148, 122),
-            1: (140, 130),
-            2: (150, 140),
-            # 필요한 만큼 추가
-        }
-
-        pos_x, pos_y = gas_type_positions.get(index, (148, 122))  # 기본값은 (148, 122)
-        gas_type_text_id = box_canvas.create_text(pos_x, pos_y, text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
-    
+
         bar_canvas = Canvas(box_canvas, width=153, height=5, bg="white", highlightthickness=0)
         bar_canvas.place(x=27, y=98)
-    
+
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
@@ -195,13 +194,14 @@ class ModbusUI:
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
-
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
         self.box_states[box_index]["full_scale"] = full_scale
 
         box_canvas = self.box_frames[box_index][1]
+        position = self.GAS_TYPE_POSITIONS[gas_type]
+        box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
     def on_segment_click(self, box_index):
@@ -603,7 +603,7 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     def create_gas_type_menu(parent, box_index):
-        options = ["ORG", "ARF-T", "HMDS", "HC-100"]
+        options = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
         var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
         menu = OptionMenu(parent, var, *options)
         menu.grid(row=box_index, column=2, padx=5, pady=5)
