@@ -1,8 +1,7 @@
-# main.py
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -14,6 +13,8 @@ import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
+import tkinter as tk
+from PIL import Image, ImageTk
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -128,12 +129,23 @@ def show_red_overlay():
     overlay = Toplevel(root)
     overlay.attributes('-fullscreen', True)
     overlay.attributes('-topmost', True)
-    overlay.attributes('-alpha', 0.7)
-    overlay.configure(background='red')
+    overlay.overrideredirect(1)  # Remove window decorations
+
+    canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
+    canvas.pack(fill=tk.BOTH, expand=True)
+
+    img = Image.open("img/red_overlay.png")
+    img = img.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
+    img_tk = ImageTk.PhotoImage(img)
+    canvas.create_image(0, 0, anchor='nw', image=img_tk)
+
     overlay.bind("<Escape>", lambda e: overlay.destroy())
 
+    # To keep a reference to the image object to prevent garbage collection
+    overlay.image = img_tk
+
 if __name__ == "__main__":
-    root = Tk()
+    root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
 
     def signal_handler(sig, frame):
@@ -159,7 +171,7 @@ if __name__ == "__main__":
     modbus_boxes = settings["modbus_boxes"]
     analog_boxes = settings["analog_boxes"]
 
-    main_frame = Frame(root)
+    main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
     modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"])
@@ -168,7 +180,7 @@ if __name__ == "__main__":
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
-    settings_button = Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     def on_leave(event):
@@ -179,7 +191,7 @@ if __name__ == "__main__":
 
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
-    status_label = Label(root, text="", font=("Arial", 10))
+    status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
     def system_info_thread():
@@ -188,7 +200,7 @@ if __name__ == "__main__":
             time.sleep(1)
 
     # 새로운 버튼을 추가합니다.
-    overlay_button = Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
+    overlay_button = tk.Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
     overlay_button.bind("<Enter>", on_enter)
     overlay_button.bind("<Leave>", on_leave)
     overlay_button.place(relx=0.95, rely=1.0, anchor='se')
