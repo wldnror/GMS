@@ -1,4 +1,3 @@
-# main.py
 import json
 import os
 import time
@@ -15,6 +14,29 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
+
+# 추가: Pygame을 사용한 오버레이 표시 함수
+import pygame
+from pygame.locals import *
+
+def show_red_overlay():
+    pygame.init()
+    screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
+    screen = pygame.display.set_mode((screen_width, screen_height), pygame.NOFRAME)
+    overlay = pygame.Surface((screen_width, screen_height))
+    overlay.set_alpha(180)  # 투명도 설정
+    overlay.fill((255, 0, 0))  # 빨간색으로 채우기
+
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
+                running = False
+
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+
+    pygame.quit()
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -125,19 +147,6 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
-def show_red_overlay():
-    overlay = tk.Toplevel(root)
-    overlay.attributes('-fullscreen', True)
-    overlay.attributes('-topmost', True)
-
-    canvas = tk.Canvas(overlay, bg='red')
-    canvas.pack(fill=tk.BOTH, expand=True)
-    
-    # Set the transparency of the canvas
-    overlay.wm_attributes('-alpha', 0.7)
-
-    overlay.bind("<Escape>", lambda e: overlay.destroy())
-
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -213,4 +222,3 @@ if __name__ == "__main__":
 
     for _, client in modbus_ui.clients.items():
         client.close()
-
