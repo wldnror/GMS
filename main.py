@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
-        with open(utils.IGNORE_COMMIT_FILE, "r") as file):
+        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
             ignore_commit = file.read().strip().encode()
         utils.ignore_commit = ignore_commit
 
