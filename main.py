@@ -5,9 +5,6 @@ import time
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 import threading
-import queue
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
 import psutil
 import signal
 import sys
@@ -50,10 +47,10 @@ def update_system():
     utils.update_system(root)
 
 def check_for_updates():
-    utils.check_for_updates(root)
+    utils.check_for_updates()
 
 def show_update_notification(remote_commit):
-    utils.show_update_notification(root, remote_commit)
+    utils.show_update_notification(remote_commit)
 
 def start_update(remote_commit):
     utils.start_update(remote_commit)
@@ -198,8 +195,9 @@ if __name__ == "__main__":
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
         with open(utils.IGNORE_COMMIT_FILE, "r") as file:
             ignore_commit = file.read().strip().encode()
+        utils.ignore_commit = ignore_commit
 
-    checking_updates = True
+    utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=check_for_updates, daemon=True).start()
 
