@@ -10,8 +10,6 @@ import signal
 import sys
 import subprocess
 import socket
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 
@@ -49,13 +47,13 @@ def update_system():
     utils.update_system(root)
 
 def check_for_updates():
-    utils.check_for_updates()
+    utils.check_for_updates(root)
 
 def show_update_notification(remote_commit):
-    utils.show_update_notification(remote_commit)
+    utils.show_update_notification(root, remote_commit)
 
 def start_update(remote_commit):
-    utils.start_update(remote_commit)
+    utils.start_update(root, remote_commit)
 
 def ignore_update(remote_commit):
     utils.ignore_update(remote_commit)
@@ -201,7 +199,7 @@ if __name__ == "__main__":
 
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
-    threading.Thread(target=check_for_updates, daemon=True).start()
+    threading.Thread(target=check_for_updates, args=(root,), daemon=True).start()
 
     root.mainloop()
 
