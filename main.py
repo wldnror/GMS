@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -14,6 +14,33 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
+
+# 추가: Pygame을 사용한 오버레이 표시 함수
+import pygame
+from pygame.locals import *
+
+def show_red_overlay():
+    pygame.init()
+    screen_width, screen_height = root.winfo_screenwidth(), root.winfo_screenheight()
+    screen = pygame.display.set_mode((screen_width, screen_height), pygame.NOFRAME)
+    pygame.display.set_caption('Red Overlay')
+    clock = pygame.time.Clock()
+    
+    overlay = pygame.Surface((screen_width, screen_height))
+    overlay.set_alpha(180)  # 투명도 설정
+    overlay.fill((255, 0, 0))  # 빨간색으로 채우기
+
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
+                running = False
+
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+        clock.tick(30)  # 프레임 속도 제한
+
+    pygame.quit()
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -124,20 +151,6 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
-def show_red_overlay():
-    overlay = Toplevel(root)
-    overlay.attributes('-fullscreen', True)
-    overlay.attributes('-topmost', True)
-    overlay.overrideredirect(1)  # Remove window decorations
-    
-    canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
-    canvas.pack(fill=tk.BOTH, expand=True)
-    
-    # Draw a red rectangle with alpha transparency
-    canvas.create_rectangle(0, 0, root.winfo_screenwidth(), root.winfo_screenheight(), fill='red', stipple='gray50')
-    
-    overlay.bind("<Escape>", lambda e: overlay.destroy())
-
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -201,7 +214,7 @@ if __name__ == "__main__":
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
-        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
+        with open(utils.IGNORE_COMMIT_FILE, "r") as file):
             ignore_commit = file.read().strip().encode()
         utils.ignore_commit = ignore_commit
 
