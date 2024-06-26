@@ -134,7 +134,7 @@ def show_red_overlay():
     canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
     canvas.pack(fill=tk.BOTH, expand=True)
 
-    img = Image.open("red_overlay.png")
+    img = Image.open("img/red_overlay.png")
     img = img.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
     img_tk = ImageTk.PhotoImage(img)
     canvas.create_image(0, 0, anchor='nw', image=img_tk)
