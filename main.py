@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Canvas
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -130,12 +130,23 @@ def create_red_overlay_image(width, height):
     return img
 
 def show_red_overlay():
+    overlay = Toplevel(root)
+    overlay.attributes('-fullscreen', True)
+    overlay.attributes('-topmost', True)
+    overlay.overrideredirect(1)  # Remove window decorations
+
+    canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
+    canvas.pack(fill=tk.BOTH, expand=True)
+
     img = create_red_overlay_image(root.winfo_screenwidth(), root.winfo_screenheight())
     img_tk = ImageTk.PhotoImage(img)
 
     canvas.create_image(0, 0, anchor='nw', image=img_tk)
+
+    overlay.bind("<Escape>", lambda e: overlay.destroy())
+
     # To keep a reference to the image object to prevent garbage collection
-    canvas.image = img_tk
+    overlay.image = img_tk
 
 if __name__ == "__main__":
     root = tk.Tk()
