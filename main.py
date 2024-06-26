@@ -316,7 +316,7 @@ def show_box_settings():
     Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
     Button(frame_analog, text="+", command=increase_analog_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
 
-    gas_type_labels = ["ORG", "ARF-T   ", "HMDS", "HC-100"]
+    gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
     analog_gas_type_vars = []
     modbus_gas_type_combos = []
