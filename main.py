@@ -130,7 +130,7 @@ def alarm_blink():
     def toggle_color():
         if alarm_active:
             current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else "black"
+            new_color = "red" if current_color != "red" else "white"
             root.config(background=new_color)
             root.after(500, toggle_color)  # 500ms 간격으로 색상을 변경
         else:
