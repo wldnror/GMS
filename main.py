@@ -130,11 +130,11 @@ def alarm_blink():
     def toggle_color():
         if alarm_active:
             current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else ""
+            new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
             root.after(500, toggle_color)  # 500ms 간격으로 색상을 변경
         else:
-            root.config(background="")
+            root.config(background=default_background)
 
     toggle_color()
 
@@ -146,11 +146,13 @@ def set_alarm_status(active):
         alarm_blink()
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
-        root.config(background="")
+        root.config(background=default_background)
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
+
+    default_background = root.cget("background")
 
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
