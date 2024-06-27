@@ -210,13 +210,13 @@ if __name__ == "__main__":
     analog_boxes = settings["analog_boxes"]
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
+    main_frame.grid(row=0, column=0, sticky="nsew")
 
     modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])  # 수정된 부분
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
 
-    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
-    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
