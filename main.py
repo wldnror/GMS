@@ -39,18 +39,40 @@ branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초�
 alarm_active = False  # 알람 상태를 저장하는 전역 변수
 alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
 selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
+audio_playing = False  # 오디오 재생 상태를 저장하는 변수
 
 # 오디오 재생 초기화
 pygame.mixer.init()
 
 def play_alarm_sound():
-    global selected_audio_file
-    if selected_audio_file:
+    global selected_audio_file, audio_playing
+    if selected_audio_file and not audio_playing:
         pygame.mixer.music.load(selected_audio_file)
         pygame.mixer.music.play()
+        audio_playing = True
+
+        def on_music_end():
+            global audio_playing
+            audio_playing = False
+            if alarm_active:
+                play_alarm_sound()
+
+        pygame.mixer.music.set_endevent(pygame.USEREVENT)
+        pygame.event.set_allowed(pygame.USEREVENT)
+        pygame.event.post(pygame.event.Event(pygame.USEREVENT))
+
+        def check_music_end():
+            for event in pygame.event.get():
+                if event.type == pygame.USEREVENT:
+                    on_music_end()
+            root.after(100, check_music_end)
+
+        check_music_end()
 
 def stop_alarm_sound():
+    global audio_playing
     pygame.mixer.music.stop()
+    audio_playing = False
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
