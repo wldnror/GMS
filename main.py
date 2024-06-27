@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -12,9 +12,9 @@ import sys
 import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils
+import utils  # utils 모듈 임포트 추가
 import tkinter as tk
-from PIL import Image, ImageTk
+import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -36,6 +36,33 @@ ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 �
 update_notification_frame = None  # update_notification_frame 변수를 전역 변수로 선언하고 초기화
 checking_updates = True  # 전역 변수로 선언 및 초기화
 branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
+alarm_active = False  # 알람 상태를 저장하는 전역 변수
+alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
+selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
+audio_playing = False  # 오디오 재생 상태를 저장하는 변수
+
+# 오디오 재생 초기화
+pygame.mixer.init()
+
+def play_alarm_sound():
+    global selected_audio_file, audio_playing
+    if selected_audio_file and not audio_playing:
+        pygame.mixer.music.load(selected_audio_file)
+        pygame.mixer.music.play()
+        audio_playing = True
+
+def stop_alarm_sound():
+    global audio_playing
+    pygame.mixer.music.stop()
+    audio_playing = False
+
+def check_music_end():
+    global audio_playing
+    if not pygame.mixer.music.get_busy():
+        audio_playing = False
+        if alarm_active:
+            play_alarm_sound()
+    root.after(100, check_music_end)
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -69,7 +96,7 @@ def get_system_info():
         current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
     except subprocess.CalledProcessError:
         current_branch = "N/A"
-        
+
     cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
     cpu_usage = psutil.cpu_percent(interval=1)
     memory_usage = psutil.virtual_memory().percent
@@ -125,28 +152,39 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
-def show_red_overlay():
-    overlay = Toplevel(root)
-    overlay.attributes('-fullscreen', True)
-    overlay.attributes('-topmost', True)
-    overlay.overrideredirect(1)  # Remove window decorations
+def alarm_blink():
+    red_duration = 200  # 빨간색 상태에서 머무는 시간 (밀리초)
+    off_duration = 200  # 기본 배경색 상태에서 머무는 시간 (밀리초)
 
-    canvas = Canvas(overlay, width=root.winfo_screenwidth(), height=root.winfo_screenheight())
-    canvas.pack(fill=tk.BOTH, expand=True)
+    def toggle_color():
+        if alarm_active:
+            current_color = root.cget("background")
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            root.after_cancel(toggle_color)
 
-    img = Image.open("img/red_overlay.png")
-    img = img.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
-    img_tk = ImageTk.PhotoImage(img)
-    canvas.create_image(0, 0, anchor='nw', image=img_tk)
+    toggle_color()
 
-    overlay.bind("<Escape>", lambda e: overlay.destroy())
-
-    # To keep a reference to the image object to prevent garbage collection
-    overlay.image = img_tk
+def set_alarm_status(active):
+    global alarm_active, alarm_blinking
+    alarm_active = active
+    if alarm_active and not alarm_blinking:
+        alarm_blinking = True
+        alarm_blink()
+        play_alarm_sound()  # 알람 소리 재생
+    elif not alarm_active and alarm_blinking:
+        alarm_blinking = False
+        root.config(background=default_background)
+        stop_alarm_sound()  # 알람 소리 정지
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
+
+    default_background = root.cget("background")
 
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
@@ -172,13 +210,13 @@ if __name__ == "__main__":
     analog_boxes = settings["analog_boxes"]
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0, sticky="nsew")  # 화면 크기에 맞춰 확장되도록 설정
+    main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"])
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])  # 수정된 부분
 
-    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
+    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
@@ -192,18 +230,12 @@ if __name__ == "__main__":
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
-    status_label.place(relx=0.0, rely=1.0, anchor='sw')
+    status_label.place(relx=0.0, rely=1.0, anchor='sw')  # 수정된 부분
 
     def system_info_thread():
         while True:
             update_status_label()
             time.sleep(1)
-
-    # 새로운 버튼을 추가합니다.
-    overlay_button = tk.Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
-    overlay_button.bind("<Enter>", on_enter)
-    overlay_button.bind("<Leave>", on_leave)
-    overlay_button.place(relx=0.95, rely=1.0, anchor='se')
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
@@ -214,6 +246,8 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
+
+    check_music_end()  # 음악 재생 상태 확인 함수 호출
 
     root.mainloop()
 
