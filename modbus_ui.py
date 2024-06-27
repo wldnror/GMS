@@ -402,6 +402,7 @@ class ModbusUI:
         self.update_circle_state([False, False, False, False], box_index=box_index)
         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
+        self.console.print(f"Reset UI elements for box {box_index}")  # 디버그 메시지 추가
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -411,7 +412,7 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
-        interval = 200
+        interval = 0.4
         next_call = time.time()
         while not stop_flag.is_set():
             try:
@@ -557,6 +558,7 @@ class ModbusUI:
         self.show_bar(box_index, show=False)
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
+        self.root.after(0, lambda: self.reset_ui_elements(box_index))  # UI 요소 초기화
 
     def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
