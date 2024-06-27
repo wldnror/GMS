@@ -11,7 +11,7 @@ from PIL import Image, ImageTk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
+from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display, update_full_scale, on_segment_click, update_circle_state, update_segment_display, record_history, async_write_log, get_log_file_index, load_log_files, show_history_graph, update_history_graph
 from virtual_keyboard import VirtualKeyboard
 
 class ModbusUI:
