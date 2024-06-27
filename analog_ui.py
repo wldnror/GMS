@@ -374,7 +374,6 @@ class AnalogUI:
     def stop_blinking(self, box_index):
         with self.box_states[box_index]["blink_lock"]:
             self.box_states[box_index]["stop_blinking"].set()
-            self.box_states[box_index]["blinking_error"] = False
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
