@@ -385,9 +385,9 @@ class ModbusUI:
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
             self.stop_flags[ip].set()
+            self.connected_clients[ip].join()  # 스레드가 종료될 때까지 기다림
             self.clients[ip].close()
             self.console.print(f"Disconnected from {ip}")
-            self.connected_clients[ip].join()
             self.cleanup_client(ip)
             self.ip_vars[i].set('')
             self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0)
@@ -409,7 +409,7 @@ class ModbusUI:
         next_call = time.time()
         while not stop_flag.is_set():
             try:
-                if not client.is_socket_open():
+                if client is None or not client.is_socket_open():
                     raise ConnectionException("Socket is closed")
 
                 address_40001 = 40001 - 1
@@ -593,3 +593,8 @@ class ModbusUI:
                 self.root.after(600, toggle_color)
 
         toggle_color()
+
+# ModbusUI 클래스 사용 예시:
+# root = Tk()
+# app = ModbusUI(root, num_boxes=4, gas_types={"modbus_box_0": "ORG", "modbus_box_1": "ARF-T"}, alarm_callback=lambda active: print("Alarm active:", active))
+# root.mainloop()
