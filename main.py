@@ -42,7 +42,7 @@ selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 s
 audio_playing = False  # 오디오 재생 상태를 저장하는 변수
 
 # 오디오 재생 초기화
-pygame.mixer.init()
+pygame.init()
 
 def play_alarm_sound():
     global selected_audio_file, audio_playing
@@ -50,7 +50,22 @@ def play_alarm_sound():
         pygame.mixer.music.load(selected_audio_file)
         pygame.mixer.music.play()
         audio_playing = True
+
+        def on_music_end():
+            global audio_playing
+            audio_playing = False
+            if alarm_active:
+                play_alarm_sound()
+
         pygame.mixer.music.set_endevent(pygame.USEREVENT)
+
+        def check_music_end():
+            for event in pygame.event.get():
+                if event.type == pygame.USEREVENT:
+                    on_music_end()
+            root.after(100, check_music_end)
+
+        check_music_end()
 
 def stop_alarm_sound():
     global audio_playing
