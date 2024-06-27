@@ -10,7 +10,7 @@ from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
-from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
+from common import BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 from virtual_keyboard import VirtualKeyboard
 from common_ui import BaseUI
 
