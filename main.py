@@ -38,6 +38,7 @@ checking_updates = True  # 전역 변수로 선언 및 초기화
 branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
 alarm_active = False  # 알람 상태를 저장하는 전역 변수
 alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
+selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
 
 # 오디오 재생 초기화
 pygame.mixer.init()
