@@ -93,7 +93,6 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
-    root.after(1000, update_status_label)
 
 def change_branch():
     global branch_window
@@ -204,7 +203,10 @@ if __name__ == "__main__":
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    root.after(1000, update_status_label)
+    def system_info_thread():
+        while True:
+            update_status_label()
+            time.sleep(1)
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
@@ -213,6 +215,7 @@ if __name__ == "__main__":
         utils.ignore_commit = ignore_commit
 
     utils.checking_updates = True
+    threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
     root.mainloop()
