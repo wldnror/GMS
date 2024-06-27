@@ -127,16 +127,25 @@ def change_branch():
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
 def alarm_blink():
+    red_duration = 1000  # 빨간색 상태에서 머무는 시간 (밀리초)
+    off_duration = 1000  # 기본 배경색 상태에서 머무는 시간 (밀리초)
+
     def toggle_color():
         if alarm_active:
             current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else default_background
-            root.config(background=new_color)
-            root.after(1000, toggle_color)  # 1000ms 간격으로 색상을 변경
+            if current_color != "red":
+                new_color = "red"
+                root.config(background=new_color)
+                root.after(red_duration, toggle_color)
+            else:
+                new_color = default_background
+                root.config(background=new_color)
+                root.after(off_duration, toggle_color)
         else:
             root.config(background=default_background)
 
     toggle_color()
+
 
 def set_alarm_status(active):
     global alarm_active, alarm_blinking
