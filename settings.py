@@ -2,7 +2,6 @@
 
 from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
 from tkinter import ttk
-from tkinter import filedialog
 import json
 import os
 import sys
@@ -25,6 +24,7 @@ new_password_window = None
 update_notification_frame = None
 ignore_commit = None
 branch_window = None
+audio_selection_window = None  # 오디오 선택 창 전역 변수
 root = None
 selected_audio_file = None
 
@@ -179,7 +179,7 @@ def show_password_prompt(callback):
     Button(password_window, text="확인", command=check_password).pack(pady=5)
 
 def show_settings():
-    global settings_window
+    global settings_window, selected_audio_file
     if settings_window and settings_window.winfo_exists():
         settings_window.focus()
         return
@@ -220,9 +220,18 @@ def show_settings():
     exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_application(root))
     exit_button.grid(row=0, column=1)
 
+    # 현재 선택된 오디오 파일을 표시
+    selected_audio_label = Label(settings_window, text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file) if selected_audio_file else 'None'}", font=("Arial", 12))
+    selected_audio_label.pack(pady=10)
+
     # 오디오 파일 선택 버튼 추가
     def select_audio_file():
-        global selected_audio_file
+        global selected_audio_file, audio_selection_window
+
+        if audio_selection_window and audio_selection_window.winfo_exists():
+            audio_selection_window.focus()
+            return
+
         audio_folder = "audio"
         audio_files = [f for f in os.listdir(audio_folder) if f.endswith(('.mp3', '.wav'))]
         if not audio_files:
@@ -230,15 +239,19 @@ def show_settings():
             return
 
         def on_audio_select(event):
+            global selected_audio_file
             selected_audio_file = os.path.join(audio_folder, audio_combo.get())
             settings["audio_file"] = selected_audio_file
             save_settings(settings)
+            selected_audio_label.config(text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file)}")
             messagebox.showinfo("오디오 파일 선택", f"선택된 오디오 파일: {selected_audio_file}")
+            audio_selection_window.destroy()
 
-        audio_window = Toplevel(settings_window)
-        audio_window.title("오디오 파일 선택")
-        Label(audio_window, text="오디오 파일을 선택하세요", font=("Arial", 12)).pack(pady=10)
-        audio_combo = ttk.Combobox(audio_window, values=audio_files, font=("Arial", 12))
+        audio_selection_window = Toplevel(settings_window)
+        audio_selection_window.title("오디오 파일 선택")
+        audio_selection_window.attributes("-topmost", True)
+        Label(audio_selection_window, text="오디오 파일을 선택하세요", font=("Arial", 12)).pack(pady=10)
+        audio_combo = ttk.Combobox(audio_selection_window, values=audio_files, font=("Arial", 12))
         audio_combo.pack(pady=5)
         audio_combo.bind("<<ComboboxSelected>>", on_audio_select)
 
