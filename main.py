@@ -253,3 +253,5 @@ if __name__ == "__main__":
 
     for _, client in modbus_ui.clients.items():
         client.close()
+
+
