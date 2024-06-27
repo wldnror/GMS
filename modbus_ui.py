@@ -395,10 +395,13 @@ class ModbusUI:
         self.root.after(0, lambda: self.ip_vars[i].set(''))
         self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
-        self.root.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
-        self.root.after(0, lambda: self.update_segment_display("    ", self.box_frames[i][1], box_index=i))
-        self.root.after(0, lambda: self.show_bar(i, show=False))
+        self.root.after(0, lambda: self.reset_ui_elements(i))  # UI 요소 초기화
         self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
+
+    def reset_ui_elements(self, box_index):
+        self.update_circle_state([False, False, False, False], box_index=box_index)
+        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        self.show_bar(box_index, show=False)
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -578,7 +581,7 @@ class ModbusUI:
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
-            with open(self.SETTINGS_FILE, 'r') as file:
+            with open(self.SETTINGS_FILE, 'r') as file):
                 ip_settings = json.load(file)
                 for i in range(min(num_boxes, len(ip_settings))):
                     self.ip_vars[i].set(ip_settings[i])
