@@ -1,25 +1,38 @@
-# modbus_ui.py
-
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
 import queue
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
-from common import BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import mplcursors
+from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 from virtual_keyboard import VirtualKeyboard
-from common_ui import BaseUI
 
-class ModbusUI(BaseUI):
+class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
+    GAS_FULL_SCALE = {
+        "ORG": 9999,
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
+    }
+    
+    GAS_TYPE_POSITIONS = {
+        "ORG": (149, 122),
+        "ARF-T": (140, 122),
+        "HMDS": (143, 122),
+        "HC-100": (139, 122)
+    }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
-        super().__init__(root, num_boxes, gas_types, "modbus_history_logs", alarm_callback)
+        self.root = root
         self.alarm_callback = alarm_callback  # 알람 콜백 추가
         self.virtual_keyboard = VirtualKeyboard(root)
         self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
@@ -39,6 +52,11 @@ class ModbusUI(BaseUI):
         self.row_frames = []
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(153, 5)
+        self.history_dir = "history_logs"
+        self.gas_types = gas_types
+
+        if not os.path.exists(self.history_dir):
+            os.makedirs(self.history_dir)
 
         self.load_ip_settings(num_boxes)
 
@@ -584,9 +602,7 @@ class ModbusUI(BaseUI):
 
         toggle_color()
 
-if __name__ == "__main__":
-    from tkinter import Tk
-
-    root = Tk()
-    app = ModbusUI(root, num_boxes=4, gas_types={"modbus_box_0": "ORG", "modbus_box_1": "ARF-T"}, alarm_callback=lambda active: print("Alarm active:", active))
-    root.mainloop()
+# ModbusUI 클래스 사용 예시:
+# root = Tk()
+# app = ModbusUI(root, num_boxes=4, gas_types={"modbus_box_0": "ORG", "modbus_box_1": "ARF-T"}, alarm_callback=lambda active: print("Alarm active:", active))
+# root.mainloop()
