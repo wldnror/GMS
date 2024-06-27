@@ -43,6 +43,7 @@ class ModbusUI:
         self.connected_clients = {}
         self.stop_flags = {}
         self.data_queue = queue.Queue()
+        self.alarm_callback = alarm_callback  # 알람 콜백 추가
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
@@ -209,25 +210,30 @@ class ModbusUI:
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
-        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+    _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
-        colors_on = ['red', 'red', 'green', 'yellow']
-        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
-        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
-        outline_color_off = '#000000'
+    colors_on = ['red', 'red', 'green', 'yellow']
+    colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+    outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
+    outline_color_off = '#000000'
 
-        for i, state in enumerate(states):
-            color = colors_on[i] if state else colors_off[i]
-            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+    for i, state in enumerate(states):
+        color = colors_on[i] if state else colors_off[i]
+        box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
-        if states[0] or states[1]:
-            outline_color = outline_colors[0 if states[0] else 1]
-            self.alarm_callback(True)  # 알람 활성화
-        else:
-            outline_color = outline_color_off
-            self.alarm_callback(False)  # 알람 비활성화
+    alarm_active = states[0] or states[1]
+    self.alarm_callback(alarm_active)
 
-        box_canvas.config(highlightbackground=outline_color)
+    if states[0]:
+        outline_color = outline_colors[0]
+    elif states[1]:
+        outline_color = outline_colors[1]
+    elif states[3]:
+        outline_color = outline_colors[3]
+    else:
+        outline_color = outline_color_off
+
+    box_canvas.config(highlightbackground=outline_color)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
