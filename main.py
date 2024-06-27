@@ -213,7 +213,7 @@ if __name__ == "__main__":
     main_frame.grid(row=0, column=0)
 
     modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])  # 수정된 부분
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
 
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
-    status_label.place(relx=0.0, rely=1.0, anchor='sw')  # 수정된 부분
+    status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
     def system_info_thread():
         while True:
