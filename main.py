@@ -130,11 +130,11 @@ def alarm_blink():
     def toggle_color():
         if alarm_active:
             current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else "white"
+            new_color = "red" if current_color != "red" else ""
             root.config(background=new_color)
             root.after(500, toggle_color)  # 500ms 간격으로 색상을 변경
         else:
-            root.config(background="black")
+            root.config(background="")
 
     toggle_color()
 
@@ -146,7 +146,7 @@ def set_alarm_status(active):
         alarm_blink()
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
-        root.config(background="white")
+        root.config(background="")
 
 if __name__ == "__main__":
     root = tk.Tk()
