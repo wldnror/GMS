@@ -35,6 +35,156 @@ SCALE = 1.17
 x_shift = 0
 y_shift = 0
 
+    def update_full_scale(self, gas_type_var, box_index):
+        gas_type = gas_type_var.get()
+        full_scale = self.GAS_FULL_SCALE[gas_type]
+        self.box_states[box_index]["full_scale"] = full_scale
+
+        box_canvas = self.box_frames[box_index][1]
+        position = self.GAS_TYPE_POSITIONS[gas_type]
+        box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
+        box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
+
+    def on_segment_click(self, box_index):
+        threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
+
+    def update_circle_state(self, states, box_index=0):
+        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+
+        colors_on = ['red', 'red', 'green', 'yellow']
+        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
+        outline_color_off = '#000000'
+
+        for i, state in enumerate(states):
+            color = colors_on[i] if state else colors_off[i]
+            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+
+        alarm_active = states[0] or states[1]
+        self.alarm_callback(alarm_active)
+
+        if states[0]:
+            outline_color = outline_colors[0]
+        elif states[1]:
+            outline_color = outline_colors[1]
+        elif states[3]:
+            outline_color = outline_colors[3]
+        else:
+            outline_color = outline_color_off
+
+        box_canvas.config(highlightbackground=outline_color)
+
+    def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
+        value = value.zfill(4)
+        leading_zero = True
+        blink_state = self.box_states[box_index]["blink_state"]
+        previous_segment_display = self.box_states[box_index]["previous_segment_display"]
+
+        if value != previous_segment_display:
+            self.record_history(box_index, value)
+            self.box_states[box_index]["previous_segment_display"] = value
+
+        for i, digit in enumerate(value):
+            if leading_zero and digit == '0' and i < 3:
+                segments = SEGMENTS[' ']
+            else:
+                segments = SEGMENTS[digit]
+                leading_zero = False
+
+            if blink and blink_state:
+                segments = SEGMENTS[' ']
+
+            for j, state in enumerate(segments):
+                color = '#fc0c0c' if state == '1' else '#424242'
+                box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
+
+        self.box_states[box_index]["blink_state"] = not blink_state
+
+    def record_history(self, box_index, value):
+        if value.strip():
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            log_line = f"{timestamp},{value}\n"
+            log_file_index = self.get_log_file_index(box_index)
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
+
+            # 비동기적으로 로그 파일에 기록
+            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
+
+    def get_log_file_index(self, box_index):
+        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                return index
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                if len(lines) < self.LOGS_PER_FILE:
+                    return index
+            index += 1
+
+    def load_log_files(self, box_index, file_index):
+        """특정 로그 파일을 로드하여 로그 목록을 반환"""
+        log_entries = []
+        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                for line in lines:
+                    timestamp, value = line.strip().split(',')
+                    log_entries.append((timestamp, value))
+        return log_entries
+
+    def show_history_graph(self, box_index):
+        with self.history_lock:
+            if self.history_window and self.history_window.winfo_exists():
+                self.history_window.destroy()
+
+            self.history_window = Toplevel(self.root)
+            self.history_window.title(f"History - Box {box_index}")
+            self.history_window.geometry("1200x800")
+            self.history_window.attributes("-topmost", True)
+
+            self.current_file_index = self.get_log_file_index(box_index) - 1
+            self.update_history_graph(box_index, self.current_file_index)
+
+    def update_history_graph(self, box_index, file_index):
+        log_entries = self.load_log_files(box_index, file_index)
+        times, values = zip(*log_entries) if log_entries else ([], [])
+
+        figure = plt.Figure(figsize=(12, 8), dpi=100)
+        ax = figure.add_subplot(111)
+
+        ax.plot(times, values, marker='o')
+        ax.set_title(f'History - Box {box_index} (File {file_index + 1})')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Value')
+        figure.autofmt_xdate()
+
+        if hasattr(self, 'canvas'):
+            self.canvas.get_tk_widget().destroy()
+
+        self.canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+
+        if not hasattr(self, 'nav_frame'):
+            self.nav_frame = Frame(self.history_window)
+            self.nav_frame.pack(side="bottom")
+
+            self.prev_button = Button(self.nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
+            self.prev_button.pack(side="left")
+
+            self.next_button = Button(self.nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
+            self.next_button.pack(side="right")
+
+        mplcursors.cursor(ax)
+
+
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
     for i in range(width):
