@@ -1,5 +1,3 @@
-# analog_ui.py
-
 import os
 import time
 import threading
@@ -9,13 +7,29 @@ import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common_ui import BaseUI
+from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
 
 GAIN = 2 / 3  # 전역 변수로 설정
 
-class AnalogUI(BaseUI):
+class AnalogUI:
+    LOGS_PER_FILE = 10
+
+    GAS_FULL_SCALE = {
+        "ORG": 9999,
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
+    }
+
+    GAS_TYPE_POSITIONS = {
+        "ORG": (149, 117),
+        "ARF-T": (140, 117),
+        "HMDS": (143, 117),
+        "HC-100": (137, 117)
+    }
+
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
         "ARF-T": {"AL1": 2000, "AL2": 4000},
@@ -24,7 +38,7 @@ class AnalogUI(BaseUI):
     }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
-        super().__init__(root, num_boxes, gas_types, "analog_history_logs", alarm_callback)
+        self.root = root
         self.alarm_callback = alarm_callback  # 알람 콜백 추가
         self.gas_types = gas_types
         self.num_boxes = num_boxes
@@ -354,28 +368,58 @@ class AnalogUI(BaseUI):
                                 self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
                                 self.box_states[box_index]["blink_thread"].start()
                     else:
+                        with self.box_states[box_index]["blink_lock"]:
+                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            self.box_states[box_index]["blinking_error"] = False
+                            self.box_states[box_index]["stop_blinking"].set()
+                else:
+                    with self.box_states[box_index]["blink_lock"]:
+                        self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
-                        self.update_segment_display(f"{formatted_value:04d}", self.box_frames[box_index][1], box_index=box_index)
+        except Exception as e:
+            print(f"Error updating UI from queue: {e}")
+
+        self.schedule_ui_update()  # 다음 업데이트 예약
+
+    def blink_alarm(self, box_index, is_second_alarm):
+        def toggle_color():
+            with self.box_states[box_index]["blink_lock"]:
+                if is_second_alarm:
+                    # 2차 알람 조건
+                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
+                    # 1차 알람 멈춤
+                    self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
-                    self.box_states[box_index]["blinking_error"] = False
-                    self.box_states[box_index]["stop_blinking"].set()
-                    self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+                    # 1차 알람 조건
+                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
+                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
 
-        except queue.Empty:
-            pass
-        self.root.after(100, self.schedule_ui_update)  # 100ms 간격으로 UI 업데이트 재예약
+                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+                self.box_frames[box_index][1].config(highlightbackground=outline_color)
 
-    def blink_alarm(self, box_index, is_alarm2):
-        while not self.box_states[box_index]["stop_blinking"].is_set():
-            if self.box_states[box_index]["stop_blinking"].is_set():
-                break
-            if is_alarm2:
-                self.update_segment_display("A2  ", self.box_frames[box_index][1], box_index=box_index)
-            else:
-                self.update_segment_display("A1  ", self.box_frames[box_index][1], box_index=box_index)
-            time.sleep(1)
-            if self.box_states[box_index]["stop_blinking"].is_set():
-                break
-            self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-            time.sleep(1)
+                # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
+                if self.box_states[box_index]["last_value"] is not None:
+                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+
+                if not self.box_states[box_index]["stop_blinking"].is_set():
+                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
+
+        toggle_color()
+
+if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
+    with open('settings.json') as f:
+        settings = json.load(f)
+
+    root = Tk()
+    main_frame = Frame(root)
+    main_frame.pack()
+
+    analog_boxes = settings["analog_boxes"]
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+
+    root.mainloop()
