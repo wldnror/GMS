@@ -412,7 +412,7 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
-        interval = 0.4
+        interval = 2
         next_call = time.time()
         while not stop_flag.is_set():
             try:
