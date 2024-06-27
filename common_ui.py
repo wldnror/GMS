@@ -1,11 +1,9 @@
 # common_ui.py
 import os
 import time
-import json
 import threading
-from tkinter import Frame, Canvas, StringVar, Toplevel, Entry, Button
-from collections import deque
-from PIL import Image, ImageTk
+from tkinter import Frame, Canvas, StringVar, Toplevel, Button
+from PIL import ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import mplcursors
@@ -23,10 +21,10 @@ class BaseUI:
     }
 
     GAS_TYPE_POSITIONS = {
-        "ORG": (149, 117),
-        "ARF-T": (140, 117),
-        "HMDS": (143, 117),
-        "HC-100": (137, 117)
+        "ORG": (149, 122),
+        "ARF-T": (140, 122),
+        "HMDS": (143, 122),
+        "HC-100": (139, 122)
     }
 
     def __init__(self, root, num_boxes, gas_types, history_dir, alarm_callback):
