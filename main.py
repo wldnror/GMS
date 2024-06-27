@@ -50,12 +50,19 @@ def play_alarm_sound():
         pygame.mixer.music.load(selected_audio_file)
         pygame.mixer.music.play()
         audio_playing = True
-        pygame.mixer.music.set_endevent(pygame.USEREVENT)
 
 def stop_alarm_sound():
     global audio_playing
     pygame.mixer.music.stop()
     audio_playing = False
+
+def check_music_end():
+    global audio_playing
+    if not pygame.mixer.music.get_busy():
+        audio_playing = False
+        if alarm_active:
+            play_alarm_sound()
+    root.after(100, check_music_end)
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
