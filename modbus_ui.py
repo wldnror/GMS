@@ -593,3 +593,58 @@ class ModbusUI:
                 self.root.after(600, toggle_color)
 
         toggle_color()
+
+# Main Application Code
+def show_box_settings():
+    global box_settings_window
+    if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.focus()
+        return
+
+    box_settings_window = Toplevel(root)
+    box_settings_window.title("상자 설정")
+    box_settings_window.attributes("-topmost", True)
+
+    def create_gas_type_menu(parent, box_index):
+        options = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
+        var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
+        menu = OptionMenu(parent, var, *options)
+        menu.grid(row=box_index, column=2, padx=5, pady=5)
+        var.trace_add("write", lambda *args, v=var, i=box_index: settings["gas_types"].update({f"box_{i}": v.get()}))
+        return var
+
+    gas_type_vars = []
+
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
+    modbus_entry.insert(0, settings["modbus_boxes"])
+    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
+    create_keypad(modbus_entry)
+
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
+    analog_entry = Entry(box_settings_window, font=("Arial", 12))
+    analog_entry.insert(0, settings["analog_boxes"])
+    analog_entry.grid(row=1, column=1, padx=5, pady=5)
+    create_keypad(analog_entry)
+
+    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
+        Label(box_settings_window, text=f"상자 {i+1}:", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5)
+        gas_type_var = create_gas_type_menu(box_settings_window, i)
+        gas_type_vars.append(gas_type_var)
+
+    def save_and_close():
+        try:
+            settings["modbus_boxes"] = int(modbus_entry.get())
+            settings["analog_boxes"] = int(analog_entry.get())
+            for i, var in enumerate(gas_type_vars):
+                settings["gas_types"][f"box_{i}"] = var.get()
+            save_settings(settings)
+            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            box_settings_window.destroy()
+            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+        except ValueError:
+            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
+
+    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
+
+# Rest of the main.py code remains the same
