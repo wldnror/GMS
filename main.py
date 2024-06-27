@@ -127,26 +127,15 @@ def change_branch():
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
 def alarm_blink():
-    red_duration = 1500  # 빨간색 상태에서 머무는 시간 (밀리초)
-    off_duration = 1500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
-    steps = 20  # 페이드 효과 단계 수
+    red_duration = 500  # 빨간색 상태에서 머무는 시간 (밀리초)
+    off_duration = 500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
 
-    def fade_color(start_color, end_color, step):
-        r1, g1, b1 = start_color
-        r2, g2, b2 = end_color
-        r = r1 + ((r2 - r1) * step // steps)
-        g = g1 + ((g2 - g1) * step // steps)
-        b = b1 + ((b2 - b1) * step // steps)
-        return f'#{r:02x}{g:02x}{b:02x}'
-
-    def toggle_color(step=0):
+    def toggle_color():
         if alarm_active:
-            if step < steps:
-                new_color = fade_color((255, 255, 255), (255, 0, 0), step)  # 흰색에서 빨간색으로 페이드인
-                root.config(background=new_color)
-                root.after(red_duration // steps, toggle_color, step + 1)
-            else:
-                root.after(off_duration, toggle_color, 0)
+            current_color = root.cget("background")
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
 
