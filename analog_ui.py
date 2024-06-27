@@ -151,23 +151,28 @@ class AnalogUI:
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
-
+        
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
         outline_color_off = '#000000'
-
+        
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
-
-        if states[0] or states[1]:
-            outline_color = outline_colors[0 if states[0] else 1]
-            self.alarm_callback(True)  # 알람 활성화
+            
+        alarm_active = states[0] or states[1]
+        self.alarm_callback(alarm_active)
+        
+        if states[0]:
+            outline_color = outline_colors[0]
+        elif states[1]:
+            outline_color = outline_colors[1]
+        elif states[3]:
+            outline_color = outline_colors[3]
         else:
             outline_color = outline_color_off
-            self.alarm_callback(False)  # 알람 비활성화
-
+        
         box_canvas.config(highlightbackground=outline_color)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
