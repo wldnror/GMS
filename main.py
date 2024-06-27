@@ -1,4 +1,20 @@
-# Main code
+import json
+import os
+import time
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import ttk
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
+import threading
+import psutil
+import signal
+import sys
+import subprocess
+import socket
+from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
+import utils  # utils 모듈 임포트 추가
+import tkinter as tk
+import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
