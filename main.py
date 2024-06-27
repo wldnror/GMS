@@ -127,9 +127,9 @@ def change_branch():
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
 def alarm_blink():
-    red_duration = 500  # 빨간색 상태에서 머무는 시간 (밀리초)
-    off_duration = 500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
-    steps = 100  # 페이드 효과 단계 수
+    red_duration = 1500  # 빨간색 상태에서 머무는 시간 (밀리초)
+    off_duration = 1500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
+    steps = 20  # 페이드 효과 단계 수
 
     def fade_color(start_color, end_color, step):
         r1, g1, b1 = start_color
