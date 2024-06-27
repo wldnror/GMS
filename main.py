@@ -60,7 +60,7 @@ def start_update(remote_commit):
     utils.start_update(root, remote_commit)
 
 def ignore_update(remote_commit):
-    utils.ignore_update(root, remote_commit)
+    utils.ignore_update(remote_commit)
 
 def restart_application():
     utils.restart_application()
@@ -133,19 +133,13 @@ def alarm_blink():
     def toggle_color():
         if alarm_active:
             current_color = root.cget("background")
-            if current_color != "red":
-                new_color = "red"
-                root.config(background=new_color)
-                root.after(red_duration, toggle_color)
-            else:
-                new_color = default_background
-                root.config(background=new_color)
-                root.after(off_duration, toggle_color)
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
 
     toggle_color()
-
 
 def set_alarm_status(active):
     global alarm_active, alarm_blinking
