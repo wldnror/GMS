@@ -223,12 +223,24 @@ def show_settings():
     # 오디오 파일 선택 버튼 추가
     def select_audio_file():
         global selected_audio_file
-        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.mp3 *.wav")])
-        if file_path:
-            selected_audio_file = file_path
+        audio_folder = "audio"
+        audio_files = [f for f in os.listdir(audio_folder) if f.endswith(('.mp3', '.wav'))]
+        if not audio_files:
+            messagebox.showerror("오류", "audio 폴더에 mp3 또는 wav 파일이 없습니다.")
+            return
+
+        def on_audio_select(event):
+            selected_audio_file = os.path.join(audio_folder, audio_combo.get())
             settings["audio_file"] = selected_audio_file
             save_settings(settings)
-            Label(settings_window, text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file)}", font=("Arial", 12)).pack(pady=10)
+            messagebox.showinfo("오디오 파일 선택", f"선택된 오디오 파일: {selected_audio_file}")
+
+        audio_window = Toplevel(settings_window)
+        audio_window.title("오디오 파일 선택")
+        Label(audio_window, text="오디오 파일을 선택하세요", font=("Arial", 12)).pack(pady=10)
+        audio_combo = ttk.Combobox(audio_window, values=audio_files, font=("Arial", 12))
+        audio_combo.pack(pady=5)
+        audio_combo.bind("<<ComboboxSelected>>", on_audio_select)
 
     Button(settings_window, text="경고 오디오 선택", command=select_audio_file, font=("Arial", 14), width=25, height=2, padx=10, pady=10).pack(pady=5)
 
@@ -378,4 +390,3 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
-
