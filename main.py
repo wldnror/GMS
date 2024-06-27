@@ -1,19 +1,4 @@
-import json
-import os
-import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
-from tkinter import ttk
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
-import threading
-import psutil
-import signal
-import sys
-import subprocess
-import socket
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils
-import tkinter as tk
+# Main code
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -37,6 +22,18 @@ checking_updates = True  # 전역 변수로 선언 및 초기화
 branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
 alarm_active = False  # 알람 상태를 저장하는 전역 변수
 alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
+
+# 오디오 재생 초기화
+pygame.mixer.init()
+
+def play_alarm_sound():
+    global selected_audio_file
+    if selected_audio_file:
+        pygame.mixer.music.load(selected_audio_file)
+        pygame.mixer.music.play()
+
+def stop_alarm_sound():
+    pygame.mixer.music.stop()
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -148,9 +145,11 @@ def set_alarm_status(active):
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
+        play_alarm_sound()  # 알람 소리 재생
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
         root.config(background=default_background)
+        stop_alarm_sound()  # 알람 소리 정지
 
 if __name__ == "__main__":
     root = tk.Tk()
