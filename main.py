@@ -146,7 +146,7 @@ def set_alarm_status(active):
         alarm_blink()
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
-        root.config(background="black")
+        root.config(background="white")
 
 if __name__ == "__main__":
     root = tk.Tk()
