@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Canvas
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -14,7 +14,6 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
-from PIL import Image, ImageTk
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -125,23 +124,6 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
-def create_red_overlay_image(width, height):
-    img = Image.new('RGBA', (width, height), (255, 0, 0, 127))  # 127 is the alpha value (0-255)
-    return img
-
-def show_red_overlay():
-    img = create_red_overlay_image(root.winfo_screenwidth(), root.winfo_screenheight())
-    img_tk = ImageTk.PhotoImage(img)
-    
-    overlay = Canvas(root, width=root.winfo_screenwidth(), height=root.winfo_screenheight(), highlightthickness=0)
-    overlay.create_image(0, 0, anchor='nw', image=img_tk)
-    overlay.place(x=0, y=0, relwidth=1, relheight=1)
-
-    overlay.bind("<Escape>", lambda e: overlay.place_forget())
-
-    # To keep a reference to the image object to prevent garbage collection
-    overlay.image = img_tk
-
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -196,12 +178,6 @@ if __name__ == "__main__":
         while True:
             update_status_label()
             time.sleep(1)
-
-    # 새로운 버튼을 추가합니다.
-    overlay_button = tk.Button(root, text="🔴", command=show_red_overlay, font=("Arial", 20))
-    overlay_button.bind("<Enter>", on_enter)
-    overlay_button.bind("<Leave>", on_leave)
-    overlay_button.place(relx=0.95, rely=1.0, anchor='se')
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
