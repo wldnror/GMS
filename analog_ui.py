@@ -95,7 +95,6 @@ class AnalogUI:
         gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "blink_state": False,
-            "blinking_error": False,
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
@@ -160,16 +159,12 @@ class AnalogUI:
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
-        if states[0]:
-            outline_color = outline_colors[0]
-        elif states[1]:
-            outline_color = outline_colors[1]
-        elif states[3]:
-            outline_color = outline_colors[3]
+        alarm_active = states[0] or states[1]
+        if alarm_active:
+            outline_color = outline_colors[0] if states[0] else outline_colors[1]
+            box_canvas.config(highlightbackground=outline_color)
         else:
-            outline_color = outline_color_off
-
-        box_canvas.config(highlightbackground=outline_color)
+            box_canvas.config(highlightbackground=outline_color_off)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
@@ -345,45 +340,47 @@ class AnalogUI:
                 self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                 self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
+                if self.box_states[box_index]["alarm2_on"]:
+                    self.box_states[box_index]["alarm1_on"] = False
+
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
                 self.box_states[box_index]["last_value"] = formatted_value
 
                 if pwr_on:
                     if self.box_states[box_index]["alarm2_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
-                                self.box_states[box_index]["blink_thread"].start()
+                        self.start_blinking(box_index, True)
                     elif self.box_states[box_index]["alarm1_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
-                                self.box_states[box_index]["blink_thread"].start()
+                        self.start_blinking(box_index, False)
                     else:
                         with self.box_states[box_index]["blink_lock"]:
                             self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.box_states[box_index]["stop_blinking"].set()
+                            self.stop_blinking(box_index)
                 else:
                     with self.box_states[box_index]["blink_lock"]:
                         self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-                        self.box_states[box_index]["blinking_error"] = False
-                        self.box_states[box_index]["stop_blinking"].set()
+                        self.stop_blinking(box_index)
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
         self.schedule_ui_update()  # 다음 업데이트 예약
+
+    def start_blinking(self, box_index, is_second_alarm):
+        with self.box_states[box_index]["blink_lock"]:
+            self.box_states[box_index]["stop_blinking"].clear()
+            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, is_second_alarm))
+                self.box_states[box_index]["blink_thread"].start()
+
+    def stop_blinking(self, box_index):
+        with self.box_states[box_index]["blink_lock"]:
+            self.box_states[box_index]["stop_blinking"].set()
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
                 if is_second_alarm:
                     # 2차 알람 조건
-                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+                    self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                     outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
                 else:
                     # 1차 알람 조건
@@ -398,7 +395,7 @@ class AnalogUI:
                     self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000 if is_second_alarm else 600, toggle_color)
+                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
 
         toggle_color()
 

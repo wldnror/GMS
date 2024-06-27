@@ -31,9 +31,9 @@ class ModbusUI:
         "HC-100": (139, 122)
     }
 
-
-    def __init__(self, root, num_boxes, gas_types):
+    def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
+        self.alarm_callback = alarm_callback  # 알람 콜백 추가
         self.virtual_keyboard = VirtualKeyboard(root)
         self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
         self.entries = []
@@ -219,6 +219,9 @@ class ModbusUI:
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
+        alarm_active = states[0] or states[1]
+        self.alarm_callback(alarm_active)
+
         if states[0]:
             outline_color = outline_colors[0]
         elif states[1]:
@@ -381,18 +384,25 @@ class ModbusUI:
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            self.stop_flags[ip].set()
-            self.clients[ip].close()
-            self.console.print(f"Disconnected from {ip}")
-            self.connected_clients[ip].join()
-            self.cleanup_client(ip)
-            self.ip_vars[i].set('')
-            self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0)
-            self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
-            self.update_circle_state([False, False, False, False], box_index=i)
-            self.update_segment_display("    ", self.box_frames[i][1], box_index=i)
-            self.show_bar(i, show=False)
-            self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
+            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+
+    def disconnect_client(self, ip, i):
+        self.stop_flags[ip].set()
+        self.connected_clients[ip].join()  # 스레드가 종료될 때까지 기다림
+        self.clients[ip].close()
+        self.console.print(f"Disconnected from {ip}")
+        self.cleanup_client(ip)
+        self.root.after(0, lambda: self.reset_ui_elements(i))  # UI 요소 초기화
+        self.root.after(0, lambda: self.ip_vars[i].set(''))
+        self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
+        self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
+
+    def reset_ui_elements(self, box_index):
+        self.update_circle_state([False, False, False, False], box_index=box_index)
+        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        self.show_bar(box_index, show=False)
+        self.console.print(f"Reset UI elements for box {box_index}")  # 디버그 메시지 추가
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -406,7 +416,7 @@ class ModbusUI:
         next_call = time.time()
         while not stop_flag.is_set():
             try:
-                if not client.is_socket_open():
+                if client is None or not client.is_socket_open():
                     raise ConnectionException("Socket is closed")
 
                 address_40001 = 40001 - 1
@@ -548,6 +558,7 @@ class ModbusUI:
         self.show_bar(box_index, show=False)
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
+        self.root.after(0, lambda: self.reset_ui_elements(box_index))  # UI 요소 초기화
 
     def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
@@ -591,57 +602,7 @@ class ModbusUI:
 
         toggle_color()
 
-# Main Application Code
-def show_box_settings():
-    global box_settings_window
-    if box_settings_window and box_settings_window.winfo_exists():
-        box_settings_window.focus()
-        return
-
-    box_settings_window = Toplevel(root)
-    box_settings_window.title("상자 설정")
-    box_settings_window.attributes("-topmost", True)
-
-    def create_gas_type_menu(parent, box_index):
-        options = ["ORG", "ARF-T   ", "HMDS  ", "HC-100   "]
-        var = StringVar(value=settings["gas_types"].get(f"box_{box_index}", "ORG"))
-        menu = OptionMenu(parent, var, *options)
-        menu.grid(row=box_index, column=2, padx=5, pady=5)
-        var.trace_add("write", lambda *args, v=var, i=box_index: settings["gas_types"].update({f"box_{i}": v.get()}))
-        return var
-
-    gas_type_vars = []
-
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_entry = Entry(box_settings_window, font=("Arial", 12))
-    modbus_entry.insert(0, settings["modbus_boxes"])
-    modbus_entry.grid(row=0, column=1, padx=5, pady=5)
-    create_keypad(modbus_entry)
-
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_entry = Entry(box_settings_window, font=("Arial", 12))
-    analog_entry.insert(0, settings["analog_boxes"])
-    analog_entry.grid(row=1, column=1, padx=5, pady=5)
-    create_keypad(analog_entry)
-
-    for i in range(max(settings["modbus_boxes"], settings["analog_boxes"])):
-        Label(box_settings_window, text=f"상자 {i+1}:", font=("Arial", 12)).grid(row=i + 2, column=0, padx=5)
-        gas_type_var = create_gas_type_menu(box_settings_window, i)
-        gas_type_vars.append(gas_type_var)
-
-    def save_and_close():
-        try:
-            settings["modbus_boxes"] = int(modbus_entry.get())
-            settings["analog_boxes"] = int(analog_entry.get())
-            for i, var in enumerate(gas_type_vars):
-                settings["gas_types"][f"box_{i}"] = var.get()
-            save_settings(settings)
-            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
-            box_settings_window.destroy()
-            restart_application()  # 설정이 변경되면 애플리케이션을 재시작
-        except ValueError:
-            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
-
-    Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=max(settings["modbus_boxes"], settings["analog_boxes"]) + 2, columnspan=3, pady=10)
-
-# Rest of the main.py code remains the same
+# ModbusUI 클래스 사용 예시:
+# root = Tk()
+# app = ModbusUI(root, num_boxes=4, gas_types={"modbus_box_0": "ORG", "modbus_box_1": "ARF-T"}, alarm_callback=lambda active: print("Alarm active:", active))
+# root.mainloop()
