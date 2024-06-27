@@ -204,7 +204,7 @@ if __name__ == "__main__":
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
 
-    settings_button.place(relx=1.0, relu=1.0, anchor='se')
+    settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
