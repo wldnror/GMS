@@ -389,6 +389,8 @@ class AnalogUI:
                     # 2차 알람 조건
                     self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                     outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
+                    # 1차 알람 멈춤
+                    self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
                     # 1차 알람 조건
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
@@ -402,7 +404,7 @@ class AnalogUI:
                     self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000 if is_second_alarm else 600, toggle_color)
+                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
 
         toggle_color()
 
