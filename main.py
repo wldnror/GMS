@@ -35,6 +35,7 @@ ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 �
 update_notification_frame = None  # update_notification_frame 변수를 전역 변수로 선언하고 초기화
 checking_updates = True  # 전역 변수로 선언 및 초기화
 branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
+alarm_active = False  # 알람 상태를 저장하는 전역 변수
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -132,6 +133,14 @@ def alarm_blink():
         root.after(500, toggle_color)  # 500ms 간격으로 색상을 변경
     toggle_color()
 
+def set_alarm_status(active):
+    global alarm_active
+    alarm_active = active
+    if alarm_active:
+        alarm_blink()
+    else:
+        root.config(background="black")
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -162,8 +171,8 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"])
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
 
     modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
     analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
@@ -196,9 +205,6 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
-
-    # alarm_blink 함수를 호출하여 알람 발생 시 전체 화면 테두리가 빨간색으로 깜빡이도록 설정
-    alarm_blink()
 
     root.mainloop()
 
