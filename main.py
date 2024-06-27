@@ -247,16 +247,7 @@ if __name__ == "__main__":
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
-    def check_music_end():
-        global audio_playing
-        for event in pygame.event.get():
-            if event.type == pygame.USEREVENT:
-                audio_playing = False
-                if alarm_active:
-                    play_alarm_sound()
-        root.after(100, check_music_end)
-
-    check_music_end()
+    check_music_end()  # 음악 재생 상태 확인 함수 호출
 
     root.mainloop()
 
