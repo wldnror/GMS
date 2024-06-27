@@ -7,8 +7,7 @@ from PIL import ImageTk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 import mplcursors
-
-from common import SEGMENTS, create_segment_display
+from common import SEGMENTS, create_segment_display  # SEGMENTS 추가
 
 class BaseUI:
     LOGS_PER_FILE = 10
