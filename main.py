@@ -1,3 +1,4 @@
+import tkinter as tk
 import json
 import os
 import time
@@ -13,7 +14,6 @@ import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
-import tkinter as tk
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -124,6 +124,14 @@ def change_branch():
 
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
+def alarm_blink():
+    def toggle_color():
+        current_color = root.cget("background")
+        new_color = "red" if current_color != "red" else "black"
+        root.config(background=new_color)
+        root.after(500, toggle_color)  # 500ms 간격으로 색상을 변경
+    toggle_color()
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -188,6 +196,9 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
+
+    # alarm_blink 함수를 호출하여 알람 발생 시 전체 화면 테두리가 빨간색으로 깜빡이도록 설정
+    alarm_blink()
 
     root.mainloop()
 
