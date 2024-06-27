@@ -138,6 +138,7 @@ def alarm_blink():
             root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
+            root.after_cancel(toggle_color)
 
     toggle_color()
 
