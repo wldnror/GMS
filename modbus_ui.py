@@ -384,18 +384,21 @@ class ModbusUI:
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            self.stop_flags[ip].set()
-            self.connected_clients[ip].join()  # 스레드가 종료될 때까지 기다림
-            self.clients[ip].close()
-            self.console.print(f"Disconnected from {ip}")
-            self.cleanup_client(ip)
-            self.ip_vars[i].set('')
-            self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0)
-            self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
-            self.update_circle_state([False, False, False, False], box_index=i)
-            self.update_segment_display("    ", self.box_frames[i][1], box_index=i)
-            self.show_bar(i, show=False)
-            self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
+            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+
+    def disconnect_client(self, ip, i):
+        self.stop_flags[ip].set()
+        self.connected_clients[ip].join()  # 스레드가 종료될 때까지 기다림
+        self.clients[ip].close()
+        self.console.print(f"Disconnected from {ip}")
+        self.cleanup_client(ip)
+        self.root.after(0, lambda: self.ip_vars[i].set(''))
+        self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
+        self.root.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
+        self.root.after(0, lambda: self.update_segment_display("    ", self.box_frames[i][1], box_index=i))
+        self.root.after(0, lambda: self.show_bar(i, show=False))
+        self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
