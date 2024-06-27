@@ -230,7 +230,7 @@ if __name__ == "__main__":
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
-    status_label.place(relx=0.0, rel=1.0, anchor='sw')
+    status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
     def system_info_thread():
         while True:
