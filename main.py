@@ -139,11 +139,13 @@ def alarm_blink():
 
 
 def set_alarm_status(active):
-    global alarm_active
+    global alarm_active, alarm_blinking
     alarm_active = active
-    if alarm_active:
+    if alarm_active and not alarm_blinking:
+        alarm_blinking = True
         alarm_blink()
-    else:
+    elif not alarm_active and alarm_blinking:
+        alarm_blinking = False
         root.config(background="black")
 
 if __name__ == "__main__":
