@@ -392,10 +392,10 @@ class ModbusUI:
         self.clients[ip].close()
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
+        self.root.after(0, lambda: self.reset_ui_elements(i))  # UI 요소 초기화
         self.root.after(0, lambda: self.ip_vars[i].set(''))
         self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
-        self.root.after(0, lambda: self.reset_ui_elements(i))  # UI 요소 초기화
         self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
 
     def reset_ui_elements(self, box_index):
@@ -412,7 +412,7 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         blink_state_middle = False
         blink_state_top = False
-        interval = 2
+        interval = 0.4
         next_call = time.time()
         while not stop_flag.is_set():
             try:
