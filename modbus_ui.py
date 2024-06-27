@@ -581,7 +581,7 @@ class ModbusUI:
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
-            with open(self.SETTINGS_FILE, 'r') as file):
+            with open(self.SETTINGS_FILE, 'r') as file:
                 ip_settings = json.load(file)
                 for i in range(min(num_boxes, len(ip_settings))):
                     self.ip_vars[i].set(ip_settings[i])
