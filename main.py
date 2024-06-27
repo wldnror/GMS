@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel, Canvas
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Canvas
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -137,7 +137,7 @@ def show_red_overlay():
     overlay.create_image(0, 0, anchor='nw', image=img_tk)
     overlay.place(x=0, y=0, relwidth=1, relheight=1)
 
-    overlay.bind("<Escape>", lambda e: overlay.destroy())
+    overlay.bind("<Escape>", lambda e: overlay.place_forget())
 
     # To keep a reference to the image object to prevent garbage collection
     overlay.image = img_tk
@@ -205,7 +205,7 @@ if __name__ == "__main__":
 
     # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
-        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
+        with open(utils.IGNORE_COMMIT_FILE, "r") as file):
             ignore_commit = file.read().strip().encode()
         utils.ignore_commit = ignore_commit
 
