@@ -129,7 +129,7 @@ def change_branch():
 def alarm_blink():
     red_duration = 500  # 빨간색 상태에서 머무는 시간 (밀리초)
     off_duration = 500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
-    steps = 1  # 페이드 효과 단계 수
+    steps = 100  # 페이드 효과 단계 수
 
     def fade_color(start_color, end_color, step):
         r1, g1, b1 = start_color
