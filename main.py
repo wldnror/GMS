@@ -1,4 +1,3 @@
-import tkinter as tk
 import json
 import os
 import time
@@ -14,6 +13,7 @@ import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
+import tkinter as tk
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -36,6 +36,7 @@ update_notification_frame = None  # update_notification_frame 변수를 전역 �
 checking_updates = True  # 전역 변수로 선언 및 초기화
 branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
 alarm_active = False  # 알람 상태를 저장하는 전역 변수
+alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -136,7 +137,6 @@ def alarm_blink():
             root.config(background="black")
 
     toggle_color()
-
 
 def set_alarm_status(active):
     global alarm_active, alarm_blinking
