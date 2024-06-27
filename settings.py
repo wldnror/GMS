@@ -1,6 +1,8 @@
 # settings.py
+
 from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
 from tkinter import ttk
+from tkinter import filedialog
 import json
 import os
 import sys
@@ -8,6 +10,7 @@ import threading
 import subprocess
 import time
 import utils
+import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 
 SETTINGS_FILE = "settings.json"
 
@@ -23,6 +26,7 @@ update_notification_frame = None
 ignore_commit = None
 branch_window = None
 root = None
+selected_audio_file = None
 
 def initialize_globals(main_root, change_branch_func):
     global root, change_branch
@@ -51,7 +55,8 @@ def load_settings():
             "analog_boxes": 0,
             "admin_password": None,
             "modbus_gas_types": {},
-            "analog_gas_types": {}
+            "analog_gas_types": {},
+            "audio_file": None  # 오디오 파일 설정 추가
         }
 
 def save_settings(settings):
@@ -61,6 +66,7 @@ def save_settings(settings):
 
 settings = load_settings()
 admin_password = settings.get("admin_password")
+selected_audio_file = settings.get("audio_file")
 
 def prompt_new_password():
     global new_password_window
@@ -214,6 +220,18 @@ def show_settings():
     exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_application(root))
     exit_button.grid(row=0, column=1)
 
+    # 오디오 파일 선택 버튼 추가
+    def select_audio_file():
+        global selected_audio_file
+        file_path = filedialog.askopenfilename(filetypes=[("Audio Files", "*.mp3 *.wav")])
+        if file_path:
+            selected_audio_file = file_path
+            settings["audio_file"] = selected_audio_file
+            save_settings(settings)
+            Label(settings_window, text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file)}", font=("Arial", 12)).pack(pady=10)
+
+    Button(settings_window, text="경고 오디오 선택", command=select_audio_file, font=("Arial", 14), width=25, height=2, padx=10, pady=10).pack(pady=5)
+
 def check_and_update_system():
     try:
         current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
@@ -360,3 +378,4 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
+
