@@ -300,10 +300,6 @@ class AnalogUI:
                     self.update_circle_state([False, alarm2_on, pwr_on, False], box_index=box_index)
                     self.box_states[box_index]["last_alarm1_state"] = False
 
-                # 마지막 알람 상태 업데이트
-                self.box_states[box_index]["last_alarm1_state"] = alarm1_on
-                self.box_states[box_index]["last_alarm2_state"] = alarm2_on
-
         except Exception as e:
             print(f"Error updating segment from queue: {e}")
 
