@@ -198,6 +198,17 @@ class ModbusUI:
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
+    def record_history(self, box_index, value):
+        if value.strip():
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            log_line = f"{timestamp},{value}\n"
+            log_file_index = self.get_log_file_index(box_index)
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
+
+            # 비동기적으로 로그 파일에 기록
+            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+
+
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
