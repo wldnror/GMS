@@ -65,7 +65,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.schedule_segment_update()
+        self.schedule_alarm_update()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -251,20 +251,20 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def schedule_segment_update(self):
-        self.root.after(100, self.update_segment_from_queue)  # 100ms 간격으로 세그먼트 디스플레이 업데이트 예약
+    def schedule_alarm_update(self):
+        self.root.after(100, self.update_alarm_from_queue)  # 100ms 간격으로 알람 업데이트 예약
 
-    def update_segment_from_queue(self):
+    def update_alarm_from_queue(self):
         try:
             while not self.adc_queue.empty():
                 box_index, avg_milliamp = self.adc_queue.get_nowait()
-                self.update_segment_display(box_index, avg_milliamp)
+                self.update_alarm_state(box_index, avg_milliamp)
         except Exception as e:
-            print(f"Error updating segment from queue: {e}")
+            print(f"Error updating alarm from queue: {e}")
 
-        self.schedule_segment_update()  # 다음 업데이트 예약
+        self.schedule_alarm_update()  # 다음 업데이트 예약
 
-    def update_segment_display(self, box_index, avg_milliamp):
+    def update_alarm_state(self, box_index, avg_milliamp):
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         full_scale = self.GAS_FULL_SCALE[gas_type]
         alarm_levels = self.ALARM_LEVELS[gas_type]
@@ -281,9 +281,6 @@ class AnalogUI:
 
         alarm1_on = formatted_value and formatted_value >= alarm_levels["AL1"]
         alarm2_on = formatted_value and formatted_value >= alarm_levels["AL2"] if pwr_on else False
-
-        # 세그먼트 디스플레이 업데이트
-        common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
 
         # 알람 상태 변경 체크 및 신호 전송
         if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
