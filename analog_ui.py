@@ -37,7 +37,7 @@ class AnalogUI:
     }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
-        self.root = root
+        self.root = root  # root 속성을 초기화합니다
         self.alarm_callback = alarm_callback  # 알람 콜백 추가
         self.gas_types = gas_types
         self.num_boxes = num_boxes
@@ -67,7 +67,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.schedule_ui_update()
+        self.schedule_ui_update()  # 주기적인 UI 업데이트 예약
 
     def create_analog_box(self, index):
         row = index // 7
@@ -217,7 +217,7 @@ class AnalogUI:
                 self.adc_queue.put((box_index, avg_milliamp))
         except Exception as e:
             print(f"Error reading ADC values: {e}")
-    
+
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
@@ -235,7 +235,7 @@ class AnalogUI:
 
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active)
-    
+
         if states[0]:
             outline_color = outline_colors[0]
         elif states[1]:
@@ -300,17 +300,12 @@ class AnalogUI:
                         common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
-    
+
                 self.update_circle_state([alarm1_on, alarm2_on, pwr_on, False], box_index=box_index)
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
         self.schedule_ui_update()  # 다음 업데이트 예약
-    
-    # 초기화 함수에서 schedule_ui_update 호출
-    def __init__(self, root, num_boxes, gas_types, alarm_callback):
-        # 기존 코드 생략...
-        self.schedule_ui_update()  # 주기적인 UI 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm, interval=400):
         def toggle_color():
@@ -322,7 +317,7 @@ class AnalogUI:
                 else:
                     # AL1 깜빡임
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
-    
+
                 # 정해진 간격으로 깜빡임을 유지
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(interval, toggle_color)  # 여기에서 간격을 interval로 설정
