@@ -265,23 +265,29 @@ class AnalogUI:
                 formatted_value = max(0, min(formatted_value, full_scale))
 
                 pwr_on = avg_milliamp >= 1.5
+
+                # 이전 알람 상태 저장
+                previous_alarm1_on = self.box_states[box_index]["alarm1_on"]
+                previous_alarm2_on = self.box_states[box_index]["alarm2_on"]                
     
                 self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                 self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-
+                
+                # 알람 상태 업데이트
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
                 self.box_states[box_index]["last_value"] = formatted_value
-
+               
+                # 알람이 계속 켜져 있는지 확인하고, 깜빡임을 유지
                 if pwr_on:
                     if self.box_states[box_index]["alarm2_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
+                        if not self.box_states[box_index]["blinking_error"] or not previous_alarm2_on:
                             self.box_states[box_index]["blinking_error"] = True
                             self.box_states[box_index]["stop_blinking"].clear()
                             if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
                                 self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
                                 self.box_states[box_index]["blink_thread"].start()
                     elif self.box_states[box_index]["alarm1_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
+                        if not self.box_states[box_index]["blinking_error"] or not previous_alarm1_on:
                             self.box_states[box_index]["blinking_error"] = True
                             self.box_states[box_index]["stop_blinking"].clear()
                             if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
