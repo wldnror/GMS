@@ -477,8 +477,3 @@ class ModbusUI:
                 self.root.after(600, toggle_color)
 
         toggle_color()
-
-# ModbusUI 클래스 사용 예시:
-# root = Tk()
-# app = ModbusUI(root, num_boxes=4, gas_types={"modbus_box_0": "ORG", "modbus_box_1": "ARF-T"}, alarm_callback=lambda active: print("Alarm active:", active))
-# root.mainloop()
