@@ -227,7 +227,10 @@ class AnalogUI:
         outline_color_off = '#000000'
 
         for i, state in enumerate(states):
-            color = colors_on[i] if state else colors_off[i]
+            if i == 1 and states[0]:  # AL1이 켜진 상태에서 AL2가 깜빡이면
+                color = 'red' if state else colors_off[i]
+            else:
+                color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         alarm_active = states[0] or states[1]
