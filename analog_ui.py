@@ -314,7 +314,7 @@ class AnalogUI:
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000, toggle_color)
 
-    toggle_color()
+        toggle_color()
 
 if __name__ == "__main__":
     from tkinter import Tk
