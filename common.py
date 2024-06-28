@@ -75,33 +75,6 @@ def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
 
     self.box_states[box_index]["blink_state"] = not blink_state
 
-def record_history(self, box_index, value):
-    if value.strip():
-        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-        log_line = f"{timestamp},{value}\n"
-        log_file_index = self.get_log_file_index(box_index)
-        log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
-
-        # 비동기적으로 로그 파일에 기록
-        threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
-
-def async_write_log(self, log_file, log_line):
-    with open(log_file, 'a') as file:
-        file.write(log_line)
-
-def get_log_file_index(self, box_index):
-    """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
-    index = 0
-    while True:
-        log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
-        if not os.path.exists(log_file):
-            return index
-        with open(log_file, 'r') as file:
-            lines = file.readlines()
-            if len(lines) < self.LOGS_PER_FILE:
-                return index
-        index += 1
-
 def load_log_files(self, box_index, file_index):
     """특정 로그 파일을 로드하여 로그 목록을 반환"""
     log_entries = []
