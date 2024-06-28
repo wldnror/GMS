@@ -277,28 +277,26 @@ class AnalogUI:
                 # 세그먼트 디스플레이 업데이트
                 common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                 
-                # 알람 상태 변경 체크 및 신호 전송
-                if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
-                    self.box_states[box_index]["alarm2_on"] = True
-                    self.box_states[box_index]["stop_blinking"].clear()
-                    self.start_blinking(box_index, True)
-                    self.box_states[box_index]["last_alarm2_state"] = True
-                elif not alarm2_on and self.box_states[box_index]["last_alarm2_state"]:
+                # 알람 상태 변경 체크 및 깜빡임 처리
+                if alarm2_on:
+                    if not self.box_states[box_index]["alarm2_on"]:
+                        self.box_states[box_index]["alarm2_on"] = True
+                        self.box_states[box_index]["stop_blinking"].clear()
+                        self.start_blinking(box_index, True)
+                elif alarm1_on:
+                    if not self.box_states[box_index]["alarm1_on"]:
+                        self.box_states[box_index]["alarm1_on"] = True
+                        self.box_states[box_index]["stop_blinking"].clear()
+                        self.start_blinking(box_index, False)
+                else:
+                    self.box_states[box_index]["alarm1_on"] = False
                     self.box_states[box_index]["alarm2_on"] = False
                     self.box_states[box_index]["stop_blinking"].set()
-                    self.update_circle_state([alarm1_on, False, pwr_on, False], box_index=box_index)
-                    self.box_states[box_index]["last_alarm2_state"] = False
-
-                if alarm1_on and not self.box_states[box_index]["last_alarm1_state"]:
-                    self.box_states[box_index]["alarm1_on"] = True
-                    self.box_states[box_index]["stop_blinking"].clear()
-                    self.start_blinking(box_index, False)
-                    self.box_states[box_index]["last_alarm1_state"] = True
-                elif not alarm1_on and self.box_states[box_index]["last_alarm1_state"]:
-                    self.box_states[box_index]["alarm1_on"] = False
-                    self.box_states[box_index]["stop_blinking"].set()
-                    self.update_circle_state([False, alarm2_on, pwr_on, False], box_index=box_index)
-                    self.box_states[box_index]["last_alarm1_state"] = False
+                    self.update_circle_state([False, False, pwr_on, False], box_index=box_index)
+                    
+                # 마지막 알람 상태 업데이트
+                self.box_states[box_index]["last_alarm1_state"] = alarm1_on
+                self.box_states[box_index]["last_alarm2_state"] = alarm2_on
 
         except Exception as e:
             print(f"Error updating segment from queue: {e}")
