@@ -64,7 +64,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.schedule_ui_update()
+        self.schedule_segment_update()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -248,10 +248,10 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+    def schedule_segment_update(self):
+        self.root.after(100, self.update_segment_from_queue)  # 100ms 간격으로 세그먼트 디스플레이 업데이트 예약
 
-    def update_ui_from_queue(self):
+    def update_segment_from_queue(self):
         try:
             while not self.adc_queue.empty():
                 box_index, avg_milliamp = self.adc_queue.get_nowait()
@@ -297,9 +297,9 @@ class AnalogUI:
     
                 self.update_circle_state([alarm1_on, alarm2_on, pwr_on, False], box_index=box_index)
         except Exception as e:
-            print(f"Error updating UI from queue: {e}")
+            print(f"Error updating segment from queue: {e}")
 
-        self.schedule_ui_update()  # 다음 업데이트 예약
+        self.schedule_segment_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
