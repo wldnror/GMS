@@ -305,18 +305,16 @@ class AnalogUI:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                 if is_second_alarm:
                     # AL2 깜빡임
-                    self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                     self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
                     # AL1 깜빡임
-                    self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
 
                 # 정해진 간격으로 깜빡임을 유지
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000, toggle_color)
 
-        toggle_color()
+    toggle_color()
 
 if __name__ == "__main__":
     from tkinter import Tk
