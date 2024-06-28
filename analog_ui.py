@@ -4,6 +4,9 @@ import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import mplcursors
 from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
 import queue
 
@@ -64,7 +67,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.schedule_segment_update()
+        self.schedule_ui_update()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -185,6 +188,7 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             try:
+                tasks = []
                 for adc_index, adc in enumerate(adcs):
                     self.read_adc_values(adc, adc_index)
                 time.sleep(0.1)  # 샘플링 속도 증가
@@ -248,10 +252,10 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def schedule_segment_update(self):
-        self.root.after(100, self.update_segment_from_queue)  # 100ms 간격으로 세그먼트 디스플레이 업데이트 예약
+    def schedule_ui_update(self):
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
-    def update_segment_from_queue(self):
+    def update_ui_from_queue(self):
         try:
             while not self.adc_queue.empty():
                 box_index, avg_milliamp = self.adc_queue.get_nowait()
@@ -274,8 +278,7 @@ class AnalogUI:
 
                 # 세그먼트 디스플레이 업데이트
                 common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-                
-                # 알람 상태 변경 체크 및 깜빡임 처리
+
                 if alarm2_on:
                     if not self.box_states[box_index]["alarm2_on"]:
                         self.box_states[box_index]["alarm2_on"] = True
@@ -293,13 +296,16 @@ class AnalogUI:
                 else:
                     self.box_states[box_index]["alarm1_on"] = False
                     self.box_states[box_index]["alarm2_on"] = False
-                    self.box_states[box_index]["stop_blinking"].set()
+                    with self.box_states[box_index]["blink_lock"]:
+                        common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                        self.box_states[box_index]["blinking_error"] = False
+                        self.box_states[box_index]["stop_blinking"].set()
     
                 self.update_circle_state([alarm1_on, alarm2_on, pwr_on, False], box_index=box_index)
         except Exception as e:
-            print(f"Error updating segment from queue: {e}")
+            print(f"Error updating UI from queue: {e}")
 
-        self.schedule_segment_update()  # 다음 업데이트 예약
+        self.schedule_ui_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
