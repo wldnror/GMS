@@ -302,6 +302,7 @@ class AnalogUI:
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
+                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                 if is_second_alarm:
                     # AL2 깜빡임
                     self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
