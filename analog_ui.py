@@ -4,9 +4,6 @@ import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import mplcursors
 from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
 import queue
 
@@ -66,7 +63,6 @@ class AnalogUI:
             self.update_circle_state([False, False, False, False], box_index=i)
 
         self.adc_queue = queue.Queue()
-        self.ui_update_queue = queue.Queue()  # 추가된 큐
         self.start_adc_thread()
         self.schedule_ui_update()
 
@@ -189,7 +185,6 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             try:
-                tasks = []
                 for adc_index, adc in enumerate(adcs):
                     self.read_adc_values(adc, adc_index)
                 time.sleep(0.1)  # 샘플링 속도 증가
@@ -254,17 +249,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(100, self.process_ui_update_queue)  # 100ms 간격으로 UI 업데이트 예약
-
-    def process_ui_update_queue(self):
-        try:
-            while not self.ui_update_queue.empty():
-                box_index, formatted_value = self.ui_update_queue.get_nowait()
-                common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-        except Exception as e:
-            print(f"Error processing UI update queue: {e}")
-
-        self.schedule_ui_update()  # 다음 업데이트 예약
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -287,8 +272,8 @@ class AnalogUI:
                 alarm1_on = formatted_value and formatted_value >= alarm_levels["AL1"]
                 alarm2_on = formatted_value and formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-                # 세그먼트 디스플레이 업데이트를 큐에 추가
-                self.ui_update_queue.put((box_index, formatted_value))
+                # 세그먼트 디스플레이 업데이트
+                common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                 
                 # 알람 상태 변경 체크 및 깜빡임 처리
                 if alarm2_on:
@@ -314,7 +299,7 @@ class AnalogUI:
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
-        self.root.after(100, self.update_ui_from_queue)  # 다음 업데이트 예약
+        self.schedule_ui_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
