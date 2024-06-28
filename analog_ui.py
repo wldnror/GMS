@@ -4,9 +4,6 @@ import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import mplcursors
 from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
 import queue
 
@@ -189,7 +186,6 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             try:
-                tasks = []
                 for adc_index, adc in enumerate(adcs):
                     self.read_adc_values(adc, adc_index)
                 time.sleep(0.1)  # 샘플링 속도 증가
