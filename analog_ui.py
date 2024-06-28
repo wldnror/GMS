@@ -282,6 +282,9 @@ class AnalogUI:
         alarm1_on = formatted_value and formatted_value >= alarm_levels["AL1"]
         alarm2_on = formatted_value and formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
+        # 세그먼트 디스플레이 업데이트
+        common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+
         # 알람 상태 변경 체크 및 신호 전송
         if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
             self.box_states[box_index]["alarm2_on"] = True
