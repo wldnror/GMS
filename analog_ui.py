@@ -189,6 +189,7 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             try:
+                tasks = []
                 for adc_index, adc in enumerate(adcs):
                     self.read_adc_values(adc, adc_index)
                 time.sleep(0.1)  # 샘플링 속도 증가
