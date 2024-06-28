@@ -225,12 +225,12 @@ class AnalogUI:
                                 self.box_states[box_index]["blink_thread"].start()
                     else:
                         with self.box_states[box_index]["blink_lock"]:
-                            common_update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            common_update_segment_display(self, str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
                             self.box_states[box_index]["blinking_error"] = False
                             self.box_states[box_index]["stop_blinking"].set()
                 else:
                     with self.box_states[box_index]["blink_lock"]:
-                        common_update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                        common_update_segment_display(self, "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
         except Exception as e:
