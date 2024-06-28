@@ -207,6 +207,24 @@ class ModbusUI:
 
             # 비동기적으로 로그 파일에 기록
             threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+    
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
+
+    def get_log_file_index(self, box_index):
+        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                return index
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                if len(lines) < self.LOGS_PER_FILE:
+                    return index
+            index += 1
+            
 
 
     def update_circle_state(self, states, box_index=0):
