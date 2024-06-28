@@ -7,7 +7,7 @@ import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_circle_state, update_segment_display as common_update_segment_display, record_history, async_write_log, get_log_file_index, load_log_files, show_history_graph, update_history_graph
+from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_circle_state, update_segment_display as common_update_segment_display, record_history as common_record_history, async_write_log, get_log_file_index, load_log_files, show_history_graph, update_history_graph
 import queue
 import asyncio
 
@@ -136,7 +136,44 @@ class AnalogUI:
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
-    
+    def record_history(self, box_index, value):
+        if value.strip():
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            log_line = f"{timestamp},{value}\n"
+            log_file_index = self.get_log_file_index(box_index)
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
+
+            # 비동기적으로 로그 파일에 기록
+            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
+
+    def get_log_file_index(self, box_index):
+        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                return index
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                if len(lines) < self.LOGS_PER_FILE:
+                    return index
+            index += 1
+
+    def load_log_files(self, box_index, file_index):
+        """특정 로그 파일을 로드하여 로그 목록을 반환"""
+        log_entries = []
+        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                for line in lines:
+                    timestamp, value = line.strip().split(',')
+                    log_entries.append((timestamp, value))
+        return log_entries
 
     def navigate_logs(self, box_index, direction):
         self.current_file_index += direction
