@@ -215,7 +215,7 @@ class AnalogUI:
                 self.adc_queue.put((box_index, avg_milliamp))
         except Exception as e:
             print(f"Error reading ADC values: {e}")
-    
+
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
@@ -233,7 +233,7 @@ class AnalogUI:
 
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active)
-    
+
         if states[0]:
             outline_color = outline_colors[0]
         elif states[1]:
@@ -283,7 +283,7 @@ class AnalogUI:
 
         # 세그먼트 디스플레이 업데이트
         common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-        
+
         # 알람 상태 변경 체크 및 신호 전송
         if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
             self.box_states[box_index]["alarm2_on"] = True
@@ -306,6 +306,10 @@ class AnalogUI:
             self.box_states[box_index]["stop_blinking"].set()
             self.update_circle_state([False, alarm2_on, pwr_on, False], box_index=box_index)
             self.box_states[box_index]["last_alarm1_state"] = False
+
+        # 알람이 꺼졌을 때 상태 유지
+        if not alarm1_on and not alarm2_on:
+            self.update_circle_state([False, False, pwr_on, False], box_index=box_index)
 
     def start_blinking(self, box_index, is_second_alarm):
         def toggle_color():
