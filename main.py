@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, StringVar, Toplevel
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
@@ -11,7 +11,7 @@ import signal
 import sys
 import subprocess
 import socket
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, initialize_globals
+from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils  # utils 모듈 임포트 추가
 import tkinter as tk
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
@@ -164,6 +164,7 @@ def alarm_blink():
             root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
+            root.after_cancel(toggle_color)
 
     toggle_color()
 
@@ -172,7 +173,7 @@ def set_alarm_status(active):
     alarm_active = active
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
-        threading.Thread(target=alarm_blink, daemon=True).start()
+        alarm_blink()
         play_alarm_sound()  # 알람 소리 재생
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
