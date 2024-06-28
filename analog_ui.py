@@ -2,11 +2,10 @@ import os
 import time
 import threading
 from collections import deque
-from tkinter import Frame, Canvas, StringVar, Toplevel, Button, Tk
+from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
 from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
 import queue
-import json
 
 GAIN = 2 / 3  # 전역 변수로 설정
 
@@ -332,6 +331,9 @@ class AnalogUI:
             self.box_states[box_index]["blink_thread"].start()
 
 if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
     def set_alarm_status(active):
         if active:
             print("Alarm is active!")
