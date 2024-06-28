@@ -262,18 +262,22 @@ class AnalogUI:
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
-                formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-                formatted_value = max(0, min(formatted_value, full_scale))
+
+                if avg_milliamp < 1:
+                    formatted_value = ""
+                else:
+                    formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
+                    formatted_value = max(0, min(formatted_value, full_scale))
 
                 pwr_on = avg_milliamp >= 1.5
 
                 self.box_states[box_index]["last_value"] = formatted_value
 
-                alarm1_on = formatted_value >= alarm_levels["AL1"]
-                alarm2_on = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+                alarm1_on = formatted_value and formatted_value >= alarm_levels["AL1"]
+                alarm2_on = formatted_value and formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
                 # 세그먼트 디스플레이 업데이트
-                common_update_segment_display(self, str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if alarm2_on:
                     if not self.box_states[box_index]["alarm2_on"]:
@@ -293,7 +297,7 @@ class AnalogUI:
                     self.box_states[box_index]["alarm1_on"] = False
                     self.box_states[box_index]["alarm2_on"] = False
                     with self.box_states[box_index]["blink_lock"]:
-                        common_update_segment_display(self, str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                        common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
     
