@@ -2,12 +2,10 @@ import os
 import time
 import threading
 from collections import deque
-from tkinter import Frame, Canvas, StringVar, Tk
+from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
 from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
 import queue
-import json
-from concurrent.futures import ThreadPoolExecutor
 
 GAIN = 2 / 3  # 전역 변수로 설정
 
@@ -65,9 +63,8 @@ class AnalogUI:
             self.update_circle_state([False, False, False, False], box_index=i)
 
         self.adc_queue = queue.Queue()
-        self.executor = ThreadPoolExecutor(max_workers=4)
         self.start_adc_thread()
-        self.schedule_alarm_update()
+        self.schedule_segment_update()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -218,7 +215,7 @@ class AnalogUI:
                 self.adc_queue.put((box_index, avg_milliamp))
         except Exception as e:
             print(f"Error reading ADC values: {e}")
-
+    
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
@@ -236,7 +233,7 @@ class AnalogUI:
 
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active)
-
+    
         if states[0]:
             outline_color = outline_colors[0]
         elif states[1]:
@@ -253,20 +250,20 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def schedule_alarm_update(self):
-        self.root.after(1000, self.update_alarm_from_queue)  # 100ms 간격으로 알람 업데이트 예약
+    def schedule_segment_update(self):
+        self.root.after(100, self.update_segment_from_queue)  # 100ms 간격으로 세그먼트 디스플레이 업데이트 예약
 
-    def update_alarm_from_queue(self):
+    def update_segment_from_queue(self):
         try:
             while not self.adc_queue.empty():
                 box_index, avg_milliamp = self.adc_queue.get_nowait()
-                self.executor.submit(self.update_alarm_state, box_index, avg_milliamp)
+                self.update_segment_display(box_index, avg_milliamp)
         except Exception as e:
-            print(f"Error updating alarm from queue: {e}")
+            print(f"Error updating segment from queue: {e}")
 
-        self.schedule_alarm_update()  # 다음 업데이트 예약
+        self.schedule_segment_update()  # 다음 업데이트 예약
 
-    def update_alarm_state(self, box_index, avg_milliamp):
+    def update_segment_display(self, box_index, avg_milliamp):
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         full_scale = self.GAS_FULL_SCALE[gas_type]
         alarm_levels = self.ALARM_LEVELS[gas_type]
@@ -285,8 +282,8 @@ class AnalogUI:
         alarm2_on = formatted_value and formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
         # 세그먼트 디스플레이 업데이트
-        self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], False, box_index)
-
+        common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+        
         # 알람 상태 변경 체크 및 신호 전송
         if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
             self.box_states[box_index]["alarm2_on"] = True
@@ -296,7 +293,7 @@ class AnalogUI:
         elif not alarm2_on and self.box_states[box_index]["last_alarm2_state"]:
             self.box_states[box_index]["alarm2_on"] = False
             self.box_states[box_index]["stop_blinking"].set()
-            self.root.after(0, self.update_circle_state, [alarm1_on, False, pwr_on, False], box_index)
+            self.update_circle_state([alarm1_on, False, pwr_on, False], box_index=box_index)
             self.box_states[box_index]["last_alarm2_state"] = False
 
         if alarm1_on and not self.box_states[box_index]["last_alarm1_state"]:
@@ -307,12 +304,8 @@ class AnalogUI:
         elif not alarm1_on and self.box_states[box_index]["last_alarm1_state"]:
             self.box_states[box_index]["alarm1_on"] = False
             self.box_states[box_index]["stop_blinking"].set()
-            self.root.after(0, self.update_circle_state, [False, alarm2_on, pwr_on, False], box_index)
+            self.update_circle_state([False, alarm2_on, pwr_on, False], box_index=box_index)
             self.box_states[box_index]["last_alarm1_state"] = False
-
-        # 알람이 꺼졌을 때 상태 유지
-        if not alarm1_on and not alarm2_on:
-            self.root.after(0, self.update_circle_state, [False, False, pwr_on, False], box_index)
 
     def start_blinking(self, box_index, is_second_alarm):
         def toggle_color():
@@ -320,20 +313,23 @@ class AnalogUI:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                 if is_second_alarm:
                     # AL2 깜빡임
-                    self.root.after(0, self.update_circle_state, [True, self.box_states[box_index]["blink_state"], True, False], box_index)
+                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
                     # AL1 깜빡임
-                    self.root.after(0, self.update_circle_state, [self.box_states[box_index]["blink_state"], False, True, False], box_index)
+                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
 
                 # 정해진 간격으로 깜빡임을 유지
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(400, toggle_color)
+                    self.root.after(1000, toggle_color)
 
         if not self.box_states[box_index]["blink_thread"] or not self.box_states[box_index]["blink_thread"].is_alive():
             self.box_states[box_index]["blink_thread"] = threading.Thread(target=toggle_color)
             self.box_states[box_index]["blink_thread"].start()
 
 if __name__ == "__main__":
+    from tkinter import Tk
+    import json
+
     def set_alarm_status(active):
         if active:
             print("Alarm is active!")
