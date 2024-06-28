@@ -67,7 +67,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.schedule_ui_update()  # 주기적인 UI 업데이트 예약
+        self.start_ui_thread()
 
     def create_analog_box(self, index):
         row = index // 7
@@ -252,8 +252,15 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
+    def start_ui_thread(self):
+        ui_thread = threading.Thread(target=self.schedule_ui_update)
+        ui_thread.daemon = True
+        ui_thread.start()
+
     def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+        while True:
+            self.update_ui_from_queue()
+            time.sleep(0.1)  # 100ms 간격으로 UI 업데이트
 
     def update_ui_from_queue(self):
         try:
@@ -304,8 +311,6 @@ class AnalogUI:
                 self.update_circle_state([alarm1_on, alarm2_on, pwr_on, False], box_index=box_index)
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
-
-        self.schedule_ui_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm, interval=400):
         def toggle_color():
