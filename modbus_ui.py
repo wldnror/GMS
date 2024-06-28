@@ -138,6 +138,8 @@ class ModbusUI:
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)
+        common_update_segment_display(self, "    ", box_canvas, box_index=index)
+
         self.box_states.append({
             "blink_state": False,
             "blinking_error": False,
@@ -193,6 +195,7 @@ class ModbusUI:
         self.show_bar(index, show=False)
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
@@ -276,7 +279,7 @@ class ModbusUI:
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        common_update_segment_display(self, "    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")  # 디버그 메시지 추가
 
@@ -419,7 +422,7 @@ class ModbusUI:
         while not self.data_queue.empty():
             box_index, value, blink = self.data_queue.get()
             box_canvas = self.box_frames[box_index][1]
-            self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
+            common_update_segment_display(self, value, box_canvas, blink=blink, box_index=box_index)
         self.root.after(100, self.process_queue)
 
     def check_click(self, event):
@@ -430,7 +433,7 @@ class ModbusUI:
 
     def handle_disconnection(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        common_update_segment_display(self, "    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
