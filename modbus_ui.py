@@ -138,7 +138,7 @@ class ModbusUI:
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)
-        common_update_segment_display(self, "    ", box_canvas, box_index=index)
+        
 
         self.box_states.append({
             "blink_state": False,
@@ -152,6 +152,8 @@ class ModbusUI:
             "gas_type_text_id": None,
             "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
         })
+
+        common_update_segment_display(self, "    ", box_canvas, box_index=index)
 
         self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
 
