@@ -237,16 +237,15 @@ class AnalogUI:
         self.alarm_callback(alarm_active)
     
         if states[0]:
-                outline_color = outline_colors[0]
+            outline_color = outline_colors[0]
         elif states[1]:
-                outline_color = outline_colors[1]
+            outline_color = outline_colors[1]
         elif states[3]:
-                outline_color = outline_colors[3]
+            outline_color = outline_colors[3]
         else:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
-
 
     def start_adc_thread(self):
         loop = asyncio.get_event_loop()
