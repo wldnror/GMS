@@ -86,7 +86,7 @@ def start_update(remote_commit):
     utils.start_update(root, remote_commit)
 
 def ignore_update(remote_commit):
-    utils.ignore_update(remote_commit)
+    utils.ignore_update(root, remote_commit)
 
 def restart_application():
     utils.restart_application()
@@ -253,5 +253,3 @@ if __name__ == "__main__":
 
     for _, client in modbus_ui.clients.items():
         client.close()
-
-
