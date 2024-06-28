@@ -112,7 +112,7 @@ class AnalogUI:
         })
 
         create_segment_display(box_canvas)
-        common_update_segment_display("    ", box_canvas, box_index=index)
+        common_update_segment_display(self, "    ", box_canvas, box_index=index)
 
         circle_items = []
 
