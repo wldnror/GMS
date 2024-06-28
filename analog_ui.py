@@ -67,7 +67,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.start_ui_thread()
+        self.root.after(100, self.schedule_ui_update)
 
     def create_analog_box(self, index):
         row = index // 7
@@ -188,7 +188,6 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             try:
-                tasks = []
                 for adc_index, adc in enumerate(adcs):
                     self.read_adc_values(adc, adc_index)
                 time.sleep(0.1)  # 샘플링 속도 증가
@@ -252,15 +251,9 @@ class AnalogUI:
         adc_thread.daemon = True
         adc_thread.start()
 
-    def start_ui_thread(self):
-        ui_thread = threading.Thread(target=self.schedule_ui_update)
-        ui_thread.daemon = True
-        ui_thread.start()
-
     def schedule_ui_update(self):
-        while True:
-            self.update_ui_from_queue()
-            time.sleep(0.1)  # 100ms 간격으로 UI 업데이트
+        self.update_ui_from_queue()
+        self.root.after(100, self.schedule_ui_update)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
