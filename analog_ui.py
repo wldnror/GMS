@@ -253,7 +253,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(20, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -278,7 +278,8 @@ class AnalogUI:
 
                 # 세그먼트 디스플레이 업데이트
                 common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-
+                
+                # 알람 상태 변경 체크
                 if alarm2_on:
                     if not self.box_states[box_index]["alarm2_on"]:
                         self.box_states[box_index]["alarm2_on"] = True
@@ -296,10 +297,7 @@ class AnalogUI:
                 else:
                     self.box_states[box_index]["alarm1_on"] = False
                     self.box_states[box_index]["alarm2_on"] = False
-                    with self.box_states[box_index]["blink_lock"]:
-                        common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-                        self.box_states[box_index]["blinking_error"] = False
-                        self.box_states[box_index]["stop_blinking"].set()
+                    self.box_states[box_index]["stop_blinking"].set()
     
                 self.update_circle_state([alarm1_on, alarm2_on, pwr_on, False], box_index=box_index)
         except Exception as e:
