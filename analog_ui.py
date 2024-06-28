@@ -320,7 +320,7 @@ class AnalogUI:
 
                 # 정해진 간격으로 깜빡임을 유지
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000, toggle_color)
+                    self.root.after(400, toggle_color)
 
         toggle_color()
 
