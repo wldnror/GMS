@@ -37,7 +37,7 @@ class AnalogUI:
     }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
-        self.root = root
+        self.root = root  # root 속성을 초기화합니다
         self.alarm_callback = alarm_callback  # 알람 콜백 추가
         self.gas_types = gas_types
         self.num_boxes = num_boxes
@@ -67,7 +67,7 @@ class AnalogUI:
 
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
-        self.schedule_ui_update()
+        self.root.after(100, self.schedule_ui_update)
 
     def create_analog_box(self, index):
         row = index // 7
@@ -188,7 +188,6 @@ class AnalogUI:
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             try:
-                tasks = []
                 for adc_index, adc in enumerate(adcs):
                     self.read_adc_values(adc, adc_index)
                 time.sleep(0.1)  # 샘플링 속도 증가
@@ -217,7 +216,7 @@ class AnalogUI:
                 self.adc_queue.put((box_index, avg_milliamp))
         except Exception as e:
             print(f"Error reading ADC values: {e}")
-    
+
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
@@ -235,7 +234,7 @@ class AnalogUI:
 
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active)
-    
+
         if states[0]:
             outline_color = outline_colors[0]
         elif states[1]:
@@ -253,7 +252,8 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+        self.update_ui_from_queue()
+        self.root.after(100, self.schedule_ui_update)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -284,14 +284,14 @@ class AnalogUI:
                         self.box_states[box_index]["alarm2_on"] = True
                         self.box_states[box_index]["stop_blinking"].clear()
                         if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
+                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True, 400))
                             self.box_states[box_index]["blink_thread"].start()
                 elif alarm1_on:
                     if not self.box_states[box_index]["alarm1_on"]:
                         self.box_states[box_index]["alarm1_on"] = True
                         self.box_states[box_index]["stop_blinking"].clear()
                         if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
+                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False, 400))
                             self.box_states[box_index]["blink_thread"].start()
                 else:
                     self.box_states[box_index]["alarm1_on"] = False
@@ -300,14 +300,12 @@ class AnalogUI:
                         common_update_segment_display(self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
-    
+
                 self.update_circle_state([alarm1_on, alarm2_on, pwr_on, False], box_index=box_index)
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
-        self.schedule_ui_update()  # 다음 업데이트 예약
-
-    def blink_alarm(self, box_index, is_second_alarm):
+    def blink_alarm(self, box_index, is_second_alarm, interval=400):
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
@@ -320,7 +318,7 @@ class AnalogUI:
 
                 # 정해진 간격으로 깜빡임을 유지
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000, toggle_color)
+                    self.root.after(interval, toggle_color)  # 여기에서 간격을 interval로 설정
 
         toggle_color()
 
