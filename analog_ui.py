@@ -303,22 +303,17 @@ class AnalogUI:
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
                 if is_second_alarm:
+                    # AL2 깜빡임
+                    self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                     self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
                 else:
+                    # AL1 깜빡임
+                    self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
-                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
-
-                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-                self.box_frames[box_index][1].config(highlightbackground=outline_color)
-
-                # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
-                if self.box_states[box_index]["last_value"] is not None:
-                    common_update_segment_display(self, str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 # 정해진 간격으로 깜빡임을 유지
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(1000, toggle_color)
+                    self.root.after(1000, toggle_color)
 
         toggle_color()
 
