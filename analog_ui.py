@@ -9,7 +9,6 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
 from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
 import queue
-import asyncio
 
 GAIN = 2 / 3  # 전역 변수로 설정
 
@@ -184,18 +183,19 @@ class AnalogUI:
 
         self.update_history_graph(box_index, self.current_file_index)
 
-    async def read_adc_data(self):
+    def read_adc_data(self):
         adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
-            tasks = []
-            for adc_index, adc in enumerate(adcs):
-                task = self.read_adc_values(adc, adc_index)
-                tasks.append(task)
-            await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도 증가
+            try:
+                tasks = []
+                for adc_index, adc in enumerate(adcs):
+                    self.read_adc_values(adc, adc_index)
+                time.sleep(0.1)  # 샘플링 속도 증가
+            except Exception as e:
+                print(f"Error reading ADC data: {e}")
 
-    async def read_adc_values(self, adc, adc_index):
+    def read_adc_values(self, adc, adc_index):
         try:
             values = []
             for channel in range(4):
@@ -216,7 +216,7 @@ class AnalogUI:
                 print(f"Box {box_index}: {avg_milliamp} mA")
                 self.adc_queue.put((box_index, avg_milliamp))
         except Exception as e:
-            print(f"Error reading ADC data: {e}")
+            print(f"Error reading ADC values: {e}")
     
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
@@ -248,8 +248,7 @@ class AnalogUI:
         box_canvas.config(highlightbackground=outline_color)
 
     def start_adc_thread(self):
-        loop = asyncio.get_event_loop()
-        adc_thread = threading.Thread(target=loop.run_until_complete, args=(self.read_adc_data(),))
+        adc_thread = threading.Thread(target=self.read_adc_data)
         adc_thread.daemon = True
         adc_thread.start()
 
@@ -275,7 +274,6 @@ class AnalogUI:
 
                 # 세그먼트 디스플레이 업데이트
                 common_update_segment_display(self, str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-
 
                 if alarm2_on:
                     if not self.box_states[box_index]["alarm2_on"]:
@@ -325,6 +323,12 @@ class AnalogUI:
 if __name__ == "__main__":
     from tkinter import Tk
     import json
+
+    def set_alarm_status(active):
+        if active:
+            print("Alarm is active!")
+        else:
+            print("Alarm is inactive!")
 
     with open('settings.json') as f:
         settings = json.load(f)
