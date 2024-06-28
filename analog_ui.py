@@ -7,7 +7,7 @@ import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_circle_state, update_segment_display, record_history, async_write_log, get_log_file_index, load_log_files, show_history_graph, update_history_graph
+from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_circle_state, update_segment_display as common_update_segment_display, record_history, async_write_log, get_log_file_index, load_log_files, show_history_graph, update_history_graph
 import queue
 import asyncio
 
@@ -112,7 +112,7 @@ class AnalogUI:
         })
 
         create_segment_display(box_canvas)
-        self.update_segment_display("    ", box_canvas, box_index=index)
+        common_update_segment_display("    ", box_canvas, box_index=index)
 
         circle_items = []
 
@@ -225,12 +225,12 @@ class AnalogUI:
                                 self.box_states[box_index]["blink_thread"].start()
                     else:
                         with self.box_states[box_index]["blink_lock"]:
-                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            common_update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
                             self.box_states[box_index]["blinking_error"] = False
                             self.box_states[box_index]["stop_blinking"].set()
                 else:
                     with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                        common_update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
         except Exception as e:
@@ -257,7 +257,7 @@ class AnalogUI:
 
                 # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
                 if self.box_states[box_index]["last_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                    common_update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
@@ -276,6 +276,6 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
 
     root.mainloop()
