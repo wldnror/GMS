@@ -1,5 +1,6 @@
 import time
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 from smbus2 import SMBus
 
 # I2C 버스 번호
@@ -11,38 +12,47 @@ DEVICE_ADDRESS = 0x54
 # I2C 버스 초기화
 bus = SMBus(BUS_NUMBER)
 
+# 데이터 저장 리스트
+data_list = []
+
+# 초기화 그래프
+fig, ax = plt.subplots()
+line, = ax.plot([], [], lw=2)
+ax.set_xlim(0, 60)  # x축 범위 (시간)
+ax.set_ylim(0, 1024)  # y축 범위 (센서 데이터 값 범위)
+ax.set_title("IR Gas Sensor Data")
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Gas Concentration")
+
+# 실시간 데이터 업데이트 함수
+def init():
+    line.set_data([], [])
+    return line,
+
 def read_sensor_data():
     try:
-        # 센서로부터 데이터 읽기
-        # 여기에 센서에 맞는 읽기 명령어를 사용하세요.
-        # 예시: bus.read_byte_data(DEVICE_ADDRESS, register)
-        # 이 예제에서는 2바이트의 데이터를 읽는다고 가정
         data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 2)
-        return data
+        gas_concentration = data[0] << 8 | data[1]
+        return gas_concentration
     except Exception as e:
         print(f"Error reading from sensor: {e}")
         return None
 
-# 데이터 저장 리스트
-data_list = []
-
-# 데이터 수집 시간 (초)
-duration = 60
-start_time = time.time()
-
-while time.time() - start_time < duration:
+def update(frame):
     sensor_data = read_sensor_data()
-    if sensor_data:
-        # 센서 데이터 처리
-        # 예시: 가스 농도 계산
-        gas_concentration = sensor_data[0] << 8 | sensor_data[1]
-        data_list.append(gas_concentration)
-    
-    time.sleep(1)
+    if sensor_data is not None:
+        data_list.append(sensor_data)
+        print(f"Gas concentration: {sensor_data}")
 
-# 데이터 시각화
-plt.plot(data_list)
-plt.title("IR Gas Sensor Data")
-plt.xlabel("Time (s)")
-plt.ylabel("Gas Concentration")
+        # x축 범위 조정
+        xdata = list(range(len(data_list)))
+        line.set_data(xdata, data_list)
+
+        # x축 범위를 데이터 길이에 따라 조정
+        ax.set_xlim(max(0, len(data_list) - 60), len(data_list))
+        
+    return line,
+
+ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000)
+
 plt.show()
