@@ -30,30 +30,30 @@ def init():
     return line,
 
 def read_sensor_data():
-    try:
-        # 명령어를 보내 데이터 읽기 준비
-        bus.write_byte(DEVICE_ADDRESS, 0x52)  # ASCII 'R'
-        time.sleep(0.1)  # 데이터 준비 시간
-        
-        # 7 바이트 데이터 읽기
-        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
-        print(f"Raw data: {data}")
+    for attempt in range(3):  # 최대 3번 시도
+        try:
+            # 명령어를 보내 데이터 읽기 준비
+            bus.write_byte(DEVICE_ADDRESS, 0x52)  # ASCII 'R'
+            time.sleep(0.1)  # 데이터 준비 시간
+            
+            # 7 바이트 데이터 읽기
+            data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
+            print(f"Raw data: {data}")
 
-        # 유효한 데이터인지 확인
-        if data[0] == 0x08 and all(d != 0xFF for d in data):
-            c4h10_concentration = (data[1] << 8) | data[2]
-            # 농도 값 범위 검사
-            if 0 <= c4h10_concentration <= 5000:  # 0에서 5000 ppm 사이의 값만 유효
-                return c4h10_concentration
+            # 유효한 데이터인지 확인
+            if data[0] == 0x08 and all(d != 0xFF for d in data):
+                c4h10_concentration = (data[1] << 8) | data[2]
+                # 농도 값 범위 검사
+                if 0 <= c4h10_concentration <= 5000:  # 0에서 5000 ppm 사이의 값만 유효
+                    return c4h10_concentration
+                else:
+                    print("Error: Concentration value out of range")
             else:
-                print("Error: Concentration value out of range")
-                return None
-        else:
-            print("Error: Invalid header byte or data")
-            return None
-    except Exception as e:
-        print(f"Error reading from sensor: {e}")
-        return None
+                print("Error: Invalid header byte or data")
+        except Exception as e:
+            print(f"Error reading from sensor: {e}")
+        time.sleep(0.1)  # 재시도 전 대기 시간
+    return None
 
 def update(frame):
     sensor_data = read_sensor_data()
