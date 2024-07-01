@@ -37,7 +37,7 @@ def read_sensor_data():
         # ASCII 데이터 해석
         data_str = ''.join(chr(byte) for byte in data)
         print(f"Raw data: {data_str}")
-        
+
         # 가스 농도 값 추출
         if "ppm" in data_str:
             concentration_str = data_str.split(' ')[1]
@@ -65,6 +65,6 @@ def update(frame):
         
     return line,
 
-ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000)
+ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=60)
 
 plt.show()
