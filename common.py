@@ -199,7 +199,7 @@ def create_segment_display(box_canvas):
 
             # 상단-왼쪽 (세로 열, 두께 감소, 3만큼 아래로 이동)
             segment_canvas.create_polygon(0 * SCALE + x_offset, 15 * SCALE + y_offset, 1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, 1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset,
-                                          0 * SCALE + x_offset, 29.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 27.4 * SCALE + yYOffset, -1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
+                                          0 * SCALE + x_offset, 29.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_f'),
 
             # 중간 (두께 10% 감소, 아래로 8만큼 이동)
