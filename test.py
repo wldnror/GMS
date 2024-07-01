@@ -32,6 +32,7 @@ def init():
 def read_sensor_data():
     try:
         data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 2)
+        # 데이터 변환 부분 확인
         gas_concentration = data[0] << 8 | data[1]
         return gas_concentration
     except Exception as e:
@@ -53,6 +54,7 @@ def update(frame):
         
     return line,
 
-ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000)
+# ani에 save_count를 명시적으로 설정하고 cache_frame_data를 비활성화
+ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=100, cache_frame_data=False)
 
 plt.show()
