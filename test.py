@@ -36,8 +36,8 @@ def read_sensor_data():
         
         # ASCII 데이터 해석
         data_str = ''.join(chr(byte) for byte in data)
-        print(f"Raw data: {data_str}")
-
+        print(f"Raw data: {data_str} | Hex: {data}")
+        
         # 가스 농도 값 추출
         if "ppm" in data_str:
             concentration_str = data_str.split(' ')[1]
