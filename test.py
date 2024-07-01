@@ -19,7 +19,7 @@ data_list = []
 fig, ax = plt.subplots()
 line, = ax.plot([], [], lw=2)
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 7000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
+ax.set_ylim(0, 5000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
 ax.set_title("IR Gas Sensor Data")
 ax.set_xlabel("Time (s)")
 ax.set_ylabel("Gas Concentration (ppm)")
@@ -39,11 +39,12 @@ def read_sensor_data():
         data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
         print(f"Raw data: {data}")
 
-        if data[0] == 0x08:
+        # 유효한 데이터인지 확인
+        if data[0] == 0x08 and all(d != 0xFF for d in data):
             c4h10_concentration = (data[1] << 8) | data[2]
             return c4h10_concentration
         else:
-            print("Error: Invalid header byte")
+            print("Error: Invalid header byte or data")
             return None
     except Exception as e:
         print(f"Error reading from sensor: {e}")
