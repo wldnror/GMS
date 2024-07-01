@@ -31,20 +31,19 @@ def init():
 
 def read_sensor_data():
     try:
-        # 12 바이트 데이터 읽기
-        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 12)
+        # 명령어를 보내 데이터 읽기 준비
+        bus.write_byte(DEVICE_ADDRESS, 0x52)  # ASCII 'R'
+        time.sleep(0.1)  # 데이터 준비 시간
+        
+        # 7 바이트 데이터 읽기
+        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
         print(f"Raw data: {data}")
 
-        # 농도 값 추출 (D6-D1 바이트 추출)
-        concentration_bytes = data[0:6]
-        concentration_str = ''.join(chr(byte) for byte in concentration_bytes if 32 <= byte <= 126)
-        print(f"Concentration string: {concentration_str}")
-        
-        try:
-            gas_concentration = int(concentration_str)
-            return gas_concentration
-        except ValueError:
-            print("Error: Invalid concentration string")
+        if data[0] == 0x08:
+            c4h10_concentration = (data[1] << 8) | data[2]
+            return c4h10_concentration
+        else:
+            print("Error: Invalid header byte")
             return None
     except Exception as e:
         print(f"Error reading from sensor: {e}")
