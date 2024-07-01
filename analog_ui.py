@@ -1,334 +1,356 @@
-from tkinter import Canvas, Toplevel, Frame, Button
-from PIL import Image
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import numpy as np
-import threading
 import os
-import mplcursors
+import time
+import threading
+from collections import deque
+from tkinter import Frame, Canvas, StringVar, Tk
+import Adafruit_ADS1x15
+from common import SEGMENTS, create_segment_display, update_full_scale, on_segment_click, update_segment_display as common_update_segment_display, load_log_files, show_history_graph, update_history_graph
+import queue
+import json
+from concurrent.futures import ThreadPoolExecutor
 
-# 세그먼트 표시 매핑
-SEGMENTS = {
-    '0': '1111110',
-    '1': '0110000',
-    '2': '1101101',
-    '3': '1111001',
-    '4': '0110011',
-    '5': '1011011',
-    '6': '1011111',
-    '7': '1110000',
-    '8': '1111111',
-    '9': '1111011',
-    'E': '1001111',  # a, f, e, g, d
-    'R': '0000101',  # Added for 'R'
-    'S': '1011011',  # Added for 'S'
-    'T': '1000111',  # Added for 'T'
-    '-': '0000001',  # g
-    ' ': '0000000'   # 모든 세그먼트 꺼짐
-}
+GAIN = 2 / 3  # 전역 변수로 설정
 
-# Bit to segment mapping
-BIT_TO_SEGMENT = {
-    0: 'E-10',  # E-10
-    1: 'E-22',  # E-22
-    2: 'E-12',  # E-12
-    3: 'E-23'  # E-23
-}
+class AnalogUI:
+    LOGS_PER_FILE = 10
 
-# 확대 배율
-SCALE = 1.17
-# 위치 이동 값
-x_shift = 0
-y_shift = 0
+    GAS_FULL_SCALE = {
+        "ORG": 9999,
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
+    }
 
-def update_full_scale(self, gas_type_var, box_index):
-    gas_type = gas_type_var.get()
-    full_scale = self.GAS_FULL_SCALE[gas_type]
-    self.box_states[box_index]["full_scale"] = full_scale
+    GAS_TYPE_POSITIONS = {
+        "ORG": (149, 117),
+        "ARF-T": (140, 117),
+        "HMDS": (143, 117),
+        "HC-100": (137, 117)
+    }
 
-    box_canvas = self.box_frames[box_index][1]
-    position = self.GAS_TYPE_POSITIONS[gas_type]
-    box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
-    box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
+    ALARM_LEVELS = {
+        "ORG": {"AL1": 9500, "AL2": 9999},
+        "ARF-T": {"AL1": 2000, "AL2": 4000},
+        "HMDS": {"AL1": 2640, "AL2": 3000},
+        "HC-100": {"AL1": 1500, "AL2": 3000}
+    }
 
-def on_segment_click(self, box_index):
-    threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
+    def __init__(self, root, num_boxes, gas_types, alarm_callback):
+        self.root = root
+        self.alarm_callback = alarm_callback  # 알람 콜백 추가
+        self.gas_types = gas_types
+        self.num_boxes = num_boxes
+        self.box_states = []
+        self.histories = [[] for _ in range(num_boxes)]
+        self.graph_windows = [None for _ in range(num_boxes)]
+        self.history_window = None
+        self.history_lock = threading.Lock()
 
-def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-    value = value.zfill(4)
-    leading_zero = True
-    blink_state = self.box_states[box_index]["blink_state"]
-    previous_segment_display = self.box_states[box_index]["previous_segment_display"]
+        self.box_frame = Frame(self.root)
+        self.box_frame.grid(row=0, column=0, padx=40, pady=40)
 
-    if value != previous_segment_display:
-        self.record_history(box_index, value)
-        self.box_states[box_index]["previous_segment_display"] = value
+        self.row_frames = []
+        self.box_frames = []
+        self.history_dir = "analog_history_logs"
 
-    for i, digit in enumerate(value):
-        if leading_zero and digit == '0' and i < 3:
-            segments = SEGMENTS[' ']
+        if not os.path.exists(self.history_dir):
+            os.makedirs(self.history_dir)
+
+        self.adc_values = [deque(maxlen=30) for _ in range(num_boxes)]  # deque with maxlen of 30
+
+        for i in range(num_boxes):
+            self.create_analog_box(i)
+
+        for i in range(num_boxes):
+            self.update_circle_state([False, False, False, False], box_index=i)
+
+        self.adc_queue = queue.Queue()
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.start_adc_thread()
+        self.schedule_alarm_update()
+
+    def create_analog_box(self, index):
+        row = index // 7
+        col = index % 7
+
+        if col == 0:
+            row_frame = Frame(self.box_frame)
+            row_frame.grid(row=row, column=0)
+            self.row_frames.append(row_frame)
         else:
-            segments = SEGMENTS[digit]
-            leading_zero = False
+            row_frame = self.row_frames[-1]
 
-        if blink and blink_state:
-            segments = SEGMENTS[' ']
+        box_frame = Frame(row_frame)
+        box_frame.grid(row=0, column=col, padx=20, pady=20)
 
-        for j, state in enumerate(segments):
-            color = '#fc0c0c' if state == '1' else '#424242'
-            box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
+        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas.pack()
 
-    self.box_states[box_index]["blink_state"] = not blink_state
+        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
 
-def load_log_files(self, box_index, file_index):
-    """특정 로그 파일을 로드하여 로그 목록을 반환"""
-    log_entries = []
-    log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
-    if os.path.exists(log_file):
-        with open(log_file, 'r') as file:
-            lines = file.readlines()
-            for line in lines:
-                timestamp, value = line.strip().split(',')
-                log_entries.append((timestamp, value))
-    return log_entries
+        gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
+        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
+        self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
+        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        self.box_states.append({
+            "blink_state": False,
+            "blinking_error": False,
+            "previous_segment_display": None,
+            "last_history_time": None,
+            "last_history_value": None,
+            "gas_type_text_id": gas_type_text_id,
+            "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
+            "pwr_blink_state": False,
+            "last_value": None,
+            "blink_thread": None,
+            "stop_blinking": threading.Event(),
+            "blink_lock": threading.Lock(),
+            "alarm1_on": False,
+            "alarm2_on": False,
+            "last_alarm1_state": False,  # 마지막 AL1 상태 추가
+            "last_alarm2_state": False  # 마지막 AL2 상태 추가
+        })
 
-def show_history_graph(self, box_index):
-    with self.history_lock:
-        if self.history_window and self.history_window.winfo_exists():
-            self.history_window.destroy()
+        create_segment_display(box_canvas)
+        common_update_segment_display(self, "    ", box_canvas, box_index=index)
 
-        self.history_window = Toplevel(self.root)
-        self.history_window.title(f"History - Box {box_index}")
-        self.history_window.geometry("1200x800")
-        self.history_window.attributes("-topmost", True)
+        circle_items = []
 
-        self.current_file_index = self.get_log_file_index(box_index) - 1
+        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
+        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
+
+        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
+        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
+
+        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
+        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
+
+        circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
+        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
+
+        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
+
+        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
+
+        self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
+
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+
+    def record_history(self, box_index, value):
+        if value.strip():
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            log_line = f"{timestamp},{value}\n"
+            log_file_index = self.get_log_file_index(box_index)
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
+
+            # 비동기적으로 로그 파일에 기록
+            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
+
+    def get_log_file_index(self, box_index):
+        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                return index
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                if len(lines) < self.LOGS_PER_FILE:
+                    return index
+            index += 1
+
+    def load_log_files(self, box_index, file_index):
+        """특정 로그 파일을 로드하여 로그 목록을 반환"""
+        log_entries = []
+        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                for line in lines:
+                    timestamp, value = line.strip().split(',')
+                    log_entries.append((timestamp, value))
+        return log_entries
+
+    def navigate_logs(self, box_index, direction):
+        self.current_file_index += direction
+        if self.current_file_index < 0:
+            self.current_file_index = 0
+        elif self.current_file_index >= self.get_log_file_index(box_index):
+            self.current_file_index = self.get_log_file_index(box_index) - 1
+
         self.update_history_graph(box_index, self.current_file_index)
 
-def update_history_graph(self, box_index, file_index):
-    log_entries = self.load_log_files(box_index, file_index)
-    times, values = zip(*log_entries) if log_entries else ([], [])
+    def read_adc_data(self):
+        adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
+        adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
+        while True:
+            try:
+                for adc_index, adc in enumerate(adcs):
+                    self.read_adc_values(adc, adc_index)
+                time.sleep(0.1)  # 샘플링 속도 증가
+            except Exception as e:
+                print(f"Error reading ADC data: {e}")
 
-    figure = plt.Figure(figsize=(12, 8), dpi=100)
-    ax = figure.add_subplot(111)
-
-    ax.plot(times, values, marker='o')
-    ax.set_title(f'History - Box {box_index} (File {file_index + 1})')
-    ax.set_xlabel('Time')
-    ax.set_ylabel('Value')
-    figure.autofmt_xdate()
-
-    if hasattr(self, 'canvas'):
-        self.canvas.get_tk_widget().destroy()
-
-    self.canvas = FigureCanvasTkAgg(figure, master=self.history_window)
-    self.canvas.draw()
-    self.canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
-
-    if not hasattr(self, 'nav_frame'):
-        self.nav_frame = Frame(self.history_window)
-        self.nav_frame.pack(side="bottom")
-
-        self.prev_button = Button(self.nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
-        self.prev_button.pack(side="left")
-
-        self.next_button = Button(self.nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
-        self.next_button.pack(side="right")
-
-    mplcursors.cursor(ax)
-
-def create_gradient_bar(width, height):
-    gradient = Image.new('RGB', (width, height), color=0)
-    for i in range(width):
-        ratio = i / width
-        if ratio < 0.25:
-            r = int(0 + (255 * ratio * 4))
-            g = 255
-            b = 0
-        elif ratio < 0.5:
-            r = 255
-            g = int(255 - (255 * (ratio - 0.25) * 4))
-            b = 0
-        elif ratio < 0.75:
-            r = 255
-            g = 0
-            b = int(255 * (ratio - 0.5) * 4)
-        else:
-            r = int(255 - (255 * (ratio - 0.75) * 4))
-            g = 0
-            b = 255
-
-        for j in range(height):
-            gradient.putpixel((i, j), (r, g, b))
-
-    return gradient
-
-def create_segment_display(box_canvas):
-    segment_canvas = Canvas(box_canvas, width=(131 + x_shift) * SCALE, height=(60 + y_shift) * SCALE, bg='#000000', highlightthickness=0)
-    segment_canvas.place(x=(23 + x_shift) * SCALE, y=(24 + y_shift) * SCALE)  # 전체 위치 이동 적용
-
-    segment_items = []
-    for i in range(4):
-        x_offset = (i * 29 + 14) * SCALE  # x축 위치는 각 세그먼트에 맞게 조정
-        y_offset = 0  # y축 위치는 동일하게 유지
-        segments = [
-            # 상단 (4만큼 아래로 이동, 두께 10% 감소)
-            segment_canvas.create_polygon(4 * SCALE + x_offset, 11.2 * SCALE + y_offset, 12 * SCALE + x_offset, 11.2 * SCALE + y_offset, 16 * SCALE + x_offset, 13.6 * SCALE + y_offset,
-                                          12 * SCALE + x_offset, 16 * SCALE + y_offset, 4 * SCALE + x_offset, 16 * SCALE + y_offset, 0 * SCALE + x_offset, 13.6 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_a'),
-
-            # 상단-오른쪽 (세로 열, 두께 감소, 3만큼 아래로 이동)
-            segment_canvas.create_polygon(16 * SCALE + x_offset, 15 * SCALE + y_offset, 17.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, 17.6 * SCALE + x_offset, 27.4 * SCALE + y_offset,
-                                          16 * SCALE + x_offset, 29.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 27.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_b'),
-
-            # 하단-오른쪽 (세로 열, 두께 감소, 1만큼 위로 이동)
-            segment_canvas.create_polygon(16 * SCALE + x_offset, 31 * SCALE + y_offset, 17.6 * SCALE + x_offset, 33.4 * SCALE + y_offset, 17.6 * SCALE + x_offset, 43.4 * SCALE + y_offset,
-                                          16 * SCALE + x_offset, 45.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 43.4 * SCALE + y_offset, 14.4 * SCALE + x_offset, 33.4 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_c'),
-
-            # 하단 (7만큼 위로 이동, 두께 10% 감소)
-            segment_canvas.create_polygon(4 * SCALE + x_offset, 43.8 * SCALE + y_offset, 12 * SCALE + x_offset, 43.8 * SCALE + y_offset, 16 * SCALE + x_offset, 46.2 * SCALE + y_offset,
-                                          12 * SCALE + x_offset, 48.6 * SCALE + y_offset, 4 * SCALE + x_offset, 48.6 * SCALE + y_offset, 0 * SCALE + x_offset, 46.2 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_d'),
-
-            # 하단-왼쪽 (세로 열, 두께 감소, 1만큼 위로 이동)
-            segment_canvas.create_polygon(0 * SCALE + x_offset, 31 * SCALE + y_offset, 1.6 * SCALE + x_offset, 33.4 * SCALE + y_offset, 1.6 * SCALE + x_offset, 43.4 * SCALE + y_offset,
-                                          0 * SCALE + x_offset, 45.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 43.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 33.4 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_e'),
-
-            # 상단-왼쪽 (세로 열, 두께 감소, 3만큼 아래로 이동)
-            segment_canvas.create_polygon(0 * SCALE + x_offset, 15 * SCALE + y_offset, 1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, 1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset,
-                                          0 * SCALE + x_offset, 29.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_f'),
-
-            # 중간 (두께 10% 감소, 아래로 8만큼 이동)
-            segment_canvas.create_polygon(4 * SCALE + x_offset, 27.8 * SCALE + y_offset, 12 * SCALE + x_offset, 27.8 * SCALE + y_offset, 16 * SCALE + x_offset, 30.2 * SCALE + y_offset,
-                                          12 * SCALE + x_offset, 32.6 * SCALE + y_offset, 4 * SCALE + x_offset, 32.6 * SCALE + y_offset, 0 * SCALE + x_offset, 30.2 * SCALE + y_offset, fill='#424242',
-                                          tags=f'segment_{i}_g')
-        ]
-        segment_items.append(segments)
-
-    box_canvas.segment_canvas = segment_canvas
-    box_canvas.segment_items = segment_items
-
-def show_history_graph(root, box_index, histories, graph_windows):
-    if graph_windows[box_index] is not None:
-        return  # 그래프 창이 이미 열려 있으면 새로 열지 않음
-
-    graph_window = Toplevel(root)
-    graph_window.title(f"Box {box_index + 1} Segment Value History")
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    graph_windows[box_index] = graph_window
-    canvas = FigureCanvasTkAgg(fig, master=graph_window)
-    canvas.get_tk_widget().pack(side="top", fill="both", expand=1)
-    canvas.draw()
-
-    def on_close():
-        graph_windows[box_index] = None
-        graph_window.destroy()
-
-    graph_window.protocol("WM_DELETE_WINDOW", on_close)
-
-    # 주기적으로 그래프를 업데이트하는 함수 호출
-    def periodic_update():
-        if graph_windows[box_index] is not None:
-            update_graph(box_index, ax, histories)
-            canvas.draw()
-            graph_window.after(100, periodic_update)
-
-    periodic_update()
-
-def update_graph(box_index, ax, histories):
-    timestamps = [record[0] for record in histories[box_index]]
-    values = []
-    labels = []
-    errors = {'E-10': [], 'E-22': [], 'E-12': [], 'E-23': []}
-    alarms = {'A1': [], 'A2': []}
-    disconnects = []
-
-    for record in histories[box_index]:
+    def read_adc_values(self, adc, adc_index):
         try:
-            value = int(record[1])
-            values.append(value)
-            labels.append('')
-        except ValueError:
-            if record[1] in errors:
-                errors[record[1]].append((record[0], record[2]))
-            elif record[1] in alarms:
-                alarms[record[1]].append((record[0], record[2]))
+            values = []
+            for channel in range(4):
+                value = adc.read_adc(channel, gain=GAIN)
+                voltage = value * 6.144 / 32767
+                current = voltage / 250
+                milliamp = current * 1000
+                values.append(milliamp)
+
+            for channel, milliamp in enumerate(values):
+                box_index = adc_index * 4 + channel
+                if box_index >= self.num_boxes:
+                    continue
+
+                self.adc_values[box_index].append(milliamp)
+
+                avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
+                print(f"Box {box_index}: {avg_milliamp} mA")
+                self.adc_queue.put((box_index, avg_milliamp))
+        except Exception as e:
+            print(f"Error reading ADC values: {e}")
+
+    def update_circle_state(self, states, box_index=0):
+        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+
+        colors_on = ['red', 'red', 'green', 'yellow']
+        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
+        outline_color_off = '#000000'
+
+        for i, state in enumerate(states):
+            if i == 1 and states[0]:  # AL1이 켜진 상태에서 AL2가 깜빡이면
+                color = 'red' if state else colors_off[i]
             else:
-                values.append(0)
-                labels.append('')
+                color = colors_on[i] if state else colors_off[i]
+            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
-    # Ensure timestamps and values have the same length
-    min_length = min(len(timestamps), len(values))
-    timestamps = timestamps[:min_length]
-    values = values[:min_length]
-    labels = labels[:min_length]
+        alarm_active = states[0] or states[1]
+        self.alarm_callback(alarm_active)
 
-    ax.clear()
-    line, = ax.plot(timestamps, values, marker='o')
-    ax.set_xlabel('Timestamp')
-    ax.set_ylabel('Value')
-    ax.set_title(f'Box {box_index + 1} Segment Value History')
-    ax.tick_params(axis='x', rotation=45)
-    ax.figure.tight_layout()
+        if states[0]:
+            outline_color = outline_colors[0]
+        elif states[1]:
+            outline_color = outline_colors[1]
+        elif states[3]:
+            outline_color = outline_colors[3]
+        else:
+            outline_color = outline_color_off
 
-    annot = ax.annotate("", xy=(0, 0), xytext=(20, 20),
-                        textcoords="offset points",
-                        bbox=dict(boxstyle="round", fc="w"),
-                        arrowprops=dict(arrowstyle="->"))
-    annot.set_visible(False)
+        box_canvas.config(highlightbackground=outline_color)
 
-    def update_annot(ind):
-        x, y = line.get_data()
-        annot.xy = (x[ind["ind"][0]], y[ind["ind"][0]])
-        text = f'Time: {timestamps[ind["ind"][0]]}\nValue: {values[ind["ind"][0]]}'
-        annot.set_text(text)
-        annot.get_bbox_patch().set_alpha(0.6)
+    def start_adc_thread(self):
+        adc_thread = threading.Thread(target=self.read_adc_data)
+        adc_thread.daemon = True
+        adc_thread.start()
 
-    def on_hover(event):
-        vis = annot.get_visible()
-        if event.inaxes == ax:
-            cont, ind = line.contains(event)
-            if cont:
-                update_annot(ind)
-                annot.set_visible(True)
-                ax.figure.canvas.draw_idle()
-            else:
-                if vis:
-                    annot.set_visible(False)
-                    ax.figure.canvas.draw_idle()
+    def schedule_alarm_update(self):
+        self.root.after(100, self.update_alarm_from_queue)  # 100ms 간격으로 알람 업데이트 예약
 
-    ax.figure.canvas.mpl_connect("motion_notify_event", on_hover)
+    def update_alarm_from_queue(self):
+        try:
+            while not self.adc_queue.empty():
+                box_index, avg_milliamp = self.adc_queue.get_nowait()
+                self.executor.submit(self.update_alarm_state, box_index, avg_milliamp)
+        except Exception as e:
+            print(f"Error updating alarm from queue: {e}")
 
-    # 에러와 알람 시각적 표시
-    for error, points in errors.items():
-        for time, value in points:
-            if time in timestamps:
-                idx = timestamps.index(time)
-                ax.scatter(timestamps[idx], values[idx], color='red', label=error, zorder=5)
-                ax.annotate(error, (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
-                            ha='center', color='red')
+        self.schedule_alarm_update()  # 다음 업데이트 예약
 
-    for alarm, points in alarms.items():
-        for time, value in points:
-            if time in timestamps:
-                idx = timestamps.index(time)
-                ax.scatter(timestamps[idx], values[idx], color='orange', label=alarm, zorder=5)
-                ax.annotate(alarm, (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
-                            ha='center', color='orange')
+    def update_alarm_state(self, box_index, avg_milliamp):
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        full_scale = self.GAS_FULL_SCALE[gas_type]
+        alarm_levels = self.ALARM_LEVELS[gas_type]
 
-    # 연결 끊어짐 시각적 표시
-    for time in disconnects:
-        if time in timestamps:
-            idx = timestamps.index(time)
-            ax.scatter(timestamps[idx], values[idx], color='black', label='Disconnect', zorder=5)
-            ax.annotate('Disconnect', (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
-                        ha='center', color='black')
+        if avg_milliamp < 1.5:
+            formatted_value = ""
+        # 4mA 미만의 값은 0으로 표시
+        elif avg_milliamp < 4:
+            formatted_value = 0
+        else:
+            formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
+            formatted_value = max(0, min(formatted_value, full_scale))
 
-    handles, labels = ax.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    ax.legend(by_label.values(), by_label.keys())
+        pwr_on = avg_milliamp >= 1.5
+
+        self.box_states[box_index]["last_value"] = formatted_value
+
+        alarm1_on = formatted_value != "" and formatted_value >= alarm_levels["AL1"]
+        alarm2_on = formatted_value != "" and formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+        # 세그먼트 디스플레이 업데이트
+        self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if formatted_value != "" else "    ", self.box_frames[box_index][1], False, box_index)
+
+        # 알람 상태 변경 체크 및 신호 전송
+        if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
+            self.box_states[box_index]["alarm2_on"] = True
+            self.box_states[box_index]["stop_blinking"].clear()
+            self.start_blinking(box_index, True)
+            self.box_states[box_index]["last_alarm2_state"] = True
+        elif not alarm2_on and self.box_states[box_index]["last_alarm2_state"]:
+            self.box_states[box_index]["alarm2_on"] = False
+            self.box_states[box_index]["stop_blinking"].set()
+            self.root.after(0, self.update_circle_state, [alarm1_on, False, pwr_on, False], box_index)
+            self.box_states[box_index]["last_alarm2_state"] = False
+
+        if alarm1_on and not self.box_states[box_index]["last_alarm1_state"]:
+            self.box_states[box_index]["alarm1_on"] = True
+            self.box_states[box_index]["stop_blinking"].clear()
+            self.start_blinking(box_index, False)
+            self.box_states[box_index]["last_alarm1_state"] = True
+        elif not alarm1_on and self.box_states[box_index]["last_alarm1_state"]:
+            self.box_states[box_index]["alarm1_on"] = False
+            self.box_states[box_index]["stop_blinking"].set()
+            self.root.after(0, self.update_circle_state, [False, alarm2_on, pwr_on, False], box_index)
+            self.box_states[box_index]["last_alarm1_state"] = False
+
+        # 알람이 꺼졌을 때 상태 유지
+        if not alarm1_on and not alarm2_on:
+            self.root.after(0, self.update_circle_state, [False, False, pwr_on, False], box_index)
+
+    def start_blinking(self, box_index, is_second_alarm):
+        def toggle_color():
+            with self.box_states[box_index]["blink_lock"]:
+                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+                if is_second_alarm:
+                    # AL2 깜빡임
+                    self.root.after(0, self.update_circle_state, [True, self.box_states[box_index]["blink_state"], True, False], box_index)
+                else:
+                    # AL1 깜빡임
+                    self.root.after(0, self.update_circle_state, [self.box_states[box_index]["blink_state"], False, True, False], box_index)
+
+                # 정해진 간격으로 깜빡임을 유지
+                if not self.box_states[box_index]["stop_blinking"].is_set():
+                    self.root.after(1000, toggle_color)
+
+        if not self.box_states[box_index]["blink_thread"] or not self.box_states[box_index]["blink_thread"].is_alive():
+            self.box_states[box_index]["blink_thread"] = threading.Thread(target=toggle_color)
+            self.box_states[box_index]["blink_thread"].start()
+
+if __name__ == "__main__":
+    def set_alarm_status(active):
+        if active:
+            print("Alarm is active!")
+        else:
+            print("Alarm is inactive!")
+
+    with open('settings.json') as f:
+        settings = json.load(f)
+
+    root = Tk()
+    main_frame = Frame(root)
+    main_frame.pack()
+
+    analog_boxes = settings["analog_boxes"]
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
+
+    root.mainloop()
