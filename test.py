@@ -39,17 +39,11 @@ def read_sensor_data():
         data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
         print(f"Raw data: {data}")
 
-        # 유효한 데이터인지 확인
-        if data[0] == 0x08 and all(d != 0xFF for d in data):
+        if data[0] == 0x08:
             c4h10_concentration = (data[1] << 8) | data[2]
-            # 농도 값 범위 검사
-            if 0 <= c4h10_concentration <= 5000:  # 0에서 5000 ppm 사이의 값만 유효
-                return c4h10_concentration
-            else:
-                print("Error: Concentration value out of range")
-                return None
+            return c4h10_concentration
         else:
-            print("Error: Invalid header byte or data")
+            print("Error: Invalid header byte")
             return None
     except Exception as e:
         print(f"Error reading from sensor: {e}")
