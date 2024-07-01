@@ -2,11 +2,11 @@ import smbus
 import time
 import matplotlib.pyplot as plt
 
-# I2C 버스 번호 (라즈베리 파이 모델에 따라 다를 수 있음)
+# I2C 버스 번호
 BUS_NUMBER = 1
 
-# I2C 주소 (i2cdetect로 확인한 값)
-DEVICE_ADDRESS = 0xXX  # 여기에 실제 센서 주소를 입력하세요.
+# I2C 주소
+DEVICE_ADDRESS = 0x54
 
 # I2C 버스 초기화
 bus = smbus.SMBus(BUS_NUMBER)
@@ -16,6 +16,7 @@ def read_sensor_data():
         # 센서로부터 데이터 읽기
         # 여기에 센서에 맞는 읽기 명령어를 사용하세요.
         # 예시: bus.read_byte_data(DEVICE_ADDRESS, register)
+        # 이 예제에서는 2바이트의 데이터를 읽는다고 가정
         data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 2)
         return data
     except Exception as e:
