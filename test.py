@@ -1,6 +1,6 @@
-import smbus
 import time
 import matplotlib.pyplot as plt
+from smbus2 import SMBus
 
 # I2C 버스 번호
 BUS_NUMBER = 1
@@ -9,7 +9,7 @@ BUS_NUMBER = 1
 DEVICE_ADDRESS = 0x54
 
 # I2C 버스 초기화
-bus = smbus.SMBus(BUS_NUMBER)
+bus = SMBus(BUS_NUMBER)
 
 def read_sensor_data():
     try:
