@@ -271,14 +271,16 @@ class AnalogUI:
         full_scale = self.GAS_FULL_SCALE[gas_type]
         alarm_levels = self.ALARM_LEVELS[gas_type]
 
-        if avg_milliamp < 1:
+        if avg_milliamp < 1.5:
             formatted_value = ""
+        # 4mA 미만의 값은 0으로 표시
+        elif avg_milliamp < 4:
+            formatted_value = 0
         else:
             formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
             formatted_value = max(0, min(formatted_value, full_scale))
-
         pwr_on = avg_milliamp >= 1.5
-
+            
         self.box_states[box_index]["last_value"] = formatted_value
 
         alarm1_on = formatted_value and formatted_value >= alarm_levels["AL1"]
