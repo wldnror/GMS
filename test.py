@@ -1,37 +1,47 @@
+import smbus
 import time
-import Adafruit_ADS1x15
+import matplotlib.pyplot as plt
 
-# 각 ADS1115 모듈에 대한 인스턴스 생성
-adc1 = Adafruit_ADS1x15.ADS1115(address=0x48)
-adc2 = Adafruit_ADS1x15.ADS1115(address=0x49)
-adc3 = Adafruit_ADS1x15.ADS1115(address=0x4A)
-adc4 = Adafruit_ADS1x15.ADS1115(address=0x4B)
+# I2C 버스 번호 (라즈베리 파이 모델에 따라 다를 수 있음)
+BUS_NUMBER = 1
 
-# ADS1115의 게인 설정 (2/3 -> +/-6.144V 범위)
-GAIN = 2/3
+# I2C 주소 (i2cdetect로 확인한 값)
+DEVICE_ADDRESS = 0xXX  # 여기에 실제 센서 주소를 입력하세요.
 
-# 각 모듈에서 아날로그 입력 읽기 (여기서는 단일 엔드 모드로 읽음)
-def read_adc(adc):
-    values = []
-    for i in range(4):
-        value = adc.read_adc(i, gain=GAIN)
-        voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
-        current = voltage / 250  # 저항 250Ω 사용
-        values.append(current * 1000)  # mA로 변환
-    return values
+# I2C 버스 초기화
+bus = smbus.SMBus(BUS_NUMBER)
 
-# 데이터 읽기 및 출력 루프
-while True:
-    values1 = read_adc(adc1)
-    values2 = read_adc(adc2)
-    values3 = read_adc(adc3)
-    values4 = read_adc(adc4)
+def read_sensor_data():
+    try:
+        # 센서로부터 데이터 읽기
+        # 여기에 센서에 맞는 읽기 명령어를 사용하세요.
+        # 예시: bus.read_byte_data(DEVICE_ADDRESS, register)
+        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 2)
+        return data
+    except Exception as e:
+        print(f"Error reading from sensor: {e}")
+        return None
 
-    # 결과 출력
-    print("Module 1 Currents (mA): ", values1)
-    print("Module 2 Currents (mA): ", values2)
-    print("Module 3 Currents (mA): ", values3)
-    print("Module 4 Currents (mA): ", values4)
+# 데이터 저장 리스트
+data_list = []
+
+# 데이터 수집 시간 (초)
+duration = 60
+start_time = time.time()
+
+while time.time() - start_time < duration:
+    sensor_data = read_sensor_data()
+    if sensor_data:
+        # 센서 데이터 처리
+        # 예시: 가스 농도 계산
+        gas_concentration = sensor_data[0] << 8 | sensor_data[1]
+        data_list.append(gas_concentration)
     
-    # 1초 대기
     time.sleep(1)
+
+# 데이터 시각화
+plt.plot(data_list)
+plt.title("IR Gas Sensor Data")
+plt.xlabel("Time (s)")
+plt.ylabel("Gas Concentration")
+plt.show()
