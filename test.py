@@ -31,20 +31,20 @@ def init():
 
 def read_sensor_data():
     try:
-        # 12 바이트 데이터 읽기 (ASCII 형식)
+        # 12 바이트 데이터 읽기
         data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 12)
+        print(f"Raw data: {data}")
+
+        # 농도 값 추출 (D6-D1 바이트 추출)
+        concentration_bytes = data[0:6]
+        concentration_str = ''.join(chr(byte) for byte in concentration_bytes if 32 <= byte <= 126)
+        print(f"Concentration string: {concentration_str}")
         
-        # ASCII 데이터 해석
-        data_str = ''.join(chr(byte) for byte in data)
-        print(f"Raw data: {data_str} | Hex: {data}")
-        
-        # 가스 농도 값 추출
-        if "ppm" in data_str:
-            concentration_str = data_str.split(' ')[1]
-            gas_concentration = int(concentration_str.replace(',', ''))
+        try:
+            gas_concentration = int(concentration_str)
             return gas_concentration
-        else:
-            print("Error: 'ppm' string not found in data")
+        except ValueError:
+            print("Error: Invalid concentration string")
             return None
     except Exception as e:
         print(f"Error reading from sensor: {e}")
