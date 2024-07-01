@@ -1,8 +1,11 @@
-from tkinter import Canvas, Toplevel
+from tkinter import Canvas, Toplevel, Frame, Button
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
+import threading
+import os
+import mplcursors
 
 # 세그먼트 표시 매핑
 SEGMENTS = {
@@ -21,7 +24,7 @@ SEGMENTS = {
     'S': '1011011',  # Added for 'S'
     'T': '1000111',  # Added for 'T'
     '-': '0000001',  # g
-    ' ': '0000000'  # 모든 세그먼트 꺼짐
+    ' ': '0000000'   # 모든 세그먼트 꺼짐
 }
 
 # Bit to segment mapping
@@ -51,7 +54,6 @@ def update_full_scale(self, gas_type_var, box_index):
 def on_segment_click(self, box_index):
     threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
-
 def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
     value = value.zfill(4)
     leading_zero = True
@@ -66,7 +68,7 @@ def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         if leading_zero and digit == '0' and i < 3:
             segments = SEGMENTS[' ']
         else:
-            segments = SEGMENTS[digit]
+            segments = SEGMENTS.get(digit, SEGMENTS[' '])  # Default to space if digit is not found
             leading_zero = False
 
         if blink and blink_state:
@@ -135,7 +137,6 @@ def update_history_graph(self, box_index, file_index):
 
     mplcursors.cursor(ax)
 
-
 def create_gradient_bar(width, height):
     gradient = Image.new('RGB', (width, height), color=0)
     for i in range(width):
@@ -198,7 +199,7 @@ def create_segment_display(box_canvas):
 
             # 상단-왼쪽 (세로 열, 두께 감소, 3만큼 아래로 이동)
             segment_canvas.create_polygon(0 * SCALE + x_offset, 15 * SCALE + y_offset, 1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, 1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset,
-                                          0 * SCALE + x_offset, 29.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 27.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
+                                          0 * SCALE + x_offset, 29.4 * SCALE + y_offset, -1.6 * SCALE + x_offset, 27.4 * SCALE + yYOffset, -1.6 * SCALE + x_offset, 17.4 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_f'),
 
             # 중간 (두께 10% 감소, 아래로 8만큼 이동)
