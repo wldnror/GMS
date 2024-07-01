@@ -68,7 +68,7 @@ def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         if leading_zero and digit == '0' and i < 3:
             segments = SEGMENTS[' ']
         else:
-            segments = SEGMENTS.get(digit, SEGMENTS[' '])  # Default to space if digit is not found
+            segments = SEGMENTS[digit]
             leading_zero = False
 
         if blink and blink_state:
