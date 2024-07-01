@@ -267,6 +267,7 @@ class AnalogUI:
         self.schedule_alarm_update()  # 다음 업데이트 예약
 
     def update_alarm_state(self, box_index, avg_milliamp):
+        print(f"Box {box_index} average milliamp: {avg_milliamp}")  # Debugging line
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         full_scale = self.GAS_FULL_SCALE[gas_type]
         alarm_levels = self.ALARM_LEVELS[gas_type]
@@ -283,17 +284,16 @@ class AnalogUI:
             formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
             formatted_value = max(0, min(formatted_value, full_scale))
 
+        print(f"Formatted value: {formatted_value}")  # Debugging line
         pwr_on = avg_milliamp >= 1.5
 
         self.box_states[box_index]["last_value"] = formatted_value
 
-        alarm1_on = formatted_value != "" and formatted_value >= alarm_levels["AL1"]
-        alarm2_on = formatted_value != "" and formatted_value >= alarm_levels["AL2"] if pwr_on else False
+        alarm1_on = formatted_value != "" and formatted_value != "REST" and formatted_value >= alarm_levels["AL1"]
+        alarm2_on = formatted_value != "" and formatted_value != "REST" and formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-        # 세그먼트 디스플레이 업데이트
-        self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if formatted_value != "" else "    ", self.box_frames[box_index][1], False, box_index)
+        self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if isinstance(formatted_value, int) else formatted_value, self.box_frames[box_index][1], False, box_index)
 
-        # 알람 상태 변경 체크 및 신호 전송
         if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
             self.box_states[box_index]["alarm2_on"] = True
             self.box_states[box_index]["stop_blinking"].clear()
@@ -316,7 +316,6 @@ class AnalogUI:
             self.root.after(0, self.update_circle_state, [False, alarm2_on, pwr_on, False], box_index)
             self.box_states[box_index]["last_alarm1_state"] = False
 
-        # 알람이 꺼졌을 때 상태 유지
         if not alarm1_on and not alarm2_on:
             self.root.after(0, self.update_circle_state, [False, False, pwr_on, False], box_index)
 
