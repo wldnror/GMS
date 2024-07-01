@@ -271,23 +271,25 @@ class AnalogUI:
         full_scale = self.GAS_FULL_SCALE[gas_type]
         alarm_levels = self.ALARM_LEVELS[gas_type]
 
-        if avg_milliamp < 1.5:
-            formatted_value = ""
-        # 4mA 미만의 값은 0으로 표시
-        elif avg_milliamp < 4:
-            formatted_value = 0
-        else:
-            formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-            formatted_value = max(0, min(formatted_value, full_scale))
-        pwr_on = avg_milliamp >= 1.5
-            
-        self.box_states[box_index]["last_value"] = formatted_value
+    # 1.5mA 미만이면 아무것도 표시하지 않음
+    if avg_milliamp < 1.5:
+        formatted_value = ""
+    # 4mA 미만의 값은 0으로 표시
+    elif avg_milliamp < 4:
+        formatted_value = 0
+    else:
+        formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
+        formatted_value = max(0, min(formatted_value, full_scale))
 
-        alarm1_on = formatted_value and formatted_value >= alarm_levels["AL1"]
-        alarm2_on = formatted_value and formatted_value >= alarm_levels["AL2"] if pwr_on else False
+    pwr_on = avg_milliamp >= 1.5
 
-        # 세그먼트 디스플레이 업데이트
-        self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if formatted_value else "    ", self.box_frames[box_index][1], False, box_index)
+    self.box_states[box_index]["last_value"] = formatted_value
+
+    alarm1_on = formatted_value != "" and formatted_value >= alarm_levels["AL1"]
+    alarm2_on = formatted_value != "" and formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+    # 세그먼트 디스플레이 업데이트
+    self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if formatted_value != "" else "    ", self.box_frames[box_index][1], False, box_index)
 
         # 알람 상태 변경 체크 및 신호 전송
         if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
