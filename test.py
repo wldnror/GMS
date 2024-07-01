@@ -19,10 +19,10 @@ data_list = []
 fig, ax = plt.subplots()
 line, = ax.plot([], [], lw=2)
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 1024)  # y축 범위 (센서 데이터 값 범위)
+ax.set_ylim(0, 5000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
 ax.set_title("IR Gas Sensor Data")
 ax.set_xlabel("Time (s)")
-ax.set_ylabel("Gas Concentration")
+ax.set_ylabel("Gas Concentration (ppm)")
 
 # 실시간 데이터 업데이트 함수
 def init():
@@ -31,16 +31,21 @@ def init():
 
 def read_sensor_data():
     try:
-        high_byte = bus.read_byte_data(DEVICE_ADDRESS, 0x00)
-        low_byte = bus.read_byte_data(DEVICE_ADDRESS, 0x01)
-        status = bus.read_byte_data(DEVICE_ADDRESS, 0x02)
+        # 12 바이트 데이터 읽기 (ASCII 형식)
+        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 12)
         
-        if status == 1:
-            print("Error: Invalid sensor data")
+        # ASCII 데이터 해석
+        data_str = ''.join(chr(byte) for byte in data)
+        print(f"Raw data: {data_str}")
+        
+        # 가스 농도 값 추출
+        if "ppm" in data_str:
+            concentration_str = data_str.split(' ')[1]
+            gas_concentration = int(concentration_str.replace(',', ''))
+            return gas_concentration
+        else:
+            print("Error: 'ppm' string not found in data")
             return None
-
-        gas_concentration = (high_byte << 8) | low_byte
-        return gas_concentration
     except Exception as e:
         print(f"Error reading from sensor: {e}")
         return None
