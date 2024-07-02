@@ -2,6 +2,12 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from smbus2 import SMBus
+from matplotlib import font_manager as fm, rc
+
+# 한글 폰트 설정
+font_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'  # 폰트 경로를 적절히 설정하세요
+font_name = fm.FontProperties(fname=font_path).get_name()
+rc('font', family=font_name)
 
 # I2C 버스 번호
 BUS_NUMBER = 1
@@ -26,12 +32,12 @@ toast_message = ""  # 토스트 메시지 내용
 # 초기화 그래프
 fig, ax = plt.subplots()
 line_ipa, = ax.plot([], [], lw=2, label="IPA", color='blue')
-line_ethanol, = ax.plot([], [], lw=2, label="Ethanol", color='red')
+line_ethanol, = ax.plot([], [], lw=2, label="에탄올", color='red')
 ax.set_xlim(0, 60)  # x축 범위 (시간)
 ax.set_ylim(0, 5000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
-ax.set_title("IR Gas Sensor Data")
-ax.set_xlabel("Time (s)")
-ax.set_ylabel("Gas Concentration (ppm)")
+ax.set_title("IR 가스 센서 데이터")
+ax.set_xlabel("시간 (초)")
+ax.set_ylabel("가스 농도 (ppm)")
 ax.legend()
 
 # 시간 표시 추가
