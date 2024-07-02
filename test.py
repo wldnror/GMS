@@ -1,19 +1,15 @@
 import numpy as np
-import tflite_runtime.interpreter as tflite
+from tflite_runtime.interpreter import Interpreter
 from smbus2 import SMBus
 import time
 
-# I2C 버스 번호
+# I2C 버스 번호 및 주소
 BUS_NUMBER = 1
-
-# I2C 주소
 DEVICE_ADDRESS = 0x54
-
-# I2C 버스 초기화
 bus = SMBus(BUS_NUMBER)
 
 # TensorFlow Lite 모델 로드
-interpreter = tflite.Interpreter(model_path='gas_detection_model.tflite')
+interpreter = Interpreter(model_path='gas_detection_model.tflite')
 interpreter.allocate_tensors()
 
 # 입력 및 출력 텐서 정보 가져오기
