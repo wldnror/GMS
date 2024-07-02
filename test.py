@@ -98,6 +98,7 @@ def reset_measurement():
     waiting_for_injection = False
     start_time = None
     show_toast("재시작되었습니다. IPA 가스를 주입하세요.", 5)
+    reset_button.pack_forget()  # 재시작 버튼 숨기기
 
 def update(frame):
     global measuring, start_time, measuring_ipa, toast_end_time, toast_message, waiting_for_drop, waiting_for_injection
@@ -172,13 +173,16 @@ def update(frame):
 # 재시작 버튼 추가
 root = tk.Tk()
 root.title("IR 가스 센서 데이터 측정")
-reset_button = Button(root, text="재시작", command=reset_measurement)
-reset_button.pack()
-
-# matplotlib figure를 tkinter 창에 포함시키기
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().pack()
 
+reset_button = Button(root, text="재시작", command=reset_measurement)
+reset_button.pack_forget()  # 초기에는 버튼을 숨김
+
+def show_reset_button():
+    reset_button.pack(side=tk.BOTTOM, pady=10)
+
+# matplotlib figure를 tkinter 창에 포함시키기
 ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=120)
 
 root.mainloop()
