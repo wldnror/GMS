@@ -13,24 +13,24 @@ DEVICE_ADDRESS = 0x54
 bus = SMBus(BUS_NUMBER)
 
 # 센서 데이터 읽기 함수
-def read_sensor_data():
-    try:
-        bus.write_byte(DEVICE_ADDRESS, 0x52)
-        time.sleep(0.1)
-        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
-        if data[0] == 0x08:
-            concentration = (data[1] << 8) | data[2]
-            if 0 <= concentration <= 20000:
-                return concentration
+def read_sensor_data(retries=3):
+    for _ in range(retries):
+        try:
+            bus.write_byte(DEVICE_ADDRESS, 0x52)
+            time.sleep(0.1)
+            data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
+            if data[0] == 0x08:
+                concentration = (data[1] << 8) | data[2]
+                if 0 <= concentration <= 20000:
+                    return concentration
+                else:
+                    print(f"비정상적인 농도 값: {concentration}")
             else:
-                print(f"비정상적인 농도 값: {concentration}")
-                return None
-        else:
-            print("잘못된 헤더 바이트")
-            return None
-    except Exception as e:
-        print(f"센서 읽기 오류: {e}")
-        return None
+                print("잘못된 헤더 바이트")
+        except Exception as e:
+            print(f"센서 읽기 오류: {e}")
+        time.sleep(0.5)  # 재시도 전에 약간의 지연을 줍니다
+    return None
 
 # 데이터 수집 함수
 def collect_data(filename, label, samples=100, time_steps=60):
