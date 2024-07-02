@@ -19,7 +19,7 @@ data_list = []
 fig, ax = plt.subplots()
 line, = ax.plot([], [], lw=2)
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 1000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-1000 ppm 설정)
+ax.set_ylim(0, 5000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-1000 ppm 설정)
 ax.set_title("IR Gas Sensor Data")
 ax.set_xlabel("Time (s)")
 ax.set_ylabel("Gas Concentration (ppm)")
