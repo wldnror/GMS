@@ -34,7 +34,7 @@ fig, ax = plt.subplots()
 line_ipa, = ax.plot([], [], lw=2, label="IPA", color='blue')
 line_ethanol, = ax.plot([], [], lw=2, label="에탄올", color='red')
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 5000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
+ax.set_ylim(0, 15000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
 ax.set_title("IR 가스 센서 데이터")
 ax.set_xlabel("시간 (초)")
 ax.set_ylabel("가스 농도 (ppm)")
@@ -65,7 +65,7 @@ def read_sensor_data():
 
         if data[0] == 0x08:
             c4h10_concentration = (data[1] << 8) | data[2]
-            if 0 <= c4h10_concentration <= 5000:  # 0~5000ppm 범위 내 값만 수용
+            if 0 <= c4h10_concentration <= 15000:  # 0~5000ppm 범위 내 값만 수용
                 return c4h10_concentration
             else:
                 print(f"Error: Abnormally high concentration value: {c4h10_concentration}")
