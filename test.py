@@ -209,11 +209,11 @@ def update(frame):
 
     return line_ipa, line_ethanol, elapsed_time_text, toast_text
 
-# 재시작 버튼 추가
-root = tk.Tk()
-root.title("IR 가스 센서 데이터 측정")
-canvas = FigureCanvasTkAgg(fig, master=root)
-canvas.get_tk_widget().pack()
+    # 재시작 버튼 추가
+    root = tk.Tk()
+    root.title("IR 가스 센서 데이터 측정")
+    canvas = FigureCanvasTkAgg(fig, master=root)
+    canvas.get_tk_widget().pack()
 
 reset_button = Button(root, text="재시작", command=reset_measurement)
 reset_button.pack_forget()  # 초기에는 버튼을 숨김
