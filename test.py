@@ -202,7 +202,7 @@ def update(frame):
             show_toast(f"가스 농도: {sensor_data} ppm. 가스를 주입하세요.", 3)
             if elapsed_time >= 3 and sensor_data > 210:
                 print("가스 주입 후 측정 시작")
-            show_toast("측정 시작", 3)
+                show_toast("측정 시작", 3)
                 measuring = True
                 waiting_for_injection = False  # 가스 주입 대기 종료
                 start_time = time.time()  # 측정 시작 시간 기록
