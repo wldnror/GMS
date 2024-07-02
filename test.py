@@ -1,71 +1,72 @@
-# 이 코드는 TensorFlow가 설치된 다른 환경에서 실행해야 합니다.
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.utils import to_categorical
-import matplotlib.pyplot as plt
+import tflite_runtime.interpreter as tflite
+from smbus2 import SMBus
+import time
 
-# 예시 데이터 생성 (실제 데이터로 대체해야 함)
-def generate_example_data():
-    time_steps = 60  # 60초 간격
-    ipa_data = np.random.normal(loc=15000, scale=2000, size=(100, time_steps))
-    ethanol_data = np.random.normal(loc=17000, scale=2000, size=(100, time_steps))
-    ipa_labels = [0] * 100
-    ethanol_labels = [1] * 100
+# I2C 버스 번호
+BUS_NUMBER = 1
 
-    all_data = np.concatenate((ipa_data, ethanol_data), axis=0)
-    all_labels = np.array(ipa_labels + ethanol_labels)
+# I2C 주소
+DEVICE_ADDRESS = 0x54
 
-    return all_data, all_labels
+# I2C 버스 초기화
+bus = SMBus(BUS_NUMBER)
 
-# 데이터 로드 및 전처리 (실제 데이터로 대체)
-all_data, all_labels = generate_example_data()
+# TensorFlow Lite 모델 로드
+interpreter = tflite.Interpreter(model_path='gas_detection_model.tflite')
+interpreter.allocate_tensors()
 
-# 데이터 셔플 및 분할
-X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.2, random_state=42)
+# 입력 및 출력 텐서 정보 가져오기
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
-# 데이터 정규화
-X_train = X_train / 20000.0
-X_test = X_test / 20000.0
+def preprocess_data(data):
+    data = np.array(data).astype(np.float32) / 20000.0
+    data = np.expand_dims(data, axis=0)
+    data = np.expand_dims(data, axis=-1)
+    return data
 
-# 라벨을 원-핫 인코딩
-y_train = to_categorical(y_train, 2)
-y_test = to_categorical(y_test, 2)
+def predict_gas(data):
+    data = preprocess_data(data)
+    interpreter.set_tensor(input_details[0]['index'], data)
+    interpreter.invoke()
+    output_data = interpreter.get_tensor(output_details[0]['index'])
+    return np.argmax(output_data)
 
-# LSTM 모델 구축
-model = Sequential([
-    LSTM(50, activation='relu', input_shape=(X_train.shape[1], 1)),
-    Dense(2, activation='softmax')
-])
+def read_sensor_data():
+    try:
+        # 명령어를 보내 데이터 읽기 준비
+        bus.write_byte(DEVICE_ADDRESS, 0x52)  # ASCII 'R'
+        time.sleep(0.1)  # 데이터 준비 시간
+        
+        # 7 바이트 데이터 읽기
+        data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
+        print(f"Raw data: {data}")
 
-# 모델 컴파일
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        if data[0] == 0x08:
+            c4h10_concentration = (data[1] << 8) | data[2]
+            if 0 <= c4h10_concentration <= 20000:  # 0~20000ppm 범위 내 값만 수용
+                return c4h10_concentration
+            else:
+                print(f"Error: Abnormally high concentration value: {c4h10_concentration}")
+                return None
+        else:
+            print("Error: Invalid header byte")
+            return None
+    except Exception as e:
+        print(f"Error reading from sensor: {e}")
+        return None
 
-# 모델 학습
-history = model.fit(X_train, y_train, epochs=10, validation_data=(X_test, y_test))
+# 데이터 수집 및 예측
+sensor_data = []
+for _ in range(60):  # 60초 동안 데이터 수집
+    data = read_sensor_data()
+    if data is not None:
+        sensor_data.append(data)
+    time.sleep(1)
 
-# 모델 평가
-test_loss, test_acc = model.evaluate(X_test, y_test)
-print(f"Test accuracy: {test_acc}")
-
-# 결과 그래프 그리기
-plt.plot(history.history['accuracy'], label='accuracy')
-plt.plot(history.history['val_accuracy'], label = 'val_accuracy')
-plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
-plt.ylim([0, 1])
-plt.legend(loc='lower right')
-plt.show()
-
-# 모델 저장
-model.save('gas_detection_model.h5')
-
-# TensorFlow Lite 모델로 변환
-converter = tf.lite.TFLiteConverter.from_keras_model(model)
-tflite_model = converter.convert()
-
-# 변환된 모델 저장
-with open('gas_detection_model.tflite', 'wb') as f:
-    f.write(tflite_model)
+if len(sensor_data) == 60:
+    prediction = predict_gas(sensor_data)
+    print(f"Predicted gas: {'IPA' if prediction == 0 else 'Ethanol'}")
+else:
+    print("Sensor data collection failed.")
