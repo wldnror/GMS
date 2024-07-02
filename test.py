@@ -176,7 +176,7 @@ reset_button = Button(root, text="재시작", command=reset_measurement)
 reset_button.pack()
 
 # matplotlib figure를 tkinter 창에 포함시키기
-canvas = plt.FigureCanvasTkAgg(fig, master=root)
+canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().pack()
 
 ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=120)
