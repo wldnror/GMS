@@ -24,6 +24,7 @@ bus = SMBus(BUS_NUMBER)
 # 데이터 저장 리스트
 ipa_data = []
 ethanol_data = []
+current_data = []  # 현재 측정 데이터를 저장할 리스트
 
 # 현재 측정 중인 데이터 타입 (True for IPA, False for Ethanol)
 measuring_ipa = True
@@ -89,9 +90,10 @@ def show_toast(message, duration=3):
     toast_text.set_text(message)
 
 def reset_measurement():
-    global ipa_data, ethanol_data, measuring_ipa, measuring, waiting_for_drop, waiting_for_injection, start_time
+    global ipa_data, ethanol_data, current_data, measuring_ipa, measuring, waiting_for_drop, waiting_for_injection, start_time
     ipa_data = []
     ethanol_data = []
+    current_data = []
     measuring_ipa = True
     measuring = False
     waiting_for_drop = False
@@ -122,6 +124,7 @@ def update(frame):
         if measuring:
             elapsed_time = time.time() - start_time
             elapsed_time_text.set_text(f'경과 시간: {int(elapsed_time)} 초')
+            current_data.append(sensor_data)
             if measuring_ipa:
                 ipa_data.append(sensor_data)
                 xdata_ipa = list(range(len(ipa_data)))
@@ -136,6 +139,7 @@ def update(frame):
                 print("60초 측정 완료.")
                 show_toast("60초 측정 완료", 5)
                 measuring = False  # 측정 종료
+                current_data.clear()  # 현재 측정 데이터 초기화
                 
                 if measuring_ipa:
                     show_toast("IPA 측정 완료. 에탄올로 전환하고 가스 농도가 떨어질 때까지 기다리세요.", 5)
@@ -147,6 +151,7 @@ def update(frame):
                     print("에탄올 측정 완료.")
                     measuring_ipa = True
                     waiting_for_drop = True  # 가스 농도 감소 대기 시작
+                    show_reset_button()  # 모든 측정 완료 후 재시작 버튼 표시
 
         elif waiting_for_drop:
             # 가스 농도가 기준 값 이하로 떨어질 때까지 대기
