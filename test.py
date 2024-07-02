@@ -1,9 +1,9 @@
 import numpy as np
-from smbus2 import SMBus
-import time
+from micromlgen import port
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
-from micromlgen import port
+from smbus2 import SMBus
+import time
 import joblib
 
 # I2C 버스 번호 및 주소
