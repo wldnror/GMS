@@ -25,6 +25,8 @@ ethanol_data = []
 # 현재 측정 중인 데이터 타입 (True for IPA, False for Ethanol)
 measuring_ipa = True
 measuring = False  # 측정 시작 여부
+waiting_for_drop = False  # 가스 농도 감소 대기 여부
+waiting_for_injection = False  # 가스 주입 대기 여부
 start_time = None  # 측정 시작 시간
 toast_end_time = None  # 토스트 메시지 종료 시간
 toast_message = ""  # 토스트 메시지 내용
@@ -34,7 +36,7 @@ fig, ax = plt.subplots()
 line_ipa, = ax.plot([], [], lw=2, label="IPA", color='blue')
 line_ethanol, = ax.plot([], [], lw=2, label="에탄올", color='red')
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 20000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
+ax.set_ylim(0, 20000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-20000 ppm 설정)
 ax.set_title("IR 가스 센서 데이터")
 ax.set_xlabel("시간 (초)")
 ax.set_ylabel("가스 농도 (ppm)")
@@ -65,7 +67,7 @@ def read_sensor_data():
 
         if data[0] == 0x08:
             c4h10_concentration = (data[1] << 8) | data[2]
-            if 0 <= c4h10_concentration <= 20000:  # 0~5000ppm 범위 내 값만 수용
+            if 0 <= c4h10_concentration <= 20000:  # 0~20000ppm 범위 내 값만 수용
                 return c4h10_concentration
             else:
                 print(f"Error: Abnormally high concentration value: {c4h10_concentration}")
@@ -84,7 +86,7 @@ def show_toast(message, duration=3):
     toast_text.set_text(message)
 
 def update(frame):
-    global measuring, start_time, measuring_ipa, toast_end_time, toast_message
+    global measuring, start_time, measuring_ipa, toast_end_time, toast_message, waiting_for_drop, waiting_for_injection
     sensor_data = read_sensor_data()
     current_time = time.time()
     
@@ -93,7 +95,7 @@ def update(frame):
         toast_end_time = None
 
     if sensor_data is not None:
-        if not measuring and sensor_data > 210:
+        if not measuring and not waiting_for_drop and not waiting_for_injection and sensor_data > 210:
             # 측정 시작
             measuring = True
             start_time = time.time()
@@ -122,19 +124,30 @@ def update(frame):
                     show_toast("IPA 측정 완료. 에탄올로 전환하고 가스 농도가 떨어질 때까지 기다리세요.", 5)
                     print("IPA 측정 완료. 에탄올로 전환하고 가스 농도가 떨어질 때까지 기다리세요.")
                     measuring_ipa = False
+                    waiting_for_drop = True  # 가스 농도 감소 대기 시작
                 else:
                     show_toast("에탄올 측정 완료.", 5)
                     print("에탄올 측정 완료.")
                     measuring_ipa = True
+                    waiting_for_drop = True  # 가스 농도 감소 대기 시작
 
-        elif not measuring and not measuring_ipa:
+        elif waiting_for_drop:
             # 가스 농도가 기준 값 이하로 떨어질 때까지 대기
             if sensor_data <= 210:
-                print("가스 농도가 떨어졌습니다. 다음 측정 사이클을 준비하세요.")
-                show_toast("가스 농도가 떨어졌습니다. 다음 측정 사이클을 준비하세요.", 3)
-                measuring = True  # 측정 시작
-                start_time = time.time()
-                print(f"Measurement started at {start_time}, Concentration: {sensor_data}")
+                print("가스 농도가 떨어졌습니다. 가스를 주입하세요.")
+                show_toast("가스를 주입하세요.", 3)
+                waiting_for_drop = False
+                waiting_for_injection = True  # 가스 주입 대기 시작
+                start_time = time.time()  # 3초 대기 시작 시간 기록
+
+        elif waiting_for_injection:
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= 3 and sensor_data > 210:
+                print("가스 주입 후 측정 시작")
+                show_toast("측정 시작", 3)
+                measuring = True
+                waiting_for_injection = False  # 가스 주입 대기 종료
+                start_time = time.time()  # 측정 시작 시간 기록
 
     return line_ipa, line_ethanol, elapsed_time_text, toast_text
 
