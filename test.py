@@ -1,9 +1,11 @@
 import tkinter as tk
 from tkinter import messagebox
+from threading import Thread
 import numpy as np
 from smbus2 import SMBus
 import time
 import csv
+import os
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
@@ -31,7 +33,16 @@ def read_sensor_data():
 # 데이터 수집 함수
 def collect_data(filename, label, samples=100, time_steps=60):
     data_list = []
-    for i in range(samples):
+    collected_samples = 0
+
+    if os.path.exists(filename):
+        with open(filename, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if int(row[0]) == label:
+                    collected_samples += 1
+
+    for i in range(collected_samples, samples):
         sample_data = []
         for j in range(time_steps):
             data = read_sensor_data()
@@ -40,16 +51,19 @@ def collect_data(filename, label, samples=100, time_steps=60):
             time.sleep(1)  # 1초 간격으로 데이터 수집
         if len(sample_data) == time_steps:
             data_list.append([label] + sample_data)
-            print(f"{i+1}/{samples} 샘플 수집 완료")
+            collected_samples += 1
+            progress.set(f"수집 중: {collected_samples}/{samples} 샘플 완료")
+            print(f"{collected_samples}/{samples} 샘플 수집 완료")
         else:
-            print(f"{i+1}/{samples} 샘플 수집 실패")
+            print(f"{collected_samples}/{samples} 샘플 수집 실패")
     
-    # 데이터 CSV 파일로 저장
-    with open(filename, 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerows(data_list)
+    if data_list:
+        with open(filename, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(data_list)
     
     messagebox.showinfo("완료", f"{samples}개의 샘플 수집 완료!")
+    progress.set("수집 완료")
 
 # 데이터 수집 시작 함수
 def start_collection():
@@ -66,7 +80,9 @@ def start_collection():
             "IPA 80%": 5
         }
         label = label_map[f"{gas_type} {concentration}%"]
-        collect_data(filename, label)
+        progress.set("수집 시작")
+        collection_thread = Thread(target=collect_data, args=(filename, label))
+        collection_thread.start()
     else:
         messagebox.showwarning("입력 오류", "가스 종류와 농도를 선택하세요.")
 
@@ -91,6 +107,11 @@ concentration_menu.grid(row=1, column=1)
 # 데이터 수집 시작 버튼
 start_button = tk.Button(root, text="수집 시작", command=start_collection)
 start_button.grid(row=2, columnspan=2)
+
+# 진행 상황 라벨
+progress = tk.StringVar()
+progress.set("대기 중")
+tk.Label(root, textvariable=progress).grid(row=3, columnspan=2)
 
 # GUI 루프 시작
 root.mainloop()
