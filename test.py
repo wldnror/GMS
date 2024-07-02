@@ -1,9 +1,9 @@
 import numpy as np
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
 from smbus2 import SMBus
 import time
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from micromlgen import port
 import joblib
 
 # I2C 버스 번호 및 주소
@@ -58,16 +58,21 @@ all_labels = ipa_labels + ethanol_labels
 # 데이터 셔플 및 분할
 X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.2, random_state=42)
 
-# RandomForestClassifier 모델 구축
-model = RandomForestClassifier(n_estimators=100)
+# DecisionTreeClassifier 모델 구축
+model = DecisionTreeClassifier()
 
 # 모델 학습
 model.fit(X_train, y_train)
 
 # 모델 평가
 y_pred = model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
+accuracy = (y_test == y_pred).sum() / len(y_test)
 print(f"Test accuracy: {accuracy}")
 
 # 모델 저장
 joblib.dump(model, 'gas_detection_model.pkl')
+
+# 모델 포팅 코드 생성
+c_code = port(model)
+with open('model.h', 'w') as f:
+    f.write(c_code)
