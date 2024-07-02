@@ -91,12 +91,12 @@ def update(frame):
             # 측정 시작
             measuring = True
             start_time = time.time()
-            show_toast("Measurement started", 3)
+            show_toast("측정 시작", 3)
             print(f"Measurement started at {start_time}, Concentration: {sensor_data}")
 
         if measuring:
             elapsed_time = time.time() - start_time
-            elapsed_time_text.set_text(f'Time: {int(elapsed_time)} s')
+            elapsed_time_text.set_text(f'경과 시간: {int(elapsed_time)} 초')
             if measuring_ipa:
                 ipa_data.append(sensor_data)
                 xdata_ipa = list(range(len(ipa_data)))
@@ -108,24 +108,24 @@ def update(frame):
             
             if elapsed_time >= 60:
                 # 60초 측정 후 데이터 비교
-                print("60-second measurement completed.")
-                show_toast("60-second measurement completed", 5)
+                print("60초 측정 완료.")
+                show_toast("60초 측정 완료", 5)
                 measuring = False  # 측정 종료
                 
                 if measuring_ipa:
-                    show_toast("IPA measurement completed. Please switch to Ethanol and wait for gas concentration to drop.", 5)
-                    print("IPA measurement completed. Please switch to Ethanol and wait for gas concentration to drop.")
+                    show_toast("IPA 측정 완료. 에탄올로 전환하고 가스 농도가 떨어질 때까지 기다리세요.", 5)
+                    print("IPA 측정 완료. 에탄올로 전환하고 가스 농도가 떨어질 때까지 기다리세요.")
                     measuring_ipa = False
                 else:
-                    show_toast("Ethanol measurement completed.", 5)
-                    print("Ethanol measurement completed.")
+                    show_toast("에탄올 측정 완료.", 5)
+                    print("에탄올 측정 완료.")
                     measuring_ipa = True
 
         elif not measuring and not measuring_ipa:
             # 가스 농도가 기준 값 이하로 떨어질 때까지 대기
             if sensor_data <= 210:
-                print("Gas concentration dropped. Ready for the next measurement cycle.")
-                show_toast("Gas concentration dropped. Ready for the next measurement cycle.", 3)
+                print("가스 농도가 떨어졌습니다. 다음 측정 사이클을 준비하세요.")
+                show_toast("가스 농도가 떨어졌습니다. 다음 측정 사이클을 준비하세요.", 3)
                 measuring = True  # 측정 시작
                 start_time = time.time()
                 print(f"Measurement started at {start_time}, Concentration: {sensor_data}")
