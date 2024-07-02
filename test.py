@@ -1,3 +1,4 @@
+# This code should be run on a system with TensorFlow installed
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
@@ -59,3 +60,12 @@ plt.show()
 
 # 모델 저장
 model.save('gas_detection_model.h5')
+
+# TensorFlow Lite 모델로 변환
+import tensorflow as tf
+converter = tf.lite.TFLiteConverter.from_keras_model(model)
+tflite_model = converter.convert()
+
+# 변환된 모델 저장
+with open('gas_detection_model.tflite', 'wb') as f:
+    f.write(tflite_model)
