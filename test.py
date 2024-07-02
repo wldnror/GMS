@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from smbus2 import SMBus
 from matplotlib import font_manager as fm, rc
+import tkinter as tk
+from tkinter import Button
 
 # 한글 폰트 설정
 font_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'  # 폰트 경로를 적절히 설정하세요
@@ -85,6 +87,17 @@ def show_toast(message, duration=3):
     toast_end_time = time.time() + duration
     toast_text.set_text(message)
 
+def reset_measurement():
+    global ipa_data, ethanol_data, measuring_ipa, measuring, waiting_for_drop, waiting_for_injection, start_time
+    ipa_data = []
+    ethanol_data = []
+    measuring_ipa = True
+    measuring = False
+    waiting_for_drop = False
+    waiting_for_injection = False
+    start_time = None
+    show_toast("재시작되었습니다. IPA 가스를 주입하세요.", 5)
+
 def update(frame):
     global measuring, start_time, measuring_ipa, toast_end_time, toast_message, waiting_for_drop, waiting_for_injection
     sensor_data = read_sensor_data()
@@ -95,13 +108,15 @@ def update(frame):
         toast_end_time = None
 
     if sensor_data is not None:
-        if not measuring and not waiting_for_drop and not waiting_for_injection and sensor_data > 210:
-            # 측정 시작
-            measuring = True
-            start_time = time.time()
-            show_toast("측정 시작", 3)
-            print(f"Measurement started at {start_time}, Concentration: {sensor_data}")
-
+        if not measuring and not waiting_for_drop and not waiting_for_injection:
+            if sensor_data > 210:
+                # 측정 시작
+                measuring = True
+                start_time = time.time()
+                show_toast("측정 시작", 3)
+                print(f"Measurement started at {start_time}, Concentration: {sensor_data}")
+            else:
+                show_toast("IPA 가스를 주입하세요.", 3)
         if measuring:
             elapsed_time = time.time() - start_time
             elapsed_time_text.set_text(f'경과 시간: {int(elapsed_time)} 초')
@@ -133,6 +148,7 @@ def update(frame):
 
         elif waiting_for_drop:
             # 가스 농도가 기준 값 이하로 떨어질 때까지 대기
+            show_toast(f"가스 농도: {sensor_data} ppm. 기다려 주세요.", 3)
             if sensor_data <= 210:
                 print("가스 농도가 떨어졌습니다. 가스를 주입하세요.")
                 show_toast("가스를 주입하세요.", 3)
@@ -142,6 +158,7 @@ def update(frame):
 
         elif waiting_for_injection:
             elapsed_time = time.time() - start_time
+            show_toast(f"가스 농도: {sensor_data} ppm. 가스를 주입하세요.", 3)
             if elapsed_time >= 3 and sensor_data > 210:
                 print("가스 주입 후 측정 시작")
                 show_toast("측정 시작", 3)
@@ -151,6 +168,16 @@ def update(frame):
 
     return line_ipa, line_ethanol, elapsed_time_text, toast_text
 
+# 재시작 버튼 추가
+root = tk.Tk()
+root.title("IR 가스 센서 데이터 측정")
+reset_button = Button(root, text="재시작", command=reset_measurement)
+reset_button.pack()
+
+# matplotlib figure를 tkinter 창에 포함시키기
+canvas = plt.FigureCanvasTkAgg(fig, master=root)
+canvas.get_tk_widget().pack()
+
 ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=120)
 
-plt.show()
+root.mainloop()
