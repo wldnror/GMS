@@ -6,6 +6,8 @@ from matplotlib import font_manager as fm, rc
 import tkinter as tk
 from tkinter import Button
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from sklearn.linear_model import LogisticRegression
+import numpy as np
 
 # 한글 폰트 설정
 font_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'  # 폰트 경로를 적절히 설정하세요
@@ -50,6 +52,36 @@ ax.legend()
 elapsed_time_text = ax.text(0.95, 0.95, '', transform=ax.transAxes, ha='right', va='top', fontsize=12)
 # 토스트 메시지 표시 추가
 toast_text = ax.text(0.5, 0.1, '', transform=ax.transAxes, ha='center', va='center', fontsize=12, bbox=dict(facecolor='red', alpha=0.5))
+
+# 머신러닝 모델 학습 (간단한 예로 Logistic Regression 사용)
+X_train = []  # 입력 데이터 (특징 벡터)
+y_train = []  # 출력 데이터 (0: IPA, 1: 에탄올)
+
+def extract_features(data):
+    max_value = np.max(data)
+    time_to_peak = np.argmax(data)
+    return [max_value, time_to_peak]
+
+# 예시 데이터로 모델 학습
+# ipa_samples와 ethanol_samples는 각각 IPA와 에탄올 측정 데이터를 포함하는 리스트입니다.
+ipa_samples = [ipa_data1, ipa_data2, ipa_data3]  # IPA 데이터 샘플 리스트
+ethanol_samples = [ethanol_data1, ethanol_data2, ethanol_data3]  # 에탄올 데이터 샘플 리스트
+
+for sample in ipa_samples:
+    X_train.append(extract_features(sample))
+    y_train.append(0)
+
+for sample in ethanol_samples:
+    X_train.append(extract_features(sample))
+    y_train.append(1)
+
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+def predict_gas_type(data):
+    features = extract_features(data)
+    prediction = model.predict([features])
+    return "IPA" if prediction == 0 else "에탄올"
 
 # 실시간 데이터 업데이트 함수
 def init():
@@ -139,6 +171,8 @@ def update(frame):
                 print("60초 측정 완료.")
                 show_toast("60초 측정 완료", 5)
                 measuring = False  # 측정 종료
+                gas_type = predict_gas_type(current_data)
+                show_toast(f"{gas_type} 측정 완료", 5)
                 current_data.clear()  # 현재 측정 데이터 초기화
                 
                 if measuring_ipa:
@@ -168,7 +202,7 @@ def update(frame):
             show_toast(f"가스 농도: {sensor_data} ppm. 가스를 주입하세요.", 3)
             if elapsed_time >= 3 and sensor_data > 210:
                 print("가스 주입 후 측정 시작")
-                show_toast("측정 시작", 3)
+            show_toast("측정 시작", 3)
                 measuring = True
                 waiting_for_injection = False  # 가스 주입 대기 종료
                 start_time = time.time()  # 측정 시작 시간 기록
@@ -191,3 +225,5 @@ def show_reset_button():
 ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=120)
 
 root.mainloop()
+
+               
