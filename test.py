@@ -22,8 +22,7 @@ def reset_i2c_bus():
     try:
         bus.close()
         time.sleep(0.5)
-        global bus
-        bus = SMBus(BUS_NUMBER)
+        bus.open(BUS_NUMBER)
         time.sleep(0.5)
         print("I2C 버스 재설정 완료")
     except Exception as e:
