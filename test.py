@@ -1,6 +1,5 @@
 import numpy as np
 import tflite_runtime.interpreter as tflite
-import time
 
 # TensorFlow Lite 모델 로드
 interpreter = tflite.Interpreter(model_path='gas_detection_model.tflite')
@@ -23,16 +22,8 @@ def predict_gas(data):
     output_data = interpreter.get_tensor(output_details[0]['index'])
     return np.argmax(output_data)
 
-# 센서 데이터 수집 함수 (예시)
-def read_sensor_data():
-    # 실제 센서 데이터 읽기 함수로 대체
-    return np.random.normal(loc=15000, scale=2000)
-
-# 데이터 수집 및 예측
-sensor_data = []
-for _ in range(60):  # 60초 동안 데이터 수집
-    sensor_data.append(read_sensor_data())
-    time.sleep(1)
-
-prediction = predict_gas(sensor_data)
+# 예측 예시
+# test_data는 실제 측정된 센서 데이터로 대체되어야 합니다.
+test_data = np.random.normal(loc=15000, scale=2000, size=(60,))  # 예시 데이터
+prediction = predict_gas(test_data)
 print(f"Predicted gas: {'IPA' if prediction == 0 else 'Ethanol'}")
