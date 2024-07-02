@@ -1,10 +1,11 @@
 # This code should be run on a system with TensorFlow installed
 import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
+import matplotlib.pyplot as plt
 
 # 예시 데이터 생성 (실제 데이터로 대체해야 함)
 def generate_example_data():
@@ -62,7 +63,6 @@ plt.show()
 model.save('gas_detection_model.h5')
 
 # TensorFlow Lite 모델로 변환
-import tensorflow as tf
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
 tflite_model = converter.convert()
 
