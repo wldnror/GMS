@@ -15,11 +15,14 @@ BUS_NUMBER = 1
 DEVICE_ADDRESS = 0x54
 bus = SMBus(BUS_NUMBER)
 
+time_steps = 60  # 전역 변수로 선언
+
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
     try:
         bus.close()
         time.sleep(0.5)
+        global bus
         bus = SMBus(BUS_NUMBER)
         time.sleep(0.5)
         print("I2C 버스 재설정 완료")
@@ -118,10 +121,11 @@ def start_collection():
 
 # 실시간 그래프 업데이트 함수
 def update_graph(frame):
-    line.set_ydata(current_values[-time_steps:] if len(current_values) >= time_steps else current_values)
-    line.set_xdata(range(len(current_values[-time_steps:])) if len(current_values) >= time_steps else range(len(current_values)))
-    ax.relim()
-    ax.autoscale_view()
+    if len(current_values) > 0:
+        line.set_ydata(current_values[-time_steps:] if len(current_values) >= time_steps else current_values)
+        line.set_xdata(range(len(current_values[-time_steps:])) if len(current_values) >= time_steps else range(len(current_values)))
+        ax.relim()
+        ax.autoscale_view()
     return line,
 
 # GUI 생성
@@ -154,7 +158,7 @@ tk.Label(root, textvariable=progress).grid(row=3, columnspan=2)
 # 실시간 그래프 표시
 fig, ax = plt.subplots()
 current_values = []
-line, = ax.plot(current_values, lw=2)
+line, = ax.plot([], [], lw=2)
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().grid(row=4, columnspan=2)
 ani = FuncAnimation(fig, update_graph, interval=1000, cache_frame_data=False)
