@@ -91,7 +91,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
             collected_samples += 1
             progress.set(f"수집 중: {collected_samples}/{samples} 샘플 완료")
             print(f"{collected_samples}/{samples} 샘플 수집 완료")
-            if not messagebox.askokcancel("다음 샘플로 이동", f"다음 샘플로 이동하시겠습니까?\n현재 값: {current_values[-1]} ppm"):
+            if not messagebox.askokcancel("다음 샘플로 이동", f"다음 샘플로 이동하시겠습니까?\n마지막 값: {sample_data[-1]} ppm"):
                 break
         else:
             print(f"{collected_samples}/{samples} 샘플 수집 실패")
