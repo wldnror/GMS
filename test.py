@@ -23,8 +23,10 @@ def read_sensor_data():
             if 0 <= concentration <= 20000:
                 return concentration
             else:
+                print(f"비정상적인 농도 값: {concentration}")
                 return None
         else:
+            print("잘못된 헤더 바이트")
             return None
     except Exception as e:
         print(f"센서 읽기 오류: {e}")
