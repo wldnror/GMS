@@ -14,6 +14,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
 DEVICE_ADDRESS = 0x54
+
+# 전역 변수로 bus 객체 선언 및 초기화
 bus = SMBus(BUS_NUMBER)
 
 time_steps = 60  # 전역 변수로 선언
@@ -24,10 +26,10 @@ clf = joblib.load('gas_classifier.pkl')
 
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
+    global bus
     try:
         bus.close()
         time.sleep(0.5)
-        global bus
         bus = SMBus(BUS_NUMBER)
         time.sleep(0.5)
         print("I2C 버스 재설정 완료")
