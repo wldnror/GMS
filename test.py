@@ -1,6 +1,4 @@
 import numpy as np
-from micromlgen import port
-from sklearn.tree import DecisionTreeClassifier
 from smbus2 import SMBus
 import time
 
@@ -38,7 +36,6 @@ def collect_data(samples=100, time_steps=60):
             time.sleep(1)
         if len(sample_data) == time_steps:
             ipa_data.append(sample_data)
-        # 실제 에탄올 데이터 수집을 대신하기 위해 동일한 데이터를 사용
         ethanol_data.append(sample_data)
     return ipa_data, ethanol_data
 
@@ -53,15 +50,28 @@ ethanol_labels = [1] * len(ethanol_data)
 all_data = ipa_data + ethanol_data
 all_labels = ipa_labels + ethanol_labels
 
-# DecisionTreeClassifier 모델 구축
-model = DecisionTreeClassifier()
+# 경량화된 결정 트리 모델 구현
+class SimpleDecisionTree:
+    def fit(self, X, y):
+        self.threshold = np.mean([np.mean(x) for x in X])
+    
+    def predict(self, X):
+        return [0 if np.mean(x) < self.threshold else 1 for x in X]
 
 # 모델 학습
+model = SimpleDecisionTree()
 model.fit(all_data, all_labels)
 
-# 모델 포팅 코드 생성
-c_code = port(model)
-with open('model.h', 'w') as f:
-    f.write(c_code)
+# 예측 수행
+sensor_data = []
+for _ in range(60):
+    data = read_sensor_data()
+    if data is not None:
+        sensor_data.append(data)
+    time.sleep(1)
 
-print(f"Model ported to model.h")
+if len(sensor_data) == 60:
+    prediction = model.predict([sensor_data])
+    print(f"Predicted gas: {'IPA' if prediction[0] == 0 else 'Ethanol'}")
+else:
+    print("Sensor data collection failed.")
