@@ -19,7 +19,7 @@ data_list = []
 fig, ax = plt.subplots()
 line, = ax.plot([], [], lw=2)
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 500)  # y축 범위 (센서 데이터 값 범위, 예시로 0-500 ppm 설정)
+ax.set_ylim(0, 1000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-1000 ppm 설정)
 ax.set_title("IR Gas Sensor Data")
 ax.set_xlabel("Time (s)")
 ax.set_ylabel("Gas Concentration (ppm)")
@@ -41,7 +41,7 @@ def read_sensor_data():
 
         if data[0] == 0x08:
             c4h10_concentration = (data[1] << 8) | data[2]
-            if c4h10_concentration < 500:  # 예시로 500ppm 이상의 값은 무시
+            if 0 <= c4h10_concentration <= 1000:  # 0~1000ppm 범위 내 값만 수용
                 return c4h10_concentration
             else:
                 print(f"Error: Abnormally high concentration value: {c4h10_concentration}")
