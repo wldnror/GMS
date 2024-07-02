@@ -5,6 +5,7 @@ from smbus2 import SMBus
 from matplotlib import font_manager as fm, rc
 import tkinter as tk
 from tkinter import Button
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # 한글 폰트 설정
 font_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'  # 폰트 경로를 적절히 설정하세요
