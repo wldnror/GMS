@@ -66,6 +66,8 @@ def collect_data(filename, label, samples=100, time_steps=60):
             data = read_sensor_data()
             if data is not None:
                 sample_data.append(data)
+                if len(current_values) >= time_steps:
+                    current_values.pop(0)
                 current_values.append(data)
                 progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
             else:
@@ -93,8 +95,10 @@ def collect_data(filename, label, samples=100, time_steps=60):
 
 # 데이터 수집 시작 함수
 def start_collection():
+    global time_steps
     gas_type = gas_type_var.get()
     concentration = concentration_var.get()
+    time_steps = 60
     if gas_type and concentration:
         filename = f"{gas_type.lower()}_data.csv"
         label_map = {
@@ -114,8 +118,8 @@ def start_collection():
 
 # 실시간 그래프 업데이트 함수
 def update_graph(frame):
-    line.set_ydata(current_values[-time_steps:])
-    line.set_xdata(range(len(current_values[-time_steps:])))
+    line.set_ydata(current_values[-time_steps:] if len(current_values) >= time_steps else current_values)
+    line.set_xdata(range(len(current_values[-time_steps:])) if len(current_values) >= time_steps else range(len(current_values)))
     ax.relim()
     ax.autoscale_view()
     return line,
@@ -153,7 +157,7 @@ current_values = []
 line, = ax.plot(current_values, lw=2)
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().grid(row=4, columnspan=2)
-ani = FuncAnimation(fig, update_graph, interval=1000)
+ani = FuncAnimation(fig, update_graph, interval=1000, cache_frame_data=False)
 
 # GUI 루프 시작
 root.mainloop()
