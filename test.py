@@ -1,49 +1,40 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.layers import LSTM, Dense
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
-import cv2
 
-# 데이터 전처리 함수
-def preprocess_data(data):
-    data = np.array(data)
-    data = data / 255.0  # 정규화
-    data = np.expand_dims(data, axis=-1)  # 채널 추가
-    return data
+# 예시 데이터 생성 (실제 데이터로 대체해야 함)
+def generate_example_data():
+    time_steps = 60  # 60초 간격
+    ipa_data = np.random.normal(loc=15000, scale=2000, size=(100, time_steps))
+    ethanol_data = np.random.normal(loc=17000, scale=2000, size=(100, time_steps))
+    ipa_labels = [0] * 100
+    ethanol_labels = [1] * 100
 
-# 데이터 로드 및 전처리 (예시 데이터 사용)
-# 각 이미지의 크기를 28x28로 맞춤
-ipa_images = [cv2.resize(img, (28, 28)) for img in ipa_data]
-ethanol_images = [cv2.resize(img, (28, 28)) for img in ethanol_data]
+    all_data = np.concatenate((ipa_data, ethanol_data), axis=0)
+    all_labels = np.array(ipa_labels + ethanol_labels)
 
-# 라벨링
-ipa_labels = [0] * len(ipa_images)
-ethanol_labels = [1] * len(ethanol_images)
+    return all_data, all_labels
 
-# 데이터 합치기
-all_images = ipa_images + ethanol_images
-all_labels = ipa_labels + ethanol_labels
+# 데이터 로드 및 전처리 (실제 데이터로 대체)
+all_data, all_labels = generate_example_data()
 
 # 데이터 셔플 및 분할
-X_train, X_test, y_train, y_test = train_test_split(all_images, all_labels, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.2, random_state=42)
 
-# 데이터 전처리
-X_train = preprocess_data(X_train)
-X_test = preprocess_data(X_test)
+# 데이터 정규화
+X_train = X_train / 20000.0
+X_test = X_test / 20000.0
+
+# 라벨을 원-핫 인코딩
 y_train = to_categorical(y_train, 2)
 y_test = to_categorical(y_test, 2)
 
-# CNN 모델 구축
+# LSTM 모델 구축
 model = Sequential([
-    Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
-    MaxPooling2D((2, 2)),
-    Conv2D(64, (3, 3), activation='relu'),
-    MaxPooling2D((2, 2)),
-    Flatten(),
-    Dense(128, activation='relu'),
+    LSTM(50, activation='relu', input_shape=(X_train.shape[1], 1)),
     Dense(2, activation='softmax')
 ])
 
@@ -65,3 +56,6 @@ plt.ylabel('Accuracy')
 plt.ylim([0, 1])
 plt.legend(loc='lower right')
 plt.show()
+
+# 모델 저장
+model.save('gas_detection_model.h5')
