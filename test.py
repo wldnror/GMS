@@ -23,7 +23,8 @@ def reset_i2c_bus():
     try:
         bus.close()
         time.sleep(0.5)
-        bus.open(BUS_NUMBER)
+        global bus
+        bus = SMBus(BUS_NUMBER)
         time.sleep(0.5)
         print("I2C 버스 재설정 완료")
     except Exception as e:
@@ -50,6 +51,14 @@ def read_sensor_data(retries=5):
                 reset_i2c_bus()
         time.sleep(0.5)  # 재시도 전에 약간의 지연을 줍니다
     return None
+
+# 실시간 센서 데이터 출력 함수
+def print_sensor_data():
+    while True:
+        data = read_sensor_data()
+        if data is not None:
+            print(f"실시간 가스 농도: {data} ppm")
+        time.sleep(1)
 
 # 데이터 수집 함수
 def collect_data(filename, label, samples=100, time_steps=60):
@@ -91,7 +100,8 @@ def collect_data(filename, label, samples=100, time_steps=60):
             collected_samples += 1
             progress.set(f"수집 중: {collected_samples}/{samples} 샘플 완료")
             print(f"{collected_samples}/{samples} 샘플 수집 완료")
-            show_next_sample_dialog(data)
+            if not messagebox.askokcancel("다음 샘플로 이동", f"다음 샘플로 이동하시겠습니까?\n마지막 값: {sample_data[-1]} ppm"):
+                break
         else:
             print(f"{collected_samples}/{samples} 샘플 수집 실패")
     
@@ -102,29 +112,6 @@ def collect_data(filename, label, samples=100, time_steps=60):
     
     messagebox.showinfo("완료", f"{samples}개의 샘플 수집 완료!")
     progress.set("수집 완료")
-    measuring = False
-    start_button.config(state=tk.NORMAL)
-
-# 다음 샘플로 이동 여부를 묻는 함수
-def show_next_sample_dialog(current_value):
-    next_sample_dialog = tk.Toplevel(root)
-    next_sample_dialog.title("다음 샘플로 이동")
-    tk.Label(next_sample_dialog, text=f"현재 값: {current_value} ppm").pack()
-    tk.Label(next_sample_dialog, text="다음 샘플로 이동하시겠습니까?").pack()
-    tk.Button(next_sample_dialog, text="예", command=lambda: [next_sample_dialog.destroy(), proceed_with_next_sample()]).pack(side=tk.LEFT)
-    tk.Button(next_sample_dialog, text="아니오", command=lambda: [next_sample_dialog.destroy(), stop_measuring()]).pack(side=tk.RIGHT)
-    next_sample_dialog.transient(root)
-    next_sample_dialog.grab_set()
-    root.wait_window(next_sample_dialog)
-
-# 다음 샘플로 진행하는 함수
-def proceed_with_next_sample():
-    # 다음 샘플 진행 로직을 여기에 추가하세요
-    pass
-
-# 데이터 수집을 중지하는 함수
-def stop_measuring():
-    global measuring
     measuring = False
     start_button.config(state=tk.NORMAL)
 
@@ -202,6 +189,11 @@ line, = ax.plot([], [], lw=2)
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().grid(row=4, columnspan=2)
 ani = FuncAnimation(fig, update_graph, interval=1000, cache_frame_data=False)
+
+# 실시간 센서 데이터 출력 스레드 시작
+sensor_thread = Thread(target=print_sensor_data)
+sensor_thread.daemon = True
+sensor_thread.start()
 
 # GUI 루프 시작
 root.mainloop()
