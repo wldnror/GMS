@@ -26,7 +26,7 @@ fig, ax = plt.subplots()
 line_ipa, = ax.plot([], [], lw=2, label="IPA", color='blue')
 line_ethanol, = ax.plot([], [], lw=2, label="Ethanol", color='red')
 ax.set_xlim(0, 60)  # x축 범위 (시간)
-ax.set_ylim(0, 15000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
+ax.set_ylim(0, 5000)  # y축 범위 (센서 데이터 값 범위, 예시로 0-5000 ppm 설정)
 ax.set_title("IR Gas Sensor Data")
 ax.set_xlabel("Time (s)")
 ax.set_ylabel("Gas Concentration (ppm)")
@@ -50,7 +50,7 @@ def read_sensor_data():
 
         if data[0] == 0x08:
             c4h10_concentration = (data[1] << 8) | data[2]
-            if 0 <= c4h10_concentration <= 15000:  # 0~5000ppm 범위 내 값만 수용
+            if 0 <= c4h10_concentration <= 5000:  # 0~5000ppm 범위 내 값만 수용
                 return c4h10_concentration
             else:
                 print(f"Error: Abnormally high concentration value: {c4h10_concentration}")
@@ -94,12 +94,17 @@ def update(frame):
                 else:
                     print("Ethanol measurement completed.")
                     measuring_ipa = True
-                
-        elif sensor_data <= 210 and not measuring_ipa:
-            print("Gas concentration dropped. Ready for the next measurement cycle.")
+
+        elif not measuring and not measuring_ipa:
+            # 가스 농도가 기준 값 이하로 떨어질 때까지 대기
+            if sensor_data <= 210:
+                print("Gas concentration dropped. Ready for the next measurement cycle.")
+                measuring = True  # 측정 시작
+                start_time = time.time()
+                print(f"Measurement started at {start_time}, Concentration: {sensor_data}")
 
     return line_ipa, line_ethanol
 
-ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=60)
+ani = FuncAnimation(fig, update, init_func=init, blit=True, interval=1000, save_count=120)
 
 plt.show()
