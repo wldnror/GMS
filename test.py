@@ -2,10 +2,13 @@ import tkinter as tk
 from tkinter import messagebox
 from threading import Thread
 import numpy as np
-from smbus2 import SMBus, i2c_msg
+from smbus2 import SMBus
 import time
 import csv
 import os
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
@@ -17,7 +20,7 @@ def reset_i2c_bus():
     try:
         bus.close()
         time.sleep(0.5)
-        bus.open(BUS_NUMBER)
+        bus = SMBus(BUS_NUMBER)
         time.sleep(0.5)
         print("I2C 버스 재설정 완료")
     except Exception as e:
@@ -63,6 +66,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
             data = read_sensor_data()
             if data is not None:
                 sample_data.append(data)
+                current_values.append(data)
                 progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
             else:
                 print(f"데이터 포인트 읽기 실패: 샘플 {i+1}, 포인트 {j+1}")
@@ -74,6 +78,8 @@ def collect_data(filename, label, samples=100, time_steps=60):
             collected_samples += 1
             progress.set(f"수집 중: {collected_samples}/{samples} 샘플 완료")
             print(f"{collected_samples}/{samples} 샘플 수집 완료")
+            if not messagebox.askokcancel("다음 샘플로 이동", "다음 샘플로 이동하시겠습니까?"):
+                break
         else:
             print(f"{collected_samples}/{samples} 샘플 수집 실패")
     
@@ -106,6 +112,14 @@ def start_collection():
     else:
         messagebox.showwarning("입력 오류", "가스 종류와 농도를 선택하세요.")
 
+# 실시간 그래프 업데이트 함수
+def update_graph(frame):
+    line.set_ydata(current_values[-time_steps:])
+    line.set_xdata(range(len(current_values[-time_steps:])))
+    ax.relim()
+    ax.autoscale_view()
+    return line,
+
 # GUI 생성
 root = tk.Tk()
 root.title("데이터 수집기")
@@ -132,6 +146,14 @@ start_button.grid(row=2, columnspan=2)
 progress = tk.StringVar()
 progress.set("대기 중")
 tk.Label(root, textvariable=progress).grid(row=3, columnspan=2)
+
+# 실시간 그래프 표시
+fig, ax = plt.subplots()
+current_values = []
+line, = ax.plot(current_values, lw=2)
+canvas = FigureCanvasTkAgg(fig, master=root)
+canvas.get_tk_widget().grid(row=4, columnspan=2)
+ani = FuncAnimation(fig, update_graph, interval=1000)
 
 # GUI 루프 시작
 root.mainloop()
