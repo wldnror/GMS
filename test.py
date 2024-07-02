@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 from threading import Thread
 import numpy as np
-from smbus2 import SMBus
+from smbus2 import SMBus, i2c_msg
 import time
 import csv
 import os
@@ -12,9 +12,21 @@ BUS_NUMBER = 1
 DEVICE_ADDRESS = 0x54
 bus = SMBus(BUS_NUMBER)
 
+# I2C 버스 재설정 함수
+def reset_i2c_bus():
+    try:
+        bus.close()
+        time.sleep(0.5)
+        global bus
+        bus = SMBus(BUS_NUMBER)
+        time.sleep(0.5)
+        print("I2C 버스 재설정 완료")
+    except Exception as e:
+        print(f"I2C 버스 재설정 오류: {e}")
+
 # 센서 데이터 읽기 함수
-def read_sensor_data(retries=3):
-    for _ in range(retries):
+def read_sensor_data(retries=5):
+    for attempt in range(retries):
         try:
             bus.write_byte(DEVICE_ADDRESS, 0x52)
             time.sleep(0.1)
@@ -29,6 +41,8 @@ def read_sensor_data(retries=3):
                 print("잘못된 헤더 바이트")
         except Exception as e:
             print(f"센서 읽기 오류: {e}")
+            if attempt == retries - 1:
+                reset_i2c_bus()
         time.sleep(0.5)  # 재시도 전에 약간의 지연을 줍니다
     return None
 
