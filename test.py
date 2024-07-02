@@ -48,6 +48,11 @@ def collect_data(filename, label, samples=100, time_steps=60):
             data = read_sensor_data()
             if data is not None:
                 sample_data.append(data)
+                progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
+            else:
+                print(f"데이터 포인트 읽기 실패: 샘플 {i+1}, 포인트 {j+1}")
+                progress.set(f"수집 실패: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
+                break
             time.sleep(1)  # 1초 간격으로 데이터 수집
         if len(sample_data) == time_steps:
             data_list.append([label] + sample_data)
