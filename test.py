@@ -1,11 +1,11 @@
 import numpy as np
-import tensorflow as tf
+from smbus2 import SMBus
+import time
+import tflite_runtime.interpreter as tflite
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
-from smbus2 import SMBus
-import time
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
