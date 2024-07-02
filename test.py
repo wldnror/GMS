@@ -16,6 +16,7 @@ DEVICE_ADDRESS = 0x54
 bus = SMBus(BUS_NUMBER)
 
 time_steps = 60  # 전역 변수로 선언
+measuring = False  # 데이터 수집 중인지 여부
 
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
@@ -52,6 +53,7 @@ def read_sensor_data(retries=5):
 
 # 데이터 수집 함수
 def collect_data(filename, label, samples=100, time_steps=60):
+    global measuring
     data_list = []
     collected_samples = 0
 
@@ -64,6 +66,13 @@ def collect_data(filename, label, samples=100, time_steps=60):
 
     for i in range(collected_samples, samples):
         sample_data = []
+        while True:
+            initial_data = read_sensor_data()
+            if initial_data is not None and initial_data >= 250:
+                break
+            progress.set(f"수집 대기 중: 가스 농도 {initial_data} ppm")
+            time.sleep(1)
+            
         for j in range(time_steps):
             data = read_sensor_data()
             if data is not None:
@@ -71,7 +80,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
                 if len(current_values) >= time_steps:
                     current_values.pop(0)
                 current_values.append(data)
-                progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
+                progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}, 현재 값: {data} ppm")
             else:
                 print(f"데이터 포인트 읽기 실패: 샘플 {i+1}, 포인트 {j+1}")
                 progress.set(f"수집 실패: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
@@ -82,7 +91,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
             collected_samples += 1
             progress.set(f"수집 중: {collected_samples}/{samples} 샘플 완료")
             print(f"{collected_samples}/{samples} 샘플 수집 완료")
-            if not messagebox.askokcancel("다음 샘플로 이동", "다음 샘플로 이동하시겠습니까?"):
+            if not messagebox.askokcancel("다음 샘플로 이동", f"다음 샘플로 이동하시겠습니까?\n현재 값: {current_values[-1]} ppm"):
                 break
         else:
             print(f"{collected_samples}/{samples} 샘플 수집 실패")
@@ -94,9 +103,17 @@ def collect_data(filename, label, samples=100, time_steps=60):
     
     messagebox.showinfo("완료", f"{samples}개의 샘플 수집 완료!")
     progress.set("수집 완료")
+    measuring = False
+    start_button.config(state=tk.NORMAL)
 
 # 데이터 수집 시작 함수
 def start_collection():
+    global measuring
+    if measuring:
+        return
+    measuring = True
+    start_button.config(state=tk.DISABLED)
+    
     global time_steps
     gas_type = gas_type_var.get()
     concentration = concentration_var.get()
@@ -117,6 +134,8 @@ def start_collection():
         collection_thread.start()
     else:
         messagebox.showwarning("입력 오류", "가스 종류와 농도를 선택하세요.")
+        measuring = False
+        start_button.config(state=tk.NORMAL)
 
 # 실시간 그래프 업데이트 함수
 def update_graph(frame):
