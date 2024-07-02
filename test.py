@@ -1,11 +1,10 @@
 import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
 from smbus2 import SMBus
 import time
-import tflite_runtime.interpreter as tflite
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.utils import to_categorical
+import joblib
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
@@ -59,34 +58,16 @@ all_labels = ipa_labels + ethanol_labels
 # 데이터 셔플 및 분할
 X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.2, random_state=42)
 
-# 데이터 정규화
-X_train = np.array(X_train) / 20000.0
-X_test = np.array(X_test) / 20000.0
-
-# 라벨을 원-핫 인코딩
-y_train = to_categorical(y_train, 2)
-y_test = to_categorical(y_test, 2)
-
-# LSTM 모델 구축
-model = Sequential([
-    LSTM(50, activation='relu', input_shape=(X_train.shape[1], 1)),
-    Dense(2, activation='softmax')
-])
-
-# 모델 컴파일
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+# RandomForestClassifier 모델 구축
+model = RandomForestClassifier(n_estimators=100)
 
 # 모델 학습
-history = model.fit(X_train, y_train, epochs=10, validation_data=(X_test, y_test))
+model.fit(X_train, y_train)
 
 # 모델 평가
-test_loss, test_acc = model.evaluate(X_test, y_test)
-print(f"Test accuracy: {test_acc}")
+y_pred = model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Test accuracy: {accuracy}")
 
-# TensorFlow Lite 모델로 변환
-converter = tf.lite.TFLiteConverter.from_keras_model(model)
-tflite_model = converter.convert()
-
-# 변환된 모델 저장
-with open('gas_detection_model.tflite', 'wb') as f:
-    f.write(tflite_model)
+# 모델 저장
+joblib.dump(model, 'gas_detection_model.pkl')
