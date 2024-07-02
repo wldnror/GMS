@@ -1,10 +1,8 @@
 import numpy as np
 from micromlgen import port
-from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from smbus2 import SMBus
 import time
-import joblib
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
@@ -40,7 +38,7 @@ def collect_data(samples=100, time_steps=60):
             time.sleep(1)
         if len(sample_data) == time_steps:
             ipa_data.append(sample_data)
-        # For simplicity, we use the same data for ethanol; replace with actual ethanol data collection
+        # 실제 에탄올 데이터 수집을 대신하기 위해 동일한 데이터를 사용
         ethanol_data.append(sample_data)
     return ipa_data, ethanol_data
 
@@ -55,24 +53,15 @@ ethanol_labels = [1] * len(ethanol_data)
 all_data = ipa_data + ethanol_data
 all_labels = ipa_labels + ethanol_labels
 
-# 데이터 셔플 및 분할
-X_train, X_test, y_train, y_test = train_test_split(all_data, all_labels, test_size=0.2, random_state=42)
-
 # DecisionTreeClassifier 모델 구축
 model = DecisionTreeClassifier()
 
 # 모델 학습
-model.fit(X_train, y_train)
-
-# 모델 평가
-y_pred = model.predict(X_test)
-accuracy = (y_test == y_pred).sum() / len(y_test)
-print(f"Test accuracy: {accuracy}")
-
-# 모델 저장
-joblib.dump(model, 'gas_detection_model.pkl')
+model.fit(all_data, all_labels)
 
 # 모델 포팅 코드 생성
 c_code = port(model)
 with open('model.h', 'w') as f:
     f.write(c_code)
+
+print(f"Model ported to model.h")
