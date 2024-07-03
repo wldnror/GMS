@@ -6,7 +6,7 @@ from smbus2 import SMBus
 import time
 import csv
 import os
-import tflite_runtime.interpreter as tflite
+import joblib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -22,10 +22,7 @@ time_steps = 60  # 전역 변수로 선언
 measuring = False  # 데이터 수집 중인지 여부
 
 # 모델 로드
-interpreter = tflite.Interpreter(model_path='gas_classifier.tflite')
-interpreter.allocate_tensors()
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+clf = joblib.load('gas_classifier.pkl')
 
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
@@ -72,12 +69,8 @@ def print_and_predict_sensor_data():
             current_values.append(data)
             # 실시간 예측
             if len(current_values) == time_steps:
-                input_data = np.array(current_values[-time_steps:], dtype=np.float32).reshape(1, -1)
-                interpreter.set_tensor(input_details[0]['index'], input_data)
-                interpreter.invoke()
-                output_data = interpreter.get_tensor(output_details[0]['index'])
-                prediction = np.argmax(output_data)
-                if prediction == 0:
+                prediction = clf.predict([current_values[-time_steps:]])
+                if prediction[0] == 0:
                     result.set("에탄올입니다")
                 else:
                     result.set("IPA입니다")
