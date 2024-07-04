@@ -75,11 +75,12 @@ def print_and_predict_sensor_data():
                 # 실시간 예측
                 if len(current_values) >= 24:
                     features = np.array(current_values[14:24]).reshape(1, -1)  # 15초 ~ 24초 사이의 데이터 사용
-                    prediction = predict_with_threshold(clf, features, threshold=0.6)  # 예측 임계값을 0.6으로 조정
-                    if prediction[0] == 0:
-                        result.set("에탄올입니다")
-                    elif prediction[0] == 3:
-                        result.set("IPA입니다")
+                    if features.shape[1] == 10:  # 예측할 데이터가 10개인 경우에만 예측 실행
+                        prediction = predict_with_threshold(clf, features, threshold=0.6)  # 예측 임계값을 0.6으로 조정
+                        if prediction[0] == 0:
+                            result.set("에탄올입니다")
+                        elif prediction[0] == 3:
+                            result.set("IPA입니다")
         time.sleep(1)
 
 # 실시간 그래프 업데이트 함수
