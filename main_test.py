@@ -62,6 +62,7 @@ def print_and_predict_sensor_data():
             print(f"실시간 가스 농도: {data} ppm")
             if data == 0:
                 current_values = []
+                result.set("대기 중")
             else:
                 if len(current_values) >= time_steps:
                     current_values.pop(0)
@@ -91,7 +92,7 @@ root.title("가스 감지기")
 
 # 실시간 예측 결과 라벨
 result = tk.StringVar()
-result.set("결과 대기 중")
+result.set("대기 중")
 tk.Label(root, textvariable=result, font=("Helvetica", 16)).grid(row=0, columnspan=2)
 
 # 실시간 그래프 표시
