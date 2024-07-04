@@ -19,6 +19,7 @@ start_value_checked = False
 start_value = None
 
 # 실시간 그래프 업데이트를 위한 데이터 저장
+time_steps = 60
 current_values = []
 
 # I2C 버스 재설정 함수
