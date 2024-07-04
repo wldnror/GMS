@@ -22,6 +22,9 @@ start_value = None
 time_steps = 60
 current_values = []
 
+# 센서 데이터 읽기 간격 (초)
+scan_interval = 0.1
+
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
     global bus
@@ -39,7 +42,7 @@ def read_sensor_data(retries=5):
     for attempt in range(retries):
         try:
             bus.write_byte(DEVICE_ADDRESS, 0x52)
-            time.sleep(0.1)
+            time.sleep(0.05)
             data = bus.read_i2c_block_data(DEVICE_ADDRESS, 0x00, 7)
             if data[0] == 0x08:
                 concentration = (data[1] << 8) | data[2]
@@ -53,12 +56,12 @@ def read_sensor_data(retries=5):
             print(f"센서 읽기 오류: {e}")
             if attempt == retries - 1:
                 reset_i2c_bus()
-        time.sleep(0.5)  # 재시도 전에 약간의 지연을 줍니다
+        time.sleep(0.05)  # 재시도 전에 약간의 지연을 줍니다
     return None
 
 # 실시간 예측 함수
 def predict_gas(data):
-    return "에탄올" if data > 180 else "IPA"
+    return "에탄올" if data > 200 else "IPA"
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
@@ -79,7 +82,7 @@ def print_and_predict_sensor_data():
             if len(current_values) >= time_steps:
                 current_values.pop(0)
             current_values.append(data)
-        time.sleep(1)
+        time.sleep(scan_interval)
 
 # 실시간 그래프 업데이트 함수
 def update_graph(frame):
