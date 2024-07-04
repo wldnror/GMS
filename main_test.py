@@ -55,7 +55,7 @@ def read_sensor_data(retries=5):
 
 # 실시간 예측 함수
 def predict_gas(data):
-    features = np.array(data[14:24]).reshape(1, -1)
+    features = np.array(data[:24]).reshape(1, -1)
     prediction = clf.predict(features)
     return "IPA" if prediction[0] == 1 else "에탄올"
 
