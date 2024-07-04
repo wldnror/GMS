@@ -64,6 +64,7 @@ def read_sensor_data(retries=5):
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
     global detecting, current_values
+    threshold = 0.9  # 유사도 임계값 설정
 
     while True:
         data = read_sensor_data()
@@ -80,11 +81,16 @@ def print_and_predict_sensor_data():
                 if len(current_values) >= time_steps:
                     # 특정 구간 데이터만 사용하여 예측
                     features = current_values[-time_steps:][1:24]
-                    prediction = clf.predict([features])
-                    if prediction[0] == 0:
-                        result.set("에탄올입니다")
+                    probabilities = clf.predict_proba([features])[0]
+                    max_prob = np.max(probabilities)
+                    if max_prob > threshold:
+                        prediction = clf.predict([features])[0]
+                        if prediction == 0:
+                            result.set("에탄올입니다 (유사도: {:.2f})".format(max_prob))
+                        else:
+                            result.set("IPA입니다 (유사도: {:.2f})".format(max_prob))
                     else:
-                        result.set("IPA입니다")
+                        result.set("대기 중")
                     detecting = False  # 예측 후 감지 종료
                     current_values.clear()  # 데이터 초기화
                 else:
