@@ -69,7 +69,8 @@ def print_and_predict_sensor_data():
             current_values.append(data)
             # 실시간 예측
             if len(current_values) == time_steps:
-                prediction = clf.predict([current_values[-time_steps:]])
+                features = current_values[1:24]
+                prediction = clf.predict([features])
                 if prediction[0] == 0:
                     result.set("에탄올입니다")
                 else:
