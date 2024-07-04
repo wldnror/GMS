@@ -77,10 +77,9 @@ def print_and_predict_sensor_data():
                 second_value = None
                 result.set("대기 중")
             else:
-                if not start_value_checked:
+                if first_value is None:
                     first_value = data
-                    start_value_checked = True
-                elif second_value is None:
+                elif data != first_value and second_value is None:
                     second_value = data
                     prediction = predict_gas(first_value, second_value)
                     result.set(prediction)
