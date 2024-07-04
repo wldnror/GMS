@@ -61,7 +61,7 @@ def read_sensor_data(retries=5):
 
 # 실시간 예측 함수
 def predict_gas(data):
-    return "에탄올" if data > 200 else "IPA"
+    return "에탄올" if data > 250 else "IPA"
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
