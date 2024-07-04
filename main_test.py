@@ -10,6 +10,7 @@ import joblib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from sklearn.ensemble import RandomForestClassifier
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
@@ -20,6 +21,8 @@ bus = SMBus(BUS_NUMBER)
 
 time_steps = 60  # 전역 변수로 선언
 measuring = False  # 데이터 수집 중인지 여부
+current_values = []  # 실시간 센서 데이터를 저장할 리스트
+detecting = False  # 상승 신호 감지를 위한 플래그
 
 # 모델 로드
 clf = joblib.load('gas_classifier.pkl')
@@ -60,6 +63,8 @@ def read_sensor_data(retries=5):
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
+    global detecting, current_values
+
     while True:
         data = read_sensor_data()
         if data is not None:
@@ -67,14 +72,25 @@ def print_and_predict_sensor_data():
             if len(current_values) >= time_steps:
                 current_values.pop(0)
             current_values.append(data)
-            # 실시간 예측
-            if len(current_values) == time_steps:
-                features = current_values[1:24]
-                prediction = clf.predict([features])
-                if prediction[0] == 0:
-                    result.set("에탄올입니다")
+
+            if not detecting and data > 0:
+                detecting = True  # 상승 신호 감지 시작
+
+            if detecting:
+                if len(current_values) >= time_steps:
+                    # 특정 구간 데이터만 사용하여 예측
+                    features = current_values[-time_steps:][1:24]
+                    prediction = clf.predict([features])
+                    if prediction[0] == 0:
+                        result.set("에탄올입니다")
+                    else:
+                        result.set("IPA입니다")
+                    detecting = False  # 예측 후 감지 종료
+                    current_values.clear()  # 데이터 초기화
                 else:
-                    result.set("IPA입니다")
+                    result.set("측정 중...")
+            else:
+                result.set("대기 중")
         time.sleep(1)
 
 # 데이터 수집 함수
@@ -202,7 +218,6 @@ tk.Label(root, textvariable=result, font=("Helvetica", 16)).grid(row=4, columnsp
 
 # 실시간 그래프 표시
 fig, ax = plt.subplots()
-current_values = []
 line, = ax.plot([], [], lw=2)
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().grid(row=5, columnspan=2)
