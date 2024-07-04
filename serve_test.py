@@ -16,7 +16,8 @@ bus = SMBus(BUS_NUMBER)
 
 # 시작 값 저장 변수
 start_value_checked = False
-start_value = None
+first_value = None
+second_value = None
 
 # 실시간 그래프 업데이트를 위한 데이터 저장
 time_steps = 60
@@ -60,25 +61,29 @@ def read_sensor_data(retries=5):
     return None
 
 # 실시간 예측 함수
-def predict_gas(data):
-    return "에탄올" if data > 400 else "IPA"
+def predict_gas(first_value, second_value):
+    return "에탄올" if abs(second_value - first_value) >= 472 else "IPA"
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
-    global start_value_checked, start_value, current_values
+    global start_value_checked, first_value, second_value, current_values
     while True:
         data = read_sensor_data()
         if data is not None:
             print(f"실시간 가스 농도: {data} ppm")
             if data == 0:
                 start_value_checked = False
-                start_value = None
+                first_value = None
+                second_value = None
                 result.set("대기 중")
-            elif not start_value_checked:
-                start_value = data
-                start_value_checked = True
-                prediction = predict_gas(start_value)
-                result.set(prediction)
+            else:
+                if not start_value_checked:
+                    first_value = data
+                    start_value_checked = True
+                elif second_value is None:
+                    second_value = data
+                    prediction = predict_gas(first_value, second_value)
+                    result.set(prediction)
             if len(current_values) >= time_steps:
                 current_values.pop(0)
             current_values.append(data)
