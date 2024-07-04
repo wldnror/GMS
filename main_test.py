@@ -72,7 +72,7 @@ def print_and_predict_sensor_data():
                     prediction = clf.predict([features])
                     if prediction[0] == 0:
                         result.set("에탄올입니다")
-                    else:
+                    elif prediction[0] == 3:
                         result.set("IPA입니다")
         time.sleep(1)
 
