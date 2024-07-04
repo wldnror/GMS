@@ -14,6 +14,10 @@ DEVICE_ADDRESS = 0x54
 # 전역 변수로 bus 객체 선언 및 초기화
 bus = SMBus(BUS_NUMBER)
 
+# 시작 값 저장 변수
+start_value_checked = False
+start_value = None
+
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
     global bus
@@ -54,14 +58,19 @@ def predict_gas(data):
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
+    global start_value_checked, start_value
     while True:
         data = read_sensor_data()
         if data is not None:
             print(f"실시간 가스 농도: {data} ppm")
             if data == 0:
+                start_value_checked = False
+                start_value = None
                 result.set("대기 중")
-            else:
-                prediction = predict_gas(data)
+            elif not start_value_checked:
+                start_value = data
+                start_value_checked = True
+                prediction = predict_gas(start_value)
                 result.set(prediction)
         time.sleep(1)
 
