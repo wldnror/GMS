@@ -10,7 +10,6 @@ import joblib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from sklearn.ensemble import RandomForestClassifier
 
 # I2C 버스 번호 및 주소
 BUS_NUMBER = 1
@@ -21,11 +20,7 @@ bus = SMBus(BUS_NUMBER)
 
 time_steps = 60  # 전역 변수로 선언
 measuring = False  # 데이터 수집 중인지 여부
-current_values = []  # 실시간 센서 데이터를 저장할 리스트
-detecting = False  # 상승 신호 감지를 위한 플래그
-detection_start_time = None  # 감지 시작 시간
-
-# 모델 로드
+current_values = []  # 전역 변수로 초기화
 clf = joblib.load('gas_classifier.pkl')
 
 # I2C 버스 재설정 함수
@@ -64,44 +59,25 @@ def read_sensor_data(retries=5):
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
-    global detecting, current_values, detection_start_time
-    threshold = 0.9  # 유사도 임계값 설정
-
+    global current_values
     while True:
         data = read_sensor_data()
         if data is not None:
             print(f"실시간 가스 농도: {data} ppm")
-            if len(current_values) >= time_steps:
-                current_values.pop(0)
-            current_values.append(data)
-
-            if not detecting and data > 0:
-                detecting = True  # 상승 신호 감지 시작
-                detection_start_time = time.time()
-
-            if detecting:
-                elapsed_time = time.time() - detection_start_time
-                if elapsed_time <= 23:
-                    if len(current_values) >= 24:
-                        # 특정 구간 데이터만 사용하여 예측
-                        features = current_values[-24:]
-                        probabilities = clf.predict_proba([features])[0]
-                        max_prob = np.max(probabilities)
-                        if max_prob > threshold:
-                            prediction = clf.predict([features])[0]
-                            if prediction == 0:
-                                result.set("에탄올입니다 (유사도: {:.2f})".format(max_prob))
-                            else:
-                                result.set("IPA입니다 (유사도: {:.2f})".format(max_prob))
-                        else:
-                            result.set("대기 중")
-                        detecting = False  # 예측 후 감지 종료
-                        current_values.clear()  # 데이터 초기화
-                else:
-                    result.set("대기 중")
-                    detecting = False  # 23초 경과 시 감지 종료
+            if data == 0:
+                current_values = []
             else:
-                result.set("대기 중")
+                if len(current_values) >= time_steps:
+                    current_values.pop(0)
+                current_values.append(data)
+                # 실시간 예측
+                if len(current_values) >= 23:
+                    features = current_values[-23:]
+                    prediction = clf.predict([features])
+                    if prediction[0] == 0:
+                        result.set("에탄올입니다")
+                    else:
+                        result.set("IPA입니다")
         time.sleep(1)
 
 # 데이터 수집 함수
