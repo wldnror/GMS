@@ -64,7 +64,7 @@ def read_sensor_data(retries=5):
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
     global detecting, current_values
-    threshold = 0.9  # 유사도 임계값 설정
+    threshold = 0.5  # 유사도 임계값 설정
 
     while True:
         data = read_sensor_data()
