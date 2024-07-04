@@ -54,7 +54,7 @@ def read_sensor_data(retries=5):
     return None
 
 # 임계값을 사용한 예측 함수
-def predict_with_threshold(model, data, threshold=0.3):
+def predict_with_threshold(model, data, threshold=0.5):
     proba = model.predict_proba(data)
     return (proba[:, 1] > threshold).astype(int)
 
