@@ -53,6 +53,11 @@ def read_sensor_data(retries=5):
         time.sleep(0.5)  # 재시도 전에 약간의 지연을 줍니다
     return None
 
+# 임계값을 사용한 예측 함수
+def predict_with_threshold(model, data, threshold=0.5):
+    proba = model.predict_proba(data)
+    return (proba[:, 1] > threshold).astype(int)
+
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
     global current_values
@@ -69,8 +74,8 @@ def print_and_predict_sensor_data():
                 current_values.append(data)
                 # 실시간 예측
                 if len(current_values) >= 23:
-                    features = current_values[-23:]
-                    prediction = clf.predict([features])
+                    features = np.array(current_values[-23:]).reshape(1, -1)
+                    prediction = predict_with_threshold(clf, features, threshold=0.6)  # 예측 임계값을 0.6으로 조정
                     if prediction[0] == 0:
                         result.set("에탄올입니다")
                     elif prediction[0] == 3:
