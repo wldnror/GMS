@@ -73,9 +73,9 @@ def print_and_predict_sensor_data():
                     current_values.pop(0)
                 current_values.append(data)
                 # 실시간 예측
-                if len(current_values) >= 23:
-                    features = np.array(current_values[-23:]).reshape(1, -1)
-                    prediction = predict_with_threshold(clf, features, threshold=0.8)  # 예측 임계값을 0.6으로 조정
+                if len(current_values) >= 24:
+                    features = np.array(current_values[14:24]).reshape(1, -1)  # 15초 ~ 24초 사이의 데이터 사용
+                    prediction = predict_with_threshold(clf, features, threshold=0.6)  # 예측 임계값을 0.6으로 조정
                     if prediction[0] == 0:
                         result.set("에탄올입니다")
                     elif prediction[0] == 3:
