@@ -18,6 +18,9 @@ bus = SMBus(BUS_NUMBER)
 start_value_checked = False
 start_value = None
 
+# 실시간 그래프 업데이트를 위한 데이터 저장
+current_values = []
+
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
     global bus
@@ -58,7 +61,7 @@ def predict_gas(data):
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
-    global start_value_checked, start_value
+    global start_value_checked, start_value, current_values
     while True:
         data = read_sensor_data()
         if data is not None:
@@ -72,6 +75,9 @@ def print_and_predict_sensor_data():
                 start_value_checked = True
                 prediction = predict_gas(start_value)
                 result.set(prediction)
+            if len(current_values) >= time_steps:
+                current_values.pop(0)
+            current_values.append(data)
         time.sleep(1)
 
 # 실시간 그래프 업데이트 함수
