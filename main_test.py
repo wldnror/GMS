@@ -53,10 +53,11 @@ def read_sensor_data(retries=5):
         time.sleep(0.5)  # 재시도 전에 약간의 지연을 줍니다
     return None
 
-# 임계값을 사용한 예측 함수
-def predict_with_threshold(model, data, threshold=0.5):
-    proba = model.predict_proba(data)
-    return (proba[:, 1] > threshold).astype(int)
+# 실시간 예측 함수
+def predict_gas(data):
+    features = np.array(data[14:24]).reshape(1, -1)
+    prediction = clf.predict(features)
+    return "IPA" if prediction[0] == 1 else "에탄올"
 
 # 실시간 센서 데이터 출력 및 예측 함수
 def print_and_predict_sensor_data():
@@ -74,13 +75,8 @@ def print_and_predict_sensor_data():
                 current_values.append(data)
                 # 실시간 예측
                 if len(current_values) >= 24:
-                    features = np.array(current_values[14:24]).reshape(1, -1)  # 15초 ~ 24초 사이의 데이터 사용
-                    if features.shape[1] == 10:  # 예측할 데이터가 10개인 경우에만 예측 실행
-                        prediction = predict_with_threshold(clf, features, threshold=0.6)  # 예측 임계값을 0.6으로 조정
-                        if prediction[0] == 0:
-                            result.set("에탄올입니다")
-                        elif prediction[0] == 3:
-                            result.set("IPA입니다")
+                    prediction = predict_gas(current_values)
+                    result.set(prediction)
         time.sleep(1)
 
 # 실시간 그래프 업데이트 함수
