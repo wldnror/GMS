@@ -170,16 +170,17 @@ def alarm_blink():
 
 def set_alarm_status(active):
     global alarm_active, alarm_blinking
-    alarm_active = active
-    print(f"Alarm status set to: {alarm_active}")  # 상태 출력
-    if alarm_active and not alarm_blinking:
-        alarm_blinking = True
-        alarm_blink()
-        play_alarm_sound()  # 알람 소리 재생
-    elif not alarm_active and alarm_blinking:
-        alarm_blinking = False
-        root.config(background=default_background)
-        stop_alarm_sound()  # 알람 소리 정지
+    if alarm_active != active:
+        alarm_active = active
+        print(f"Alarm status set to: {alarm_active}")  # 상태 출력
+        if alarm_active and not alarm_blinking:
+            alarm_blinking = True
+            alarm_blink()
+            play_alarm_sound()  # 알람 소리 재생
+        elif not alarm_active and alarm_blinking:
+            alarm_blinking = False
+            root.config(background=default_background)
+            stop_alarm_sound()  # 알람 소리 정지
 
 if __name__ == "__main__":
     root = tk.Tk()
