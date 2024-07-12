@@ -62,7 +62,7 @@ def check_music_end():
         audio_playing = False
         if alarm_active:
             play_alarm_sound()
-    root.after(1000, check_music_end)  # 주기를 1초로 변경하여 불필요한 호출을 줄임
+    root.after(2000, check_music_end)  # 주기를 1초로 변경하여 불필요한 호출을 줄임
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
