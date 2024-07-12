@@ -62,7 +62,7 @@ def check_music_end():
         audio_playing = False
         if alarm_active:
             play_alarm_sound()
-    root.after(2000, check_music_end)  # 주기를 1초로 변경하여 불필요한 호출을 줄임
+    root.after(2000, check_music_end)  # 주기를 2초로 변경하여 불필요한 호출을 줄임
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -153,8 +153,8 @@ def change_branch():
     Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
 
 def alarm_blink():
-    red_duration = 200  # 빨간색 상태에서 머무는 시간 (밀리초)
-    off_duration = 200  # 기본 배경색 상태에서 머무는 시간 (밀리초)
+    red_duration = 500  # 빨간색 상태에서 머무는 시간 (밀리초)
+    off_duration = 500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
 
     def toggle_color():
         if alarm_active:
