@@ -12,7 +12,7 @@ import sys
 import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils  # utils 모듈 임포트 추가
+import utils
 import tkinter as tk
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 
@@ -48,7 +48,7 @@ def play_alarm_sound():
     global selected_audio_file, audio_playing
     if selected_audio_file and not audio_playing:
         pygame.mixer.music.load(selected_audio_file)
-        pygame.mixer.music.play()
+        pygame.mixer.music.play(-1)  # 반복 재생
         audio_playing = True
 
 def stop_alarm_sound():
@@ -138,7 +138,7 @@ def change_branch():
 
     selected_branch = StringVar(branch_window)
     selected_branch.set(branches[0])
-    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)  # 수정된 부분
+    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
 
     def switch_branch():
         new_branch = selected_branch.get()
