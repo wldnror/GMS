@@ -3,8 +3,6 @@ import os
 import time
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
 import threading
 import psutil
 import signal
@@ -15,6 +13,8 @@ from settings import show_settings, prompt_new_password, show_password_prompt, l
 import utils
 import tkinter as tk
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
+from analog_ui import AnalogUI
+from modbus_ui import ModbusUI
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
