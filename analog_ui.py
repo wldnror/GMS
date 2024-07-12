@@ -254,7 +254,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_alarm_update(self):
-        self.root.after(100, self.update_alarm_from_queue)  # 100ms 간격으로 알람 업데이트 예약
+        self.root.after(200, self.update_alarm_from_queue)  # 200ms 간격으로 알람 업데이트 예약
 
     def update_alarm_from_queue(self):
         try:
@@ -278,8 +278,6 @@ class AnalogUI:
         elif 1.8 <= avg_milliamp <= 3.5:
             formatted_value = "REST"
         # 4mA 미만의 값은 0으로 표시
-        elif avg_milliamp < 4:
-            formatted_value = 0
         else:
             formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
             formatted_value = max(0, min(formatted_value, full_scale))
