@@ -273,10 +273,10 @@ class AnalogUI:
         alarm_levels = self.ALARM_LEVELS[gas_type]
 
         if avg_milliamp < 1.8:
-            formatted_value = ""
+            formatted_value = "    "  # 1.8mA 이하의 값에 대해 모든 세그먼트 꺼짐
         # 1.8~2.5mA 사이의 값은 "REST"로 표시
         elif 1.8 <= avg_milliamp <= 3.5:
-            formatted_value = "REST"
+        formatted_value = "REST"
         # 4mA 미만의 값은 0으로 표시
         elif avg_milliamp < 4:
             formatted_value = 0
@@ -289,8 +289,8 @@ class AnalogUI:
 
         self.box_states[box_index]["last_value"] = formatted_value
 
-        alarm1_on = formatted_value != "" and formatted_value != "REST" and formatted_value >= alarm_levels["AL1"]
-        alarm2_on = formatted_value != "" and formatted_value != "REST" and formatted_value >= alarm_levels["AL2"] if pwr_on else False
+        alarm1_on = formatted_value != "    " and formatted_value != "REST" and formatted_value >= alarm_levels["AL1"]
+        alarm2_on = formatted_value != "    " and formatted_value != "REST" and formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
         self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if isinstance(formatted_value, int) else formatted_value, self.box_frames[box_index][1], False, box_index)
 
@@ -304,7 +304,7 @@ class AnalogUI:
             self.box_states[box_index]["stop_blinking"].set()
             self.root.after(0, self.update_circle_state, [alarm1_on, False, pwr_on, False], box_index)
             self.box_states[box_index]["last_alarm2_state"] = False
-
+    
         if alarm1_on and not self.box_states[box_index]["last_alarm1_state"]:
             self.box_states[box_index]["alarm1_on"] = True
             self.box_states[box_index]["stop_blinking"].clear()
@@ -318,6 +318,7 @@ class AnalogUI:
 
         if not alarm1_on and not alarm2_on:
             self.root.after(0, self.update_circle_state, [False, False, pwr_on, False], box_index)
+
 
     def start_blinking(self, box_index, is_second_alarm):
         def toggle_color():
