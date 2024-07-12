@@ -157,13 +157,15 @@ def set_alarm_status(active):
     if alarm_active != active:
         alarm_active = active
         print(f"Alarm status set to: {alarm_active}")  # 상태 출력
-        if alarm_active and not alarm_blinking:
-            alarm_blinking = False
-            play_alarm_sound()  # 알람 소리 재생
-        elif not alarm_active and alarm_blinking:
-            alarm_blinking = False
+        if alarm_active:
+            if not alarm_blinking:
+                alarm_blinking = True
+                play_alarm_sound()  # 알람 소리 재생
+        else:
+            if alarm_blinking:
+                alarm_blinking = False
+                stop_alarm_sound()  # 알람 소리 정지
             root.config(background=default_background)
-            stop_alarm_sound()  # 알람 소리 정지
 
 if __name__ == "__main__":
     root = tk.Tk()
