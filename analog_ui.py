@@ -276,7 +276,7 @@ class AnalogUI:
             formatted_value = "    "  # 1.8mA 이하의 값에 대해 모든 세그먼트 꺼짐
         # 1.8~2.5mA 사이의 값은 "REST"로 표시
         elif 1.8 <= avg_milliamp <= 3.5:
-        formatted_value = "REST"
+            formatted_value = "REST"
         # 4mA 미만의 값은 0으로 표시
         elif avg_milliamp < 4:
             formatted_value = 0
