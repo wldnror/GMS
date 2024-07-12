@@ -294,31 +294,23 @@ class AnalogUI:
 
         self.root.after(0, common_update_segment_display, self, str(formatted_value).zfill(4) if isinstance(formatted_value, int) else formatted_value, self.box_frames[box_index][1], False, box_index)
 
-        if alarm2_on and not self.box_states[box_index]["last_alarm2_state"]:
-            self.box_states[box_index]["alarm2_on"] = True
-            self.box_states[box_index]["stop_blinking"].clear()
-            self.start_blinking(box_index, True)
-            self.box_states[box_index]["last_alarm2_state"] = True
-        elif not alarm2_on and self.box_states[box_index]["last_alarm2_state"]:
-            self.box_states[box_index]["alarm2_on"] = False
-            self.box_states[box_index]["stop_blinking"].set()
-            self.root.after(0, self.update_circle_state, [alarm1_on, False, pwr_on, False], box_index)
-            self.box_states[box_index]["last_alarm2_state"] = False
-    
-        if alarm1_on and not self.box_states[box_index]["last_alarm1_state"]:
-            self.box_states[box_index]["alarm1_on"] = True
-            self.box_states[box_index]["stop_blinking"].clear()
-            self.start_blinking(box_index, False)
-            self.box_states[box_index]["last_alarm1_state"] = True
-        elif not alarm1_on and self.box_states[box_index]["last_alarm1_state"]:
-            self.box_states[box_index]["alarm1_on"] = False
-            self.box_states[box_index]["stop_blinking"].set()
-            self.root.after(0, self.update_circle_state, [False, alarm2_on, pwr_on, False], box_index)
-            self.box_states[box_index]["last_alarm1_state"] = False
+        # AL2 상태 변화 체크
+        if alarm2_on != self.box_states[box_index]["last_alarm2_state"]:
+            self.box_states[box_index]["alarm2_on"] = alarm2_on
+            self.box_states[box_index]["stop_blinking"].clear() if alarm2_on else self.box_states[box_index]["stop_blinking"].set()
+            self.start_blinking(box_index, True) if alarm2_on else self.root.after(0, self.update_circle_state, [alarm1_on, False, pwr_on, False], box_index)
+            self.box_states[box_index]["last_alarm2_state"] = alarm2_on
 
+        # AL1 상태 변화 체크
+        if alarm1_on != self.box_states[box_index]["last_alarm1_state"]:
+            self.box_states[box_index]["alarm1_on"] = alarm1_on
+            self.box_states[box_index]["stop_blinking"].clear() if alarm1_on else self.box_states[box_index]["stop_blinking"].set()
+            self.start_blinking(box_index, False) if alarm1_on else self.root.after(0, self.update_circle_state, [False, alarm2_on, pwr_on, False], box_index)
+            self.box_states[box_index]["last_alarm1_state"] = alarm1_on
+
+        # 알람 상태가 모두 꺼진 경우
         if not alarm1_on and not alarm2_on:
             self.root.after(0, self.update_circle_state, [False, False, pwr_on, False], box_index)
-
 
     def start_blinking(self, box_index, is_second_alarm):
         def toggle_color():
