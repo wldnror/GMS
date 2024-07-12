@@ -272,7 +272,7 @@ class AnalogUI:
         full_scale = self.GAS_FULL_SCALE[gas_type]
         alarm_levels = self.ALARM_LEVELS[gas_type]
 
-        if avg_milliamp < 1.5:
+        if avg_milliamp < 1.8:
             formatted_value = ""
         # 1.8~2.5mA 사이의 값은 "REST"로 표시
         elif 1.8 <= avg_milliamp <= 3.5:
