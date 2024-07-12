@@ -40,6 +40,7 @@ alarm_active = False  # 알람 상태를 저장하는 전역 변수
 alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
 selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
 audio_playing = False  # 오디오 재생 상태를 저장하는 변수
+blink_job = None  # 깜빡임 작업을 관리하는 변수
 
 # 오디오 재생 초기화
 pygame.mixer.init()
@@ -157,14 +158,17 @@ def alarm_blink():
     off_duration = 500  # 기본 배경색 상태에서 머무는 시간 (밀리초)
 
     def toggle_color():
+        global blink_job
         if alarm_active:
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+            blink_job = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            root.after_cancel(toggle_color)
+            if blink_job:
+                root.after_cancel(blink_job)
+                blink_job = None
 
     toggle_color()
 
