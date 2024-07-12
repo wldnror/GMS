@@ -171,6 +171,7 @@ def alarm_blink():
 def set_alarm_status(active):
     global alarm_active, alarm_blinking
     alarm_active = active
+    print(f"Alarm status set to: {alarm_active}")  # 상태 출력
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
