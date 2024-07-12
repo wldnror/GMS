@@ -62,7 +62,7 @@ def check_music_end():
         audio_playing = False
         if alarm_active:
             play_alarm_sound()
-    root.after(100, check_music_end)
+    root.after(1000, check_music_end)  # 주기를 1초로 변경하여 불필요한 호출을 줄임
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -138,7 +138,7 @@ def change_branch():
 
     selected_branch = StringVar(branch_window)
     selected_branch.set(branches[0])
-    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
+    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12")).pack(pady=5)
 
     def switch_branch():
         new_branch = selected_branch.get()
