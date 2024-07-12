@@ -138,7 +138,7 @@ def change_branch():
 
     selected_branch = StringVar(branch_window)
     selected_branch.set(branches[0])
-    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", "12")).pack(pady=5)  # 수정된 부분
+    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)  # 수정된 부분
 
     def switch_branch():
         new_branch = selected_branch.get()
