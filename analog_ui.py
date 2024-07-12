@@ -254,7 +254,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_alarm_update(self):
-        self.root.after(200, self.update_alarm_from_queue)  # 200ms 간격으로 알람 업데이트 예약
+        self.root.after(500, self.update_alarm_from_queue)  # 200ms 간격으로 알람 업데이트 예약
 
     def update_alarm_from_queue(self):
         try:
