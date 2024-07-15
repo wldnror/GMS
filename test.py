@@ -76,7 +76,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
         sample_data = []
         while True:
             initial_data = read_sensor_data()
-            if initial_data is not None and initial_data >= 250:
+            if initial_data is not None and (initial_data >= 250 or label in [6, 7]):  # 표준 농도는 조건없이 통과
                 break
             progress.set(f"수집 대기 중: 가스 농도 {initial_data} ppm")
             time.sleep(1)
