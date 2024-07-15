@@ -130,11 +130,11 @@ def start_collection():
         filename = f"{gas_type.lower()}_data.csv"
         label_map = {
             "에탄올 100%": 0,
-            "에탄올 50%": 1,
-            "에탄올 25%": 2,
+            "에탄올 20%": 1,
+            "에탄올 10%": 2,
             "IPA 100%": 3,
-            "IPA 50%": 4,
-            "IPA 25%": 5
+            "IPA 20%": 4,
+            "IPA 10%": 5
         }
         label = label_map[f"{gas_type} {concentration}%"]
         progress.set("수집 시작")
