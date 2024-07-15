@@ -168,7 +168,7 @@ gas_type_menu.grid(row=0, column=1)
 # 농도 선택 라벨 및 옵션 메뉴
 tk.Label(root, text="농도:").grid(row=1, column=0)
 concentration_var = tk.StringVar(root)
-concentration_options = ["100", "50", "25"]
+concentration_options = ["100", "20", "10"]
 concentration_menu = tk.OptionMenu(root, concentration_var, *concentration_options)
 concentration_menu.grid(row=1, column=1)
 
