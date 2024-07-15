@@ -132,9 +132,11 @@ def start_collection():
             "에탄올 100%": 0,
             "에탄올 20%": 1,
             "에탄올 10%": 2,
+            "에탄올 표준": 6,
             "IPA 100%": 3,
             "IPA 20%": 4,
-            "IPA 10%": 5
+            "IPA 10%": 5,
+            "IPA 표준": 7
         }
         label = label_map[f"{gas_type} {concentration}%"]
         progress.set("수집 시작")
@@ -168,7 +170,7 @@ gas_type_menu.grid(row=0, column=1)
 # 농도 선택 라벨 및 옵션 메뉴
 tk.Label(root, text="농도:").grid(row=1, column=0)
 concentration_var = tk.StringVar(root)
-concentration_options = ["100", "20", "10"]
+concentration_options = ["100", "20", "10", "표준"]
 concentration_menu = tk.OptionMenu(root, concentration_var, *concentration_options)
 concentration_menu.grid(row=1, column=1)
 
