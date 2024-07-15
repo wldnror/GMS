@@ -17,6 +17,7 @@ bus = SMBus(BUS_NUMBER)
 
 time_steps = 60  # 전역 변수로 선언
 measuring = False  # 데이터 수집 중인지 여부
+current_values = []  # 전역 변수로 이동
 
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
@@ -57,6 +58,9 @@ def print_sensor_data():
         data = read_sensor_data()
         if data is not None:
             print(f"실시간 가스 농도: {data} ppm")
+            if len(current_values) >= time_steps:
+                current_values.pop(0)
+            current_values.append(data)
         time.sleep(1)
 
 # 데이터 수집 함수
@@ -76,7 +80,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
         sample_data = []
         while True:
             initial_data = read_sensor_data()
-            if initial_data is not None and (initial_data >= 250 or label in [6, 7]):  # 표준 농도는 조건없이 통과
+            if initial_data is not None and initial_data >= 250:
                 break
             progress.set(f"수집 대기 중: 가스 농도 {initial_data} ppm")
             time.sleep(1)
@@ -185,7 +189,6 @@ tk.Label(root, textvariable=progress).grid(row=3, columnspan=2)
 
 # 실시간 그래프 표시
 fig, ax = plt.subplots()
-current_values = []
 line, = ax.plot([], [], lw=2)
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().grid(row=4, columnspan=2)
