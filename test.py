@@ -142,7 +142,9 @@ def start_collection():
             "IPA 10%": 5,
             "IPA 표준": 7
         }
-        label = label_map[f"{gas_type} {concentration}%"]
+        label = label_map.get(f"{gas_type} {concentration}%")
+        if label is None:
+            label = label_map.get(f"{gas_type} 표준")
         progress.set("수집 시작")
         collection_thread = Thread(target=collect_data, args=(filename, label))
         collection_thread.start()
