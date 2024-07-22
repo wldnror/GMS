@@ -71,8 +71,8 @@ class AnalogUI:
         self.schedule_ui_update()
 
     def create_analog_box(self, index):
-        row = index // 7
-        col = index % 7
+        row = index // 6
+        col = index % 6
 
         if col == 0:
             row_frame = Frame(self.box_frame)
