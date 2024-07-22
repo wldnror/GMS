@@ -1,5 +1,7 @@
 import time
 import Adafruit_ADS1x15
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 # 각 ADS1115 모듈에 대한 인스턴스 생성
 adc1 = Adafruit_ADS1x15.ADS1115(address=0x48)
@@ -20,18 +22,39 @@ def read_adc(adc):
         values.append(current * 1000)  # mA로 변환
     return values
 
-# 데이터 읽기 및 출력 루프
-while True:
+# 초기화
+fig, axs = plt.subplots(4, 1, figsize=(10, 8))
+lines = []
+for i in range(4):
+    line, = axs[i].plot([], [], lw=2)
+    lines.append(line)
+    axs[i].set_ylim(0, 100)  # mA 범위 설정 (적절히 조정 필요)
+    axs[i].set_xlim(0, 100)
+    axs[i].grid()
+    axs[i].set_title(f"Module {i+1} Currents (mA)")
+
+xdata = list(range(100))
+ydata = [[0]*100 for _ in range(4)]
+
+# 업데이트 함수
+def update(frame):
+    global ydata
     values1 = read_adc(adc1)
     values2 = read_adc(adc2)
     values3 = read_adc(adc3)
     values4 = read_adc(adc4)
-
-    # 결과 출력
-    print("Module 1 Currents (mA): ", values1)
-    print("Module 2 Currents (mA): ", values2)
-    print("Module 3 Currents (mA): ", values3)
-    print("Module 4 Currents (mA): ", values4)
     
-    # 1초 대기
-    time.sleep(1)
+    # 각 모듈의 데이터를 업데이트
+    new_values = [values1, values2, values3, values4]
+    for i in range(4):
+        ydata[i] = ydata[i][1:] + [new_values[i][0]]  # 새 데이터 추가 (채널 0 데이터만 사용)
+        lines[i].set_ydata(ydata[i])
+        lines[i].set_xdata(xdata)
+
+    return lines
+
+# 애니메이션 설정
+ani = animation.FuncAnimation(fig, update, frames=range(100), blit=True, interval=1000)
+
+plt.tight_layout()
+plt.show()
