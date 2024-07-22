@@ -133,6 +133,8 @@ class ModbusUI:
 
         box_canvas = Canvas(box_frame, width=250, height=450, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
+        # 내부 요소들의 위치와 크기 조정
+        scale_factor = 1.25  # 예시로 1.25배로 크기 조정
 
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
