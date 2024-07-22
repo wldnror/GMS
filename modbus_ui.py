@@ -136,8 +136,8 @@ class ModbusUI:
         # 내부 요소들의 위치와 크기 조정
         scale_factor = 1.5  # 예시로 1.25배로 크기 조정
 
-        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
+    box_canvas.create_rectangle(0, 0, 210 * scale_factor, 250 * scale_factor, fill='grey', outline='grey', tags='border')
+    box_canvas.create_rectangle(0, 250 * scale_factor, 210 * scale_factor, 410 * scale_factor, fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)
         self.box_states.append({
