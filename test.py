@@ -61,7 +61,7 @@ def print_sensor_data():
             if len(current_values) >= time_steps:
                 current_values.pop(0)
             current_values.append(data)
-        time.sleep(1)
+        time.sleep(3)  # 3초 간격으로 데이터 수집
 
 # 데이터 수집 함수
 def collect_data(filename, label, samples=100, time_steps=60):
@@ -83,7 +83,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
             if initial_data is not None and initial_data >= 250:
                 break
             progress.set(f"수집 대기 중: 가스 농도 {initial_data} ppm")
-            time.sleep(1)
+            time.sleep(3)  # 3초 간격으로 데이터 수집
             
         for j in range(time_steps):
             data = read_sensor_data()
@@ -97,7 +97,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
                 print(f"데이터 포인트 읽기 실패: 샘플 {i+1}, 포인트 {j+1}")
                 progress.set(f"수집 실패: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}")
                 break
-            time.sleep(1)  # 1초 간격으로 데이터 수집
+            time.sleep(3)  # 3초 간격으로 데이터 수집
         if len(sample_data) == time_steps:
             data_list.append([label] + sample_data)
             collected_samples += 1
@@ -191,10 +191,11 @@ tk.Label(root, textvariable=progress).grid(row=3, columnspan=2)
 
 # 실시간 그래프 표시
 fig, ax = plt.subplots()
+ax.set_ylim(0, 18000)  # 그래프의 y축 범위 설정
 line, = ax.plot([], [], lw=2)
 canvas = FigureCanvasTkAgg(fig, master=root)
 canvas.get_tk_widget().grid(row=4, columnspan=2)
-ani = FuncAnimation(fig, update_graph, interval=1000, cache_frame_data=False)
+ani = FuncAnimation(fig, update_graph, interval=3000, cache_frame_data=False)  # 3초 간격으로 업데이트
 
 # 실시간 센서 데이터 출력 스레드 시작
 sensor_thread = Thread(target=print_sensor_data)
