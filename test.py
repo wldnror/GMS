@@ -30,28 +30,35 @@ for i in range(4):
     lines.append(line)
     axs[i].set_ylim(0, 18000)  # ppm 범위 설정
     axs[i].set_xlim(0, 300)  # 300초 범위 설정
+    axs[i].set_xticks(range(0, 301, 3))
     axs[i].grid()
     axs[i].set_title(f"Module {i+1} Currents (ppm)")
 
 xdata = list(range(0, 300, 3))  # 0부터 300까지 3초 간격
 ydata = [[0]*100 for _ in range(4)]
+prev_values = [[0]*4 for _ in range(4)]
 
 # 업데이트 함수
 def update(frame):
-    global ydata
+    global ydata, prev_values
+    updated = False
+
     values1 = read_adc(adc1)
     values2 = read_adc(adc2)
     values3 = read_adc(adc3)
     values4 = read_adc(adc4)
     
-    # 각 모듈의 데이터를 업데이트
     new_values = [values1, values2, values3, values4]
+    
     for i in range(4):
-        ydata[i] = ydata[i][1:] + [new_values[i][0]]  # 새 데이터 추가 (채널 0 데이터만 사용)
-        lines[i].set_ydata(ydata[i])
-        lines[i].set_xdata(xdata)
+        if new_values[i] != prev_values[i]:
+            updated = True
+            prev_values[i] = new_values[i]
+            ydata[i] = ydata[i][1:] + [new_values[i][0]]  # 새 데이터 추가 (채널 0 데이터만 사용)
+            lines[i].set_ydata(ydata[i])
+            lines[i].set_xdata(xdata)
 
-    return lines
+    return lines if updated else []
 
 # 애니메이션 설정
 ani = animation.FuncAnimation(fig, update, frames=range(100), blit=True, interval=3000)
