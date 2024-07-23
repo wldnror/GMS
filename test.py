@@ -58,6 +58,7 @@ def read_sensor_data(retries=5):
 def print_sensor_data():
     global current_times, current_values
     last_data = None
+    point_index = 0
     while True:
         data = read_sensor_data()
         if data is not None:
@@ -66,13 +67,14 @@ def print_sensor_data():
                 current_values.clear()
                 current_times.clear()
                 last_data = None
+                point_index = 0
             else:
                 if len(current_values) >= time_steps:
                     current_values.pop(0)
                     current_times.pop(0)
                 current_values.append(data)
                 if data != last_data:
-                    elapsed_time = (len(current_values) - 1) * time_interval
+                    elapsed_time = point_index * time_interval
                     current_times.append(elapsed_time)
                     last_data = data
                 else:
@@ -80,6 +82,7 @@ def print_sensor_data():
                         current_times.append(current_times[-1])
                     else:
                         current_times.append(0)
+                point_index += 1
         time.sleep(3)  # 3초 간격으로 데이터 수집
 
 # 데이터 수집 함수
@@ -104,6 +107,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
             progress.set(f"수집 대기 중: 가스 농도 {initial_data} ppm")
             time.sleep(3)  # 3초 간격으로 데이터 수집
             
+        point_index = 0
         for j in range(time_steps):
             data = read_sensor_data()
             if data is not None:
@@ -112,13 +116,14 @@ def collect_data(filename, label, samples=100, time_steps=60):
                     current_values.clear()
                     current_times.clear()
                     last_data = None
+                    point_index = 0
                 else:
                     if len(current_values) >= time_steps:
                         current_values.pop(0)
                         current_times.pop(0)
                     current_values.append(data)
                     if data != last_data:
-                        elapsed_time = (len(current_values) - 1) * time_interval
+                        elapsed_time = point_index * time_interval
                         current_times.append(elapsed_time)
                         last_data = data
                     else:
@@ -126,6 +131,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
                             current_times.append(current_times[-1])
                         else:
                             current_times.append(0)
+                    point_index += 1
                 progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}, 현재 값: {data} ppm")
             else:
                 print(f"데이터 포인트 읽기 실패: 샘플 {i+1}, 포인트 {j+1}")
