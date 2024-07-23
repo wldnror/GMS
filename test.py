@@ -66,8 +66,8 @@ def print_sensor_data():
                 current_values.pop(0)
                 current_times.pop(0)
             current_values.append(data)
-            elapsed_time = int(time.time() - start_time)
-            current_times.append(elapsed_time - (elapsed_time % time_interval))
+            elapsed_time = len(current_values) * time_interval
+            current_times.append(elapsed_time)
         time.sleep(3)  # 3초 간격으로 데이터 수집
 
 # 데이터 수집 함수
@@ -100,8 +100,8 @@ def collect_data(filename, label, samples=100, time_steps=60):
                     current_values.pop(0)
                     current_times.pop(0)
                 current_values.append(data)
-                elapsed_time = int(time.time() - start_time)
-                current_times.append(elapsed_time - (elapsed_time % time_interval))
+                elapsed_time = len(current_values) * time_interval
+                current_times.append(elapsed_time)
                 progress.set(f"수집 중: 샘플 {i+1}/{samples}, 데이터 포인트 {j+1}/{time_steps}, 현재 값: {data} ppm")
             else:
                 print(f"데이터 포인트 읽기 실패: 샘플 {i+1}, 포인트 {j+1}")
