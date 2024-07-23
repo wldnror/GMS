@@ -28,12 +28,12 @@ lines = []
 for i in range(4):
     line, = axs[i].plot([], [], lw=2)
     lines.append(line)
-    axs[i].set_ylim(0, 100)  # mA 범위 설정 (적절히 조정 필요)
-    axs[i].set_xlim(0, 100)
+    axs[i].set_ylim(0, 18000)  # ppm 범위 설정
+    axs[i].set_xlim(0, 300)  # 300초 범위 설정
     axs[i].grid()
-    axs[i].set_title(f"Module {i+1} Currents (mA)")
+    axs[i].set_title(f"Module {i+1} Currents (ppm)")
 
-xdata = list(range(100))
+xdata = list(range(0, 300, 3))  # 0부터 300까지 3초 간격
 ydata = [[0]*100 for _ in range(4)]
 
 # 업데이트 함수
@@ -54,7 +54,7 @@ def update(frame):
     return lines
 
 # 애니메이션 설정
-ani = animation.FuncAnimation(fig, update, frames=range(100), blit=True, interval=1000)
+ani = animation.FuncAnimation(fig, update, frames=range(100), blit=True, interval=3000)
 
 plt.tight_layout()
 plt.show()
