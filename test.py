@@ -108,6 +108,7 @@ def collect_data(filename, label, samples=100, time_steps=60):
             time.sleep(3)  # 3초 간격으로 데이터 수집
             
         point_index = 0
+        last_data = None
         for j in range(time_steps):
             data = read_sensor_data()
             if data is not None:
