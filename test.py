@@ -23,10 +23,11 @@ time_interval = 3  # 3초 간격
 
 # I2C 버스 재설정 함수
 def reset_i2c_bus():
+    global bus
     try:
         bus.close()
         time.sleep(0.5)
-        bus.open(BUS_NUMBER)
+        bus = SMBus(BUS_NUMBER)
         time.sleep(0.5)
         print("I2C 버스 재설정 완료")
     except Exception as e:
