@@ -292,7 +292,7 @@ class AnalogUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     async def read_adc_data(self):
-        adc_addresses = [0x48, 0x49, 0x4A, 0x4B]
+        adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             tasks = []
