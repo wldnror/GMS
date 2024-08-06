@@ -322,8 +322,10 @@ class AnalogUI:
                 avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
                 print(f"Box {box_index}: {avg_milliamp} mA")
                 self.adc_queue.put((box_index, avg_milliamp))
-        except Exception as e:
+        except OSError as e:
             print(f"Error reading ADC data: {e}")
+        except Exception as e:
+            print(f"Unexpected error reading ADC data: {e}")
 
     def start_adc_thread(self):
         loop = asyncio.get_event_loop()
