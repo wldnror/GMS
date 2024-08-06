@@ -292,7 +292,7 @@ class AnalogUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     async def read_adc_data(self):
-        adc_addresses = [0x48, 0x4A, 0x4B]
+        adc_addresses = [0x48, 0x4A, 0x4B]  # Removed 0x49
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             tasks = []
@@ -420,6 +420,6 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"])
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active: print("Alarm Active" if active else "Alarm Inactive"))
 
     root.mainloop()
