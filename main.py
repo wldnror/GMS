@@ -206,8 +206,15 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
+    # main.py 내의 코드를 수정하여 정수 값을 리스트로 변환
     modbus_boxes = settings.get("modbus_boxes", [])
+    if isinstance(modbus_boxes, int):
+        modbus_boxes = [None] * modbus_boxes  # 정수 값을 리스트로 변환
+
     analog_boxes = settings.get("analog_boxes", [])
+    if isinstance(analog_boxes, int):
+        analog_boxes = [None] * analog_boxes  # 정수 값을 리스트로 변환
+
 
     # modbus_boxes와 analog_boxes가 리스트인지 확인
     if not isinstance(modbus_boxes, list):
