@@ -226,8 +226,9 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
+    # main.py 내에서 modbus_ui 초기화 부분 수정
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # Modbus 항목을 첫 번째 행에 배치
     for i, box in enumerate(modbus_boxes):
