@@ -206,8 +206,15 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
-    modbus_boxes = settings["modbus_boxes"]
-    analog_boxes = settings["analog_boxes"]
+    modbus_boxes = settings.get("modbus_boxes", [])
+    analog_boxes = settings.get("analog_boxes", [])
+
+    # modbus_boxes와 analog_boxes가 리스트인지 확인
+    if not isinstance(modbus_boxes, list):
+        raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
+
+    if not isinstance(analog_boxes, list):
+        raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
