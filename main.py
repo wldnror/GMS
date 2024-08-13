@@ -97,13 +97,16 @@ def get_system_info():
     except subprocess.CalledProcessError:
         current_branch = "N/A"
 
-    cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
-    cpu_usage = psutil.cpu_percent(interval=1)
-    memory_usage = psutil.virtual_memory().percent
-    disk_usage = psutil.disk_usage('/').percent
-    net_io = psutil.net_io_counters()
-    network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
-    return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
+    try:
+        cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
+        cpu_usage = psutil.cpu_percent(interval=1)
+        memory_usage = psutil.virtual_memory().percent
+        disk_usage = psutil.disk_usage('/').percent
+        net_io = psutil.net_io_counters()
+        network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
+        return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
+    except Exception as e:
+        return f"System info could not be retrieved: {str(e)}"
 
 def get_ip_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -130,27 +133,31 @@ def change_branch():
     branch_window.title("브랜치 변경")
     branch_window.attributes("-topmost", True)
 
-    current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-    Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
+    try:
+        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+        Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
 
-    branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
-    branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
+        branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
+        branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
 
-    selected_branch = StringVar(branch_window)
-    selected_branch.set(branches[0])
-    ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
+        selected_branch = StringVar(branch_window)
+        selected_branch.set(branches[0])
+        ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
 
-    def switch_branch():
-        new_branch = selected_branch.get()
-        try:
-            subprocess.check_output(['git', 'checkout', new_branch])
-            messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
-            branch_window.destroy()
-            restart_application()
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
+        def switch_branch():
+            new_branch = selected_branch.get()
+            try:
+                subprocess.check_output(['git', 'checkout', new_branch])
+                messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
+                branch_window.destroy()
+                restart_application()
+            except subprocess.CalledProcessError as e:
+                messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
 
-    Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
+        Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
+    except Exception as e:
+        messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
+        branch_window.destroy()
 
 def alarm_blink():
     red_duration = 200  # 빨간색 상태에서 머무는 시간 (밀리초)
@@ -215,7 +222,6 @@ if __name__ == "__main__":
     if isinstance(analog_boxes, int):
         analog_boxes = [None] * analog_boxes  # 정수 값을 리스트로 변환
 
-
     # modbus_boxes와 analog_boxes가 리스트인지 확인
     if not isinstance(modbus_boxes, list):
         raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
@@ -230,19 +236,30 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치
+    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치하고, 6개를 넘으면 다음 줄로 이동
     row_index = 0
     column_index = 0
+    max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
     # Modbus 항목을 한 줄에 배치
     for i, box in enumerate(modbus_boxes):
         modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
-        column_index += 1  # 열 인덱스 증가
-    
+        column_index += 1
+
+        # 한 줄에 6개를 초과하면 다음 줄로 이동
+        if column_index >= max_columns:
+            column_index = 0
+            row_index += 1
+
     # Analog 항목을 동일한 줄에 이어서 배치
     for i, box in enumerate(analog_boxes):
         analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
-        column_index += 1  # 열 인덱스 증가
+        column_index += 1
+
+    # 한 줄에 6개를 초과하면 다음 줄로 이동
+    if column_index >= max_columns:
+        column_index = 0
+        row_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
