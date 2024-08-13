@@ -206,8 +206,15 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
+    # main.py 내의 코드를 수정하여 정수 값을 리스트로 변환
     modbus_boxes = settings.get("modbus_boxes", [])
+    if isinstance(modbus_boxes, int):
+        modbus_boxes = [None] * modbus_boxes  # 정수 값을 리스트로 변환
+
     analog_boxes = settings.get("analog_boxes", [])
+    if isinstance(analog_boxes, int):
+        analog_boxes = [None] * analog_boxes  # 정수 값을 리스트로 변환
+
 
     # modbus_boxes와 analog_boxes가 리스트인지 확인
     if not isinstance(modbus_boxes, list):
@@ -219,16 +226,23 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
+    # main.py 내에서 modbus_ui 초기화 부분 수정
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # Modbus 항목을 첫 번째 행에 배치
+    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치
+    row_index = 0
+    column_index = 0
+
+    # Modbus 항목을 한 줄에 배치
     for i, box in enumerate(modbus_boxes):
-        modbus_ui.box_frame.grid(row=0, column=i % 7, padx=10, pady=10)
-
-    # Analog 항목을 두 번째 행에 배치
+        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
+        column_index += 1  # 열 인덱스 증가
+    
+    # Analog 항목을 동일한 줄에 이어서 배치
     for i, box in enumerate(analog_boxes):
-        analog_ui.box_frame.grid(row=1, column=i % 7, padx=10, pady=10)
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
+        column_index += 1  # 열 인덱스 증가
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
