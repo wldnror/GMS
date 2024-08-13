@@ -1,5 +1,3 @@
-# settings.py
-
 from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
 from tkinter import ttk
 import json
@@ -51,8 +49,8 @@ def load_settings():
         return json.loads(decrypted_data)
     else:
         return {
-            "modbus_boxes": [],  # 빈 리스트로 초기화
-            "analog_boxes": [],  # 빈 리스트로 초기화
+            "modbus_boxes": 0,  # 기본값으로 0으로 초기화
+            "analog_boxes": 0,  # 기본값으로 0으로 초기화
             "admin_password": None,
             "modbus_gas_types": {},
             "analog_gas_types": {},
@@ -282,52 +280,37 @@ def show_box_settings():
     box_settings_window.attributes("-topmost", True)
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
-    modbus_boxes_var = StringVar(value=settings["modbus_boxes"])
-    modbus_box_count = int(modbus_boxes_var.get())
+    modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
+    analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
 
-    def increase_modbus_boxes():
-        nonlocal modbus_box_count
-        if modbus_box_count < 14:
-            modbus_box_count += 1
-            modbus_boxes_var.set(modbus_box_count)
-            update_gas_type_options()
+    try:
+        modbus_box_count = int(modbus_boxes_var.get())
+        analog_box_count = int(analog_boxes_var.get())
+    except ValueError:
+        modbus_box_count = 0
+        analog_box_count = 0
+        modbus_boxes_var.set("0")
+        analog_boxes_var.set("0")
+        messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
-    def decrease_modbus_boxes():
-        nonlocal modbus_box_count
-        if modbus_box_count > 0:
-            modbus_box_count -= 1
-            modbus_boxes_var.set(modbus_box_count)
-            update_gas_type_options()
+    def modify_box_count(var, delta):
+        current_value = int(var.get())
+        new_value = current_value + delta
+        if 0 <= new_value <= 14:  # 상자 수는 0에서 14 사이로 제한
+            var.set(str(new_value))
 
     frame_modbus = Frame(box_settings_window)
     frame_modbus.grid(row=0, column=1, padx=5, pady=5)
-    Button(frame_modbus, text="-", command=decrease_modbus_boxes, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    Button(frame_modbus, text="-", command=lambda: modify_box_count(modbus_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
     Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
-    Button(frame_modbus, text="+", command=increase_modbus_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
+    Button(frame_modbus, text="+", command=lambda: modify_box_count(modbus_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
 
     Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=5, pady=5)
-    analog_boxes_var = StringVar(value=settings["analog_boxes"])
-    analog_box_count = int(analog_boxes_var.get())
-
-    def increase_analog_boxes():
-        nonlocal analog_box_count
-        if analog_box_count < 14:
-            analog_box_count += 1
-            analog_boxes_var.set(analog_box_count)
-            update_gas_type_options()
-
-    def decrease_analog_boxes():
-        nonlocal analog_box_count
-        if analog_box_count > 0:
-            analog_box_count -= 1
-            analog_boxes_var.set(analog_box_count)
-            update_gas_type_options()
-
     frame_analog = Frame(box_settings_window)
     frame_analog.grid(row=1, column=1, padx=5, pady=5)
-    Button(frame_analog, text="-", command=decrease_analog_boxes, font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
+    Button(frame_analog, text="-", command=lambda: modify_box_count(analog_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=5, pady=5)
     Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=5, pady=5)
-    Button(frame_analog, text="+", command=increase_analog_boxes, font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
+    Button(frame_analog, text="+", command=lambda: modify_box_count(analog_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=5, pady=5)
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
