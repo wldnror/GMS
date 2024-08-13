@@ -206,8 +206,15 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
-    modbus_boxes = settings["modbus_boxes"]
-    analog_boxes = settings["analog_boxes"]
+    modbus_boxes = settings.get("modbus_boxes", [])
+    analog_boxes = settings.get("analog_boxes", [])
+
+    # modbus_boxes와 analog_boxes가 리스트인지 확인
+    if not isinstance(modbus_boxes, list):
+        raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
+
+    if not isinstance(analog_boxes, list):
+        raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
@@ -215,8 +222,13 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, modbus_boxes, settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], set_alarm_status)
 
-    modbus_ui.box_frame.grid(row=0, column=0, padx=10, pady=10)
-    analog_ui.box_frame.grid(row=1, column=0, padx=10, pady=10)
+    # Modbus 항목을 첫 번째 행에 배치
+    for i, box in enumerate(modbus_boxes):
+        modbus_ui.box_frame.grid(row=0, column=i % 7, padx=10, pady=10)
+
+    # Analog 항목을 두 번째 행에 배치
+    for i, box in enumerate(analog_boxes):
+        analog_ui.box_frame.grid(row=1, column=i % 7, padx=10, pady=10)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
