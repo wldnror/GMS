@@ -241,13 +241,12 @@ if __name__ == "__main__":
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    # Modbus와 Analog 항목을 한 줄에 배치
     for i in range(max(len(modbus_boxes), len(analog_boxes))):
-        if i < len(modbus_boxes):
+        if i < len(modbus_boxes) and column_index < max_columns:
             modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
             column_index += 1
 
-        if i < len(analog_boxes):
+        if i < len(analog_boxes) and column_index < max_columns:
             analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
             column_index += 1
 
