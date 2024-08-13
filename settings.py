@@ -51,8 +51,8 @@ def load_settings():
         return json.loads(decrypted_data)
     else:
         return {
-            "modbus_boxes": 14,
-            "analog_boxes": 0,
+            "modbus_boxes": [],  # 빈 리스트로 초기화
+            "analog_boxes": [],  # 빈 리스트로 초기화
             "admin_password": None,
             "modbus_gas_types": {},
             "analog_gas_types": {},
