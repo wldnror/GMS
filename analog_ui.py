@@ -140,8 +140,8 @@ class AnalogUI:
         # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
         led1 = box_canvas.create_rectangle(0, 235, 105, 250, fill='red', outline='white')
         led2 = box_canvas.create_rectangle(103, 235, 205, 250, fill='red', outline='white')
-        self.box_states[index]["led1"] = led1
-        self.box_states[index]["led2"] = led2
+        box_canvas.lift(led1)
+        box_canvas.lift(led2)
 
         box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
 
