@@ -128,7 +128,14 @@ class AnalogUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
+        # GMS-1000 모델명
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
+
+        # 4~20mA 값 표시
+        milliamp_var = StringVar(value="4-20 mA")
+        milliamp_text_id = box_canvas.create_text(107, 330, text=milliamp_var.get(), font=("Helvetica", 14, "bold"), fill="#00ff00", anchor="center")
+        self.box_states[index]["milliamp_var"] = milliamp_var
+        self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
         box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
 
@@ -353,6 +360,12 @@ class AnalogUI:
 
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
                 self.box_states[box_index]["last_value"] = formatted_value
+
+                # 4~20mA 값 업데이트
+                milliamp_text = f"{avg_milliamp:.1f} mA"
+                self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+                box_canvas = self.box_frames[box_index][1]
+                box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
                 if pwr_on:
                     if self.box_states[box_index]["alarm2_on"]:
