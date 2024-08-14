@@ -137,9 +137,9 @@ class AnalogUI:
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
-        # 사각형 LED 추가 (2개)
-        led1 = box_canvas.create_rectangle(60, 240, 90, 270, fill='black', outline='white')
-        led2 = box_canvas.create_rectangle(110, 240, 140, 270, fill='black', outline='white')
+        # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
+        led1 = box_canvas.create_rectangle(60, 245, 80, 265, fill='black', outline='white')
+        led2 = box_canvas.create_rectangle(120, 245, 140, 265, fill='black', outline='white')
         self.box_states[index]["led1"] = led1
         self.box_states[index]["led2"] = led2
 
@@ -301,7 +301,7 @@ class AnalogUI:
 
     def navigate_logs(self, box_index, direction):
         self.current_file_index += direction
-        if self.current_file_index < 0:
+        if (self.current_file_index) < 0:
             self.current_file_index = 0
         elif self.current_file_index >= self.get_log_file_index(box_index):
             self.current_file_index = self.get_log_file_index(box_index) - 1
