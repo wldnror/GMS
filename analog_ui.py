@@ -137,9 +137,15 @@ class AnalogUI:
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
+        # 사각형 LED 추가 (2개)
+        led1 = box_canvas.create_rectangle(60, 240, 90, 270, fill='black', outline='white')
+        led2 = box_canvas.create_rectangle(110, 240, 140, 270, fill='black', outline='white')
+        self.box_states[index]["led1"] = led1
+        self.box_states[index]["led2"] = led2
+
         box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
 
-        self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
+        self.box_frames.append((box_frame, box_canvas, circle_items, led1, led2, None))
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
@@ -157,7 +163,7 @@ class AnalogUI:
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
-        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+        _, box_canvas, circle_items, led1, led2, _ = self.box_frames[box_index]
         
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -181,6 +187,10 @@ class AnalogUI:
             outline_color = outline_color_off
         
         box_canvas.config(highlightbackground=outline_color)
+
+        # 사각형 LED 상태 업데이트
+        box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
+        box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
