@@ -84,7 +84,7 @@ class AnalogUI:
         box_frame = Frame(row_frame)
         box_frame.grid(row=0, column=col, padx=20, pady=20)
 
-        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000", bg='white')
         box_canvas.pack()
 
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
@@ -137,9 +137,15 @@ class AnalogUI:
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
+        # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
+        led1 = box_canvas.create_rectangle(0, 235, 105, 250, fill='#FF0000', outline='white')
+        led2 = box_canvas.create_rectangle(103, 235, 205, 250, fill='#FF0000', outline='white')
+        box_canvas.lift(led1)
+        box_canvas.lift(led2)
+
         box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
 
-        self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
+        self.box_frames.append((box_frame, box_canvas, circle_items, led1, led2, None))
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
@@ -157,7 +163,7 @@ class AnalogUI:
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
-        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+        _, box_canvas, circle_items, led1, led2, _ = self.box_frames[box_index]
         
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -181,6 +187,10 @@ class AnalogUI:
             outline_color = outline_color_off
         
         box_canvas.config(highlightbackground=outline_color)
+
+        # 사각형 LED 상태 업데이트
+        box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
+        box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
@@ -291,7 +301,7 @@ class AnalogUI:
 
     def navigate_logs(self, box_index, direction):
         self.current_file_index += direction
-        if self.current_file_index < 0:
+        if (self.current_file_index) < 0:
             self.current_file_index = 0
         elif self.current_file_index >= self.get_log_file_index(box_index):
             self.current_file_index = self.get_log_file_index(box_index) - 1
