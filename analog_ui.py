@@ -169,14 +169,18 @@ class AnalogUI:
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
         outline_color_off = '#000000'
-        
+
+        # A2가 활성화된 경우 A1을 비활성화
+        if states[1]:  # A2 알람이 활성화된 경우
+            states[0] = False  # A1 알람을 비활성화
+
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
-            
+
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active)
-        
+
         if states[0]:
             outline_color = outline_colors[0]
         elif states[1]:
@@ -185,7 +189,7 @@ class AnalogUI:
             outline_color = outline_colors[3]
         else:
             outline_color = outline_color_off
-        
+
         box_canvas.config(highlightbackground=outline_color)
 
         # 사각형 LED 상태 업데이트
@@ -412,17 +416,12 @@ class AnalogUI:
             with self.box_states[box_index]["blink_lock"]:
                 if is_second_alarm:
                     # 2차 알람 조건
-                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
-                    # 1차 알람 멈춤
                     self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
                     # 1차 알람 조건
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
-                    outline_color = '#ff0000' if self.box_states[box_index]["blink_state"] else '#000000'
 
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-                self.box_frames[box_index][1].config(highlightbackground=outline_color)
 
                 # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
                 if self.box_states[box_index]["last_value"] is not None:
