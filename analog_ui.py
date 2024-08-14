@@ -138,8 +138,8 @@ class AnalogUI:
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
         # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
-        led1 = box_canvas.create_rectangle(0, 235, 105, 250, fill='red', outline='white')
-        led2 = box_canvas.create_rectangle(103, 235, 205, 250, fill='red', outline='white')
+        led1 = box_canvas.create_rectangle(0, 235, 105, 250, fill='#FF0000', outline='white')
+        led2 = box_canvas.create_rectangle(103, 235, 205, 250, fill='#FF0000', outline='white')
         box_canvas.lift(led1)
         box_canvas.lift(led2)
 
