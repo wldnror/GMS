@@ -1,20 +1,21 @@
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, StringVar, Toplevel
-import tkinter as tk
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import ttk
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
 import threading
 import psutil
 import signal
 import sys
 import subprocess
 import socket
-import pygame
-import queue
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils
+import utils  # utils 모듈 임포트 추가
+import tkinter as tk
+import pygame  # 오디오 재생을 위한 pygame 모듈 추가
+import queue  # 큐 사용을 위해 추가
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -253,26 +254,47 @@ if __name__ == "__main__":
     if not isinstance(analog_boxes, list):
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
-    main_frame = Frame(root)
+    main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
+    # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 모드버스와 아날로그 상자들을 통합하여 배치
-    all_boxes = modbus_ui.box_frames + analog_ui.box_frames  # 모드버스와 아날로그 상자를 모두 통합
+    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치하고, 6개를 넘으면 다음 줄로 이동
     row_index = 0
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    for i, (box_frame, _, _, _, _, _) in enumerate(all_boxes):
+    # modbus_ui 상자 배치
+    for i in range(len(modbus_boxes)):
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
-        box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
+        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
+        column_index += 1
+
+    # 새로운 행으로 넘어가기 위해 column_index 초기화
+    row_index += 1
+    column_index = 0
+
+    # analog_ui 상자 배치
+    for i in range(len(analog_boxes)):
+        if column_index >= max_columns:
+            column_index = 0
+            row_index += 1
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    def on_enter(event):
+        event.widget.config(background="#b2b2b2", foreground="black")
+    def on_leave(event):
+        event.widget.config(background="#b2b2b2", foreground="black")
+
+    settings_button.bind("<Enter>", on_enter)
+    settings_button.bind("<Leave>", on_leave)
+
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
@@ -283,6 +305,13 @@ if __name__ == "__main__":
             update_status_label()
             time.sleep(1)
 
+    # 기록된 ignore_commit을 로드
+    if os.path.exists(utils.IGNORE_COMMIT_FILE):
+        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
+            ignore_commit = file.read().strip().encode()
+        utils.ignore_commit = ignore_commit
+
+    utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
