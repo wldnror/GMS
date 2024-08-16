@@ -363,7 +363,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(10, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
