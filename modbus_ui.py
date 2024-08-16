@@ -118,8 +118,12 @@ class ModbusUI:
         self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        row = index // 7
-        col = index % 7
+        # 한 행에 몇 개의 박스를 배치할지 결정하는 변수
+        max_boxes_per_row = 6  # 여기를 6으로 설정
+
+        # 행과 열을 계산하는 부분
+        row = index // max_boxes_per_row
+        col = index % max_boxes_per_row
 
         if col == 0:
             row_frame = Frame(self.box_frame)
