@@ -332,6 +332,12 @@ class AnalogUI:
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
                 milliamp = current * 1000
+                
+                
+                
+                # mA 교정: 2mA를 더해줍니다.
+                milliamp += 2.0
+                
                 values.append(milliamp)
 
             for channel, milliamp in enumerate(values):
