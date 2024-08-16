@@ -24,7 +24,7 @@ class VirtualKeyboard:
         if x + keyboard_width > root_width:
             x = entry.winfo_rootx() - self.root.winfo_rootx() - keyboard_width - 10
         if y + keyboard_height > root_height:
-            y = entry.winfo_rooty() - self.root.winfo_rooty() - keyboard_height - 500
+            y = entry.winfo_rooty() - self.root.winfo_rooty() - keyboard_height + 50
         if y < 0:
             y = 0
 
