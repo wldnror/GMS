@@ -97,6 +97,7 @@ class AnalogUI:
         self.box_states.append({
             "previous_value": 0,  # 마지막 실제 값을 저장
             "current_value": 0,  # 현재 보간된 값을 저장
+            "interpolating": False,  # 현재 보간 중인지 여부
             "blink_state": False,
             "blinking_error": False,
             "previous_segment_display": None,
@@ -260,7 +261,7 @@ class AnalogUI:
 
     def show_history_graph(self, box_index):
         with self.history_lock:
-            if self.history_window and self.history_window.winfo_exists():
+            if (self.history_window and self.history_window.winfo_exists()):
                 self.history_window.destroy()
 
             self.history_window = Toplevel(self.root)
@@ -313,7 +314,7 @@ class AnalogUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     async def read_adc_data(self):
-        adc_addresses = [0x48, 0x4A, 0x4B]  # Removed 0x49
+        adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             tasks = []
@@ -346,8 +347,9 @@ class AnalogUI:
 
                     self.box_states[box_index]["previous_value"] = previous_value
                     self.box_states[box_index]["current_value"] = current_value
+                    self.box_states[box_index]["interpolating"] = True
 
-                    self.adc_queue.put((box_index, previous_value, current_value))
+                    self.adc_queue.put(box_index)
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
@@ -365,34 +367,45 @@ class AnalogUI:
     def update_ui_from_queue(self):
         try:
             while not self.adc_queue.empty():
-                box_index, previous_value, current_value = self.adc_queue.get_nowait()
+                box_index = self.adc_queue.get_nowait()
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
 
-                # 100ms 간격으로 애니메이션 보간
-                for i in range(1, 11):
-                    interpolated_value = previous_value + (current_value - previous_value) * (i / 10.0)
-                    formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-                    formatted_value = max(0, min(formatted_value, full_scale))
+                # 애니메이션 보간
+                def interpolate_values():
+                    if self.box_states[box_index]["interpolating"]:
+                        prev_value = self.box_states[box_index]["previous_value"]
+                        curr_value = self.box_states[box_index]["current_value"]
 
-                    pwr_on = interpolated_value >= 1.5
+                        for i in range(1, 11):
+                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 10.0)
+                            formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+                            formatted_value = max(0, min(formatted_value, full_scale))
 
-                    self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                    self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+                            pwr_on = interpolated_value >= 1.5
 
-                    self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+                            self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                            self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-                    # 세그먼트 디스플레이에 값을 반영
-                    self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
-                    # 4~20mA 값 업데이트
-                    milliamp_text = f"{interpolated_value:.1f} mA"
-                    self.box_states[box_index]["milliamp_var"].set(milliamp_text)
-                    box_canvas = self.box_frames[box_index][1]
-                    box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
+                            # 세그먼트 디스플레이에 값을 반영
+                            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
-                    time.sleep(0.1)  # 100ms 간격으로 업데이트
+                            # 4~20mA 값 업데이트
+                            milliamp_text = f"{interpolated_value:.1f} mA"
+                            self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+                            box_canvas = self.box_frames[box_index][1]
+                            box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
+
+                            self.root.update_idletasks()
+                            time.sleep(0.1)  # 100ms 간격으로 업데이트
+
+                        self.box_states[box_index]["interpolating"] = False
+
+                interpolate_values()
+
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
