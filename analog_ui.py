@@ -180,7 +180,7 @@ class AnalogUI:
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         alarm_active = states[0] or states[1]
-        self.alarm_callback(alarm_active)
+        self.alarm_callback(alarm_active, box_index)  # box_index를 추가로 전달
 
         if states[1]:
             outline_color = outline_colors[1]  # AL2의 색상
@@ -456,6 +456,6 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active: print("Alarm Active" if active else "Alarm Inactive"))
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id}"))
 
     root.mainloop()

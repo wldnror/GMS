@@ -220,7 +220,7 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         alarm_active = states[0] or states[1]
-        self.alarm_callback(alarm_active)
+        self.alarm_callback(alarm_active, box_index)  # box_index를 전달하여 콜백 호출
 
         if states[0]:
             outline_color = outline_colors[0]

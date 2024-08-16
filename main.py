@@ -15,6 +15,7 @@ from settings import show_settings, prompt_new_password, show_password_prompt, l
 import utils  # utils 모듈 임포트 추가
 import tkinter as tk
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
+import queue  # 큐 사용을 위해 추가
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -41,28 +42,64 @@ alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
 selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
 audio_playing = False  # 오디오 재생 상태를 저장하는 변수
 
+# 오디오 재생 큐와 락 초기화
+audio_queue = queue.Queue()
+audio_lock = threading.Lock()
+
+# 현재 알람을 제어하는 상자 ID (None일 경우 알람을 제어하는 상자가 없음)
+current_alarm_box_id = None
+
 # 오디오 재생 초기화
 pygame.mixer.init()
 
-def play_alarm_sound():
-    global selected_audio_file, audio_playing
-    if selected_audio_file and not audio_playing:
-        pygame.mixer.music.load(selected_audio_file)
+def play_alarm_sound(box_id):
+    global selected_audio_file, audio_playing, current_alarm_box_id
+    with audio_lock:
+        if current_alarm_box_id is None or current_alarm_box_id == box_id:
+            current_alarm_box_id = box_id
+            if not audio_playing:
+                audio_queue.put(selected_audio_file)
+                if not pygame.mixer.music.get_busy():
+                    play_next_in_queue()
+
+def play_next_in_queue():
+    global audio_playing, current_alarm_box_id
+    if not audio_queue.empty():
+        next_audio_file = audio_queue.get()
+        pygame.mixer.music.load(next_audio_file)
         pygame.mixer.music.play()
         audio_playing = True
-
-def stop_alarm_sound():
-    global audio_playing
-    pygame.mixer.music.stop()
-    audio_playing = False
+    else:
+        current_alarm_box_id = None
 
 def check_music_end():
     global audio_playing
     if not pygame.mixer.music.get_busy():
         audio_playing = False
-        if alarm_active:
-            play_alarm_sound()
+        play_next_in_queue()  # 큐에 남은 소리가 있으면 재생
     root.after(100, check_music_end)
+
+def stop_alarm_sound(box_id):
+    global audio_playing, current_alarm_box_id
+    with audio_lock:
+        if current_alarm_box_id == box_id:
+            pygame.mixer.music.stop()
+            audio_playing = False
+            while not audio_queue.empty():  # 큐를 비움
+                audio_queue.get()
+            current_alarm_box_id = None
+
+def set_alarm_status(active, box_id):
+    global alarm_active, alarm_blinking
+    alarm_active = active
+    if alarm_active and not alarm_blinking:
+        alarm_blinking = True
+        alarm_blink()
+        play_alarm_sound(box_id)  # 알람 소리 재생
+    elif not alarm_active and alarm_blinking:
+        alarm_blinking = False
+        root.config(background=default_background)
+        stop_alarm_sound(box_id)  # 알람 소리 정지
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -174,18 +211,6 @@ def alarm_blink():
             root.after_cancel(toggle_color)
 
     toggle_color()
-
-def set_alarm_status(active):
-    global alarm_active, alarm_blinking
-    alarm_active = active
-    if alarm_active and not alarm_blinking:
-        alarm_blinking = True
-        alarm_blink()
-        play_alarm_sound()  # 알람 소리 재생
-    elif not alarm_active and alarm_blinking:
-        alarm_blinking = False
-        root.config(background=default_background)
-        stop_alarm_sound()  # 알람 소리 정지
 
 if __name__ == "__main__":
     root = tk.Tk()
