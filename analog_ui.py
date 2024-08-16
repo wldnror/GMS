@@ -58,7 +58,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=2) for _ in range(num_boxes)]  # 각 박스에 대해 최근 2개의 값을 유지
+        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -322,7 +322,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.05)  # 샘플링 속도: 50ms 간격으로 데이터 수집
+            await asyncio.sleep(0.1)  # 샘플링 속도: 100ms 간격으로 데이터 수집
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -341,9 +341,12 @@ class AnalogUI:
 
                 self.adc_values[box_index].append(milliamp)
 
-                if len(self.adc_values[box_index]) == 2:
-                    previous_value = self.adc_values[box_index][0]
-                    current_value = self.adc_values[box_index][1]
+                # 필터링을 통해 급격한 변화를 완화
+                filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
+
+                if len(self.adc_values[box_index]) == 5:  # 필터링을 위한 최소 값이 모였을 때
+                    previous_value = self.box_states[box_index]["current_value"]
+                    current_value = filtered_value
 
                     self.box_states[box_index]["previous_value"] = previous_value
                     self.box_states[box_index]["current_value"] = current_value
@@ -362,7 +365,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(1, self.update_ui_from_queue)  # 1ms 간격으로 UI 업데이트 예약
+        self.root.after(10, self.update_ui_from_queue)  # 10ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -437,7 +440,7 @@ if __name__ == "__main__":
     from tkinter import Tk
     import json
 
-    with open('settings.json') as f:
+    with open('settings.json') as f):
         settings = json.load(f)
 
     root = Tk()
