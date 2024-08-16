@@ -374,16 +374,16 @@ class AnalogUI:
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
-
+    
                 # 애니메이션 보간
                 def interpolate_values():
                     if self.box_states[box_index]["interpolating"]:
                         prev_value = self.box_states[box_index]["previous_value"]
                         curr_value = self.box_states[box_index]["current_value"]
-
-                        # 20단계로 나누어 10ms 간격으로 보간
-                        for i in range(1, 21):
-                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 20.0)
+    
+                        # 10단계로 나누어 5ms 간격으로 보간
+                        for i in range(1, 11):
+                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 10.0)
                             formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
                             formatted_value = max(0, min(formatted_value, full_scale))
 
@@ -391,20 +391,20 @@ class AnalogUI:
 
                             self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                             self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-    
+
                             self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
                             # 세그먼트 디스플레이에 값을 반영
                             self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-    
+
                             # 4~20mA 값 업데이트
                             milliamp_text = f"{interpolated_value:.1f} mA"
                             self.box_states[box_index]["milliamp_var"].set(milliamp_text)
                             box_canvas = self.box_frames[box_index][1]
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
-
+    
                             self.root.update_idletasks()
-                            time.sleep(0.01)  # 10ms 간격으로 업데이트
+                            time.sleep(0.005)  # 5ms 간격으로 업데이트
 
                         self.box_states[box_index]["interpolating"] = False
 
@@ -414,6 +414,7 @@ class AnalogUI:
             print(f"Error updating UI from queue: {e}")
 
         self.schedule_ui_update()  # 다음 업데이트 예약
+
 
 
     def blink_alarm(self, box_index, is_second_alarm):
