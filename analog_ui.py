@@ -440,7 +440,7 @@ if __name__ == "__main__":
     from tkinter import Tk
     import json
 
-    with open('settings.json') as f):
+    with open('settings.json') as f:
         settings = json.load(f)
 
     root = Tk()
