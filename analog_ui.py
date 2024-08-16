@@ -320,7 +320,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도 증가
+            await asyncio.sleep(0.05)  # 샘플링 속도 증가
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -339,8 +339,9 @@ class AnalogUI:
 
                 self.adc_values[box_index].append(milliamp)
 
+                # 평활화 적용 (Moving Average)
                 avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                print(f"Box {box_index}: {avg_milliamp} mA")
+                print(f"Box {box_index}: {avg_milliamp} mA (smoothed)")
                 self.adc_queue.put((box_index, avg_milliamp))
         except OSError as e:
             print(f"Error reading ADC data: {e}")
