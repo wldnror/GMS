@@ -58,7 +58,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=30) for _ in range(num_boxes)]  # deque with maxlen of 30
+        self.adc_values = [deque(maxlen=10) for _ in range(num_boxes)]  # 작은 버퍼 사용
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -103,7 +103,8 @@ class AnalogUI:
             "gas_type_text_id": gas_type_text_id,
             "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
             "pwr_blink_state": False,
-            "last_value": None,
+            "last_value": 0,  # 초기값을 0으로 설정
+            "target_value": 0,  # 목표 값을 추가
             "blink_thread": None,
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
@@ -339,9 +340,8 @@ class AnalogUI:
 
                 self.adc_values[box_index].append(milliamp)
 
-                # 평활화 적용 (Moving Average)
+                # 실시간 변동 반영을 위해 목표 값을 설정
                 avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                print(f"Box {box_index}: {avg_milliamp} mA (smoothed)")
                 self.adc_queue.put((box_index, avg_milliamp))
         except OSError as e:
             print(f"Error reading ADC data: {e}")
@@ -355,7 +355,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -372,8 +372,15 @@ class AnalogUI:
                 self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                 self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
+                # 목표 값을 설정하고 선형 보간을 위해 현재 값을 업데이트
+                self.box_states[box_index]["target_value"] = formatted_value
+                self.box_states[box_index]["last_value"] = self.box_states[box_index]["last_value"] + \
+                    (self.box_states[box_index]["target_value"] - self.box_states[box_index]["last_value"]) * 0.1
+
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-                self.box_states[box_index]["last_value"] = formatted_value
+
+                # 세그먼트 디스플레이에 부드럽게 반영
+                self.update_segment_display(str(int(self.box_states[box_index]["last_value"])).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 # 4~20mA 값 업데이트
                 milliamp_text = f"{avg_milliamp:.1f} mA"
@@ -381,31 +388,6 @@ class AnalogUI:
                 box_canvas = self.box_frames[box_index][1]
                 box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
-                if pwr_on:
-                    if self.box_states[box_index]["alarm2_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
-                                self.box_states[box_index]["blink_thread"].start()
-                    elif self.box_states[box_index]["alarm1_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
-                                self.box_states[box_index]["blink_thread"].start()
-                    else:
-                        with self.box_states[box_index]["blink_lock"]:
-                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.box_states[box_index]["stop_blinking"].set()
-                else:
-                    with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-                        self.box_states[box_index]["blinking_error"] = False
-                        self.box_states[box_index]["stop_blinking"].set()
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
