@@ -117,16 +117,16 @@ class ModbusUI:
         self.on_focus_in(event, entry, placeholder)
         self.show_virtual_keyboard(entry)
 
-    # def create_modbus_box(self, index):
-    #     row = index // 7
-    #     col = index % 7
+    def create_modbus_box(self, index):
+        row = index // 7
+        col = index % 7
 
-    #     if col == 0:
-    #         row_frame = Frame(self.box_frame)
-    #         row_frame.grid(row=row, column=0)
-    #         self.row_frames.append(row_frame)
-    #     else:
-    #         row_frame = self.row_frames[-1]
+        if col == 0:
+            row_frame = Frame(self.box_frame)
+            row_frame.grid(row=row, column=0)
+            self.row_frames.append(row_frame)
+        else:
+            row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
         box_frame.grid(row=0, column=col, padx=20, pady=20)
