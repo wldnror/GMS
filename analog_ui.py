@@ -322,7 +322,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.001)  # 샘플링 속도: 1초 간격으로 데이터 수집
+            await asyncio.sleep(0.1)  # 샘플링 속도: 1초 간격으로 데이터 수집
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -362,7 +362,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+        self.root.after(1, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
