@@ -170,9 +170,8 @@ class AnalogUI:
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
         outline_color_off = '#000000'
 
-        # A2가 활성화된 경우 A1을 비활성화
-        if states[1]:  # A2 알람이 활성화된 경우
-            states[0] = False  # A1 알람을 비활성화
+        if states[1]:  # AL2가 활성화된 경우
+            states[0] = True  # AL1은 항상 켜져 있어야 함
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
@@ -181,12 +180,12 @@ class AnalogUI:
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active)
 
-        if states[0]:
-            outline_color = outline_colors[0]
-        elif states[1]:
-            outline_color = outline_colors[1]
+        if states[1]:
+            outline_color = outline_colors[1]  # AL2의 색상
+        elif states[0]:
+            outline_color = outline_colors[0]  # AL1의 색상
         elif states[3]:
-            outline_color = outline_colors[3]
+            outline_color = outline_colors[3]  # FUT의 색상
         else:
             outline_color = outline_color_off
 
@@ -321,7 +320,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도 증가
+            await asyncio.sleep(0.05)  # 샘플링 속도 증가
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -355,7 +354,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
+        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -416,7 +415,7 @@ class AnalogUI:
             with self.box_states[box_index]["blink_lock"]:
                 if is_second_alarm:
                     # 2차 알람 조건
-                    self.update_circle_state([False, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
                     # 1차 알람 조건
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
@@ -428,7 +427,7 @@ class AnalogUI:
                     self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
+                    self.root.after(300, toggle_color)  # 300ms 간격으로 깜빡임
 
         toggle_color()
 
