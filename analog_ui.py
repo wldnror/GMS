@@ -320,7 +320,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.05)  # 샘플링 속도 증가
+            await asyncio.sleep(0.1)  # 샘플링 속도 증가
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -354,7 +354,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -427,7 +427,7 @@ class AnalogUI:
                     self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(300, toggle_color)  # 300ms 간격으로 깜빡임
+                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
 
         toggle_color()
 
