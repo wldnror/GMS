@@ -61,7 +61,7 @@ class AnalogUI:
         self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
 
         for i in range(num_boxes):
-            self.(i)
+            self.create_analog_box(i)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
@@ -77,7 +77,7 @@ class AnalogUI:
         # 행과 열을 계산하는 부분
         row = index // max_boxes_per_row
         col = index % max_boxes_per_row
-    
+
         if col == 0:
             row_frame = Frame(self.box_frame)
             row_frame.grid(row=row, column=0)
