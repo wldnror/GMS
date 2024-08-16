@@ -17,7 +17,7 @@ class VirtualKeyboard:
         x = entry.winfo_rootx() - self.root.winfo_rootx()
         y = entry.winfo_rooty() - self.root.winfo_rooty() + entry.winfo_width() + 5
 
-        keyboard_width = 600  # 가상 키보드의 예상 너비
+        keyboard_width = 60  # 가상 키보드의 예상 너비
         keyboard_height = 240  # 가상 키보드의 예상 높이
 
         # 가상 키보드가 창 바깥으로 이탈하지 않도록 위치 조정
