@@ -379,6 +379,8 @@ class AnalogUI:
     
                 pwr_on = avg_milliamp >= 1.5
 
+            # 전원이 켜진 경우에만 값을 업데이트하고, 꺼진 경우는 세그먼트를 비움
+            if pwr_on:
                 self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                 self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
@@ -391,32 +393,31 @@ class AnalogUI:
                 box_canvas = self.box_frames[box_index][1]
                 box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
-                if pwr_on:
-                    if self.box_states[box_index]["alarm2_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
-                                self.box_states[box_index]["blink_thread"].start()
-                    elif self.box_states[box_index]["alarm1_on"]:
-                        if not self.box_states[box_index]["blinking_error"]:
-                            self.box_states[box_index]["blinking_error"] = True
-                            self.box_states[box_index]["stop_blinking"].clear()
-                            if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
-                                self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
-                                self.box_states[box_index]["blink_thread"].start()
-                    else:
-                        with self.box_states[box_index]["blink_lock"]:
-                            self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                            self.box_states[box_index]["blinking_error"] = False
-                            self.box_states[box_index]["stop_blinking"].set()
+                if self.box_states[box_index]["alarm2_on"]:
+                    if not self.box_states[box_index]["blinking_error"]:
+                        self.box_states[box_index]["blinking_error"] = True
+                        self.box_states[box_index]["stop_blinking"].clear()
+                        if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, True))
+                            self.box_states[box_index]["blink_thread"].start()
+                elif self.box_states[box_index]["alarm1_on"]:
+                    if not self.box_states[box_index]["blinking_error"]:
+                        self.box_states[box_index]["blinking_error"] = True
+                        self.box_states[box_index]["stop_blinking"].clear()
+                        if self.box_states[box_index]["blink_thread"] is None or not self.box_states[box_index]["blink_thread"].is_alive():
+                            self.box_states[box_index]["blink_thread"] = threading.Thread(target=self.blink_alarm, args=(box_index, False))
+                            self.box_states[box_index]["blink_thread"].start()
                 else:
-                    # 전원이 꺼진 경우 세그먼트를 비움
                     with self.box_states[box_index]["blink_lock"]:
-                        self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                        self.update_segment_display(str(formatted_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
                         self.box_states[box_index]["blinking_error"] = False
                         self.box_states[box_index]["stop_blinking"].set()
+            else:
+                # 전원이 꺼진 경우 세그먼트를 비움
+                with self.box_states[box_index]["blink_lock"]:
+                    self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                    self.box_states[box_index]["blinking_error"] = False
+                    self.box_states[box_index]["stop_blinking"].set()
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
