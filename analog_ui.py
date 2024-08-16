@@ -413,10 +413,10 @@ class AnalogUI:
 
                 interpolate_values()
 
-    except Exception as e:
-        print(f"Error updating UI from queue: {e}")
+        except Exception as e:
+            print(f"Error updating UI from queue: {e}")
 
-    self.schedule_ui_update()  # 다음 업데이트 예약
+        self.schedule_ui_update()  # 다음 업데이트 예약
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
