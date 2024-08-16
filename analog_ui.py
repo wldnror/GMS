@@ -335,7 +335,7 @@ class AnalogUI:
                 
                 
                 # mA 교정: 2mA를 더해줍니다.
-                milliamp += 0.15
+                milliamp += 0.13
                 
                 values.append(milliamp)
 
