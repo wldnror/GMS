@@ -39,7 +39,7 @@ class AnalogUI:
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
-        self.alarm_callback = alarm_callback  # 알람 콜백 추가
+        self.alarm_callback = alarm_callback
         self.gas_types = gas_types
         self.num_boxes = num_boxes
         self.box_states = []
@@ -58,8 +58,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=10) for _ in range(num_boxes)]  # 작은 버퍼 사용
-        self.ema_values = [0] * num_boxes  # EMA 초기화
+        self.adc_values = [deque(maxlen=2) for _ in range(num_boxes)]  # 각 박스에 대해 최근 2개의 값을 유지
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -96,6 +95,8 @@ class AnalogUI:
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
         gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
+            "previous_value": 0,  # 마지막 실제 값을 저장
+            "current_value": 0,  # 현재 보간된 값을 저장
             "blink_state": False,
             "blinking_error": False,
             "previous_segment_display": None,
@@ -104,8 +105,6 @@ class AnalogUI:
             "gas_type_text_id": gas_type_text_id,
             "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
             "pwr_blink_state": False,
-            "last_value": 0,  # 초기값을 0으로 설정
-            "target_value": 0,  # 목표 값을 추가
             "blink_thread": None,
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
@@ -322,7 +321,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.05)  # 샘플링 속도 증가
+            await asyncio.sleep(1)  # 샘플링 속도: 1초 간격으로 데이터 수집
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -341,9 +340,14 @@ class AnalogUI:
 
                 self.adc_values[box_index].append(milliamp)
 
-                # 실시간 변동 반영을 위해 목표 값을 설정
-                avg_milliamp = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-                self.adc_queue.put((box_index, avg_milliamp))
+                if len(self.adc_values[box_index]) == 2:
+                    previous_value = self.adc_values[box_index][0]
+                    current_value = self.adc_values[box_index][1]
+
+                    self.box_states[box_index]["previous_value"] = previous_value
+                    self.box_states[box_index]["current_value"] = current_value
+
+                    self.adc_queue.put((box_index, previous_value, current_value))
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
@@ -356,38 +360,39 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(100, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
             while not self.adc_queue.empty():
-                box_index, avg_milliamp = self.adc_queue.get_nowait()
+                box_index, previous_value, current_value = self.adc_queue.get_nowait()
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
-                formatted_value = int((avg_milliamp - 4) / (20 - 4) * full_scale)
-                formatted_value = max(0, min(formatted_value, full_scale))
 
-                pwr_on = avg_milliamp >= 1.5
+                # 100ms 간격으로 애니메이션 보간
+                for i in range(1, 11):
+                    interpolated_value = previous_value + (current_value - previous_value) * (i / 10.0)
+                    formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+                    formatted_value = max(0, min(formatted_value, full_scale))
 
-                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+                    pwr_on = interpolated_value >= 1.5
 
-                # EMA 적용 (지수 이동 평균)
-                alpha = 0.2  # EMA 계수 (0 < alpha <= 1)
-                self.ema_values[box_index] = alpha * formatted_value + (1 - alpha) * self.ema_values[box_index]
+                    self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                    self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+                    self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
-                # 세그먼트 디스플레이에 EMA 값을 반영
-                self.update_segment_display(str(int(self.ema_values[box_index])).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                    # 세그먼트 디스플레이에 값을 반영
+                    self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
-                # 4~20mA 값 업데이트
-                milliamp_text = f"{avg_milliamp:.1f} mA"
-                self.box_states[box_index]["milliamp_var"].set(milliamp_text)
-                box_canvas = self.box_frames[box_index][1]
-                box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
+                    # 4~20mA 값 업데이트
+                    milliamp_text = f"{interpolated_value:.1f} mA"
+                    self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+                    box_canvas = self.box_frames[box_index][1]
+                    box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
+                    time.sleep(0.1)  # 100ms 간격으로 업데이트
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
@@ -406,8 +411,8 @@ class AnalogUI:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
                 # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
-                if self.box_states[box_index]["last_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                if self.box_states[box_index]["current_value"] is not None:
+                    self.update_segment_display(str(self.box_states[box_index]["current_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
