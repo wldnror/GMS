@@ -363,7 +363,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(1000, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(1, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -401,7 +401,7 @@ class AnalogUI:
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
                             self.root.update_idletasks()
-                            time.sleep(0.05)  # 50ms 간격으로 업데이트
+                            time.sleep(0.005)  # 50ms 간격으로 업데이트
 
                         self.box_states[box_index]["interpolating"] = False
 
