@@ -332,6 +332,11 @@ class AnalogUI:
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
                 milliamp = current * 1000
+                
+                
+                # mA 교정: 2mA를 더해줍니다.
+                milliamp += 0.12
+                
                 values.append(milliamp)
 
             for channel, milliamp in enumerate(values):
@@ -388,17 +393,20 @@ class AnalogUI:
                             formatted_value = max(0, min(formatted_value, full_scale))
 
                             pwr_on = interpolated_value >= 1.5
-    
+
                             self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                             self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
                             self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
                             # 세그먼트 디스플레이에 값을 반영
-                            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            if pwr_on:
+                                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            else:
+                                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                             # 4~20mA 값 업데이트
-                            milliamp_text = f"{interpolated_value:.1f} mA"
+                            milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
                             self.box_states[box_index]["milliamp_var"].set(milliamp_text)
                             box_canvas = self.box_frames[box_index][1]
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
@@ -412,9 +420,9 @@ class AnalogUI:
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
-    
+
         self.schedule_ui_update()  # 다음 업데이트 예약
-    
+
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
