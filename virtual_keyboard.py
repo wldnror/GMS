@@ -5,6 +5,10 @@ class VirtualKeyboard:
         self.root = root
         self.keyboard_window = None
         self.hide_timer = None
+        self.num_boxes = 1  # 기본적으로 상자의 수를 1로 설정
+
+    def set_num_boxes(self, num_boxes):
+        self.num_boxes = num_boxes  # 상자의 수를 설정하는 메서드
 
     def show(self, entry):
         # 기존 키보드 창이 있으면 닫음
@@ -14,19 +18,31 @@ class VirtualKeyboard:
         root_width = self.root.winfo_width()
         root_height = self.root.winfo_height()
 
-        x = entry.winfo_rootx() - self.root.winfo_rootx() + entry.winfo_width() + 145
-        y = entry.winfo_rooty() - self.root.winfo_rooty()
+        entry_x = entry.winfo_rootx() - self.root.winfo_rootx()
+        entry_y = entry.winfo_rooty() - self.root.winfo_rooty()
 
         keyboard_width = 260  # 가상 키보드의 예상 너비
         keyboard_height = 240  # 가상 키보드의 예상 높이
 
+        # 상자의 개수에 따라 키보드 위치를 동적으로 조정
+        if self.num_boxes == 1:
+            # 상자가 1개일 경우, 화면 중앙에 키보드 배치
+            x = (root_width - keyboard_width) // 2
+            y = entry_y + entry.winfo_height() + 10
+        else:
+            # 상자가 여러 개일 경우, 상자 바로 아래에 키보드를 배치
+            x = entry_x
+            y = entry_y + entry.winfo_height() + 10
+
         # 가상 키보드가 창 바깥으로 이탈하지 않도록 위치 조정
         if x + keyboard_width > root_width:
-            x = entry.winfo_rootx() - self.root.winfo_rootx() - keyboard_width + 50
+            x = root_width - keyboard_width - 10
         if y + keyboard_height > root_height:
-            y = root_height - keyboard_height
+            y = entry_y - keyboard_height - 10
         if y < 0:
             y = 0
+        if x < 0:
+            x = 0
 
         self.keyboard_window = tk.Toplevel(self.root)
         self.keyboard_window.overrideredirect(True)
