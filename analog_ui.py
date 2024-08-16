@@ -380,15 +380,15 @@ class AnalogUI:
                     if self.box_states[box_index]["interpolating"]:
                         prev_value = self.box_states[box_index]["previous_value"]
                         curr_value = self.box_states[box_index]["current_value"]
-    
-                        # 5단계로 나누어 2ms 간격으로 보간
-                        for i in range(1, 6):
-                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 5.0)
+
+                        # 3단계로 나누어 1ms 간격으로 보간
+                        for i in range(1, 4):
+                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 3.0)
                             formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
                             formatted_value = max(0, min(formatted_value, full_scale))
 
                             pwr_on = interpolated_value >= 1.5
-
+    
                             self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                             self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
@@ -404,7 +404,7 @@ class AnalogUI:
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
                             self.root.update_idletasks()
-                            time.sleep(0.002)  # 2ms 간격으로 업데이트
+                            time.sleep(0.001)  # 1ms 간격으로 업데이트
 
                         self.box_states[box_index]["interpolating"] = False
 
@@ -412,9 +412,8 @@ class AnalogUI:
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
-
+    
         self.schedule_ui_update()  # 다음 업데이트 예약
-
     
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
