@@ -59,6 +59,7 @@ class AnalogUI:
             os.makedirs(self.history_dir)
 
         self.adc_values = [deque(maxlen=10) for _ in range(num_boxes)]  # 작은 버퍼 사용
+        self.ema_values = [0] * num_boxes  # EMA 초기화
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -372,15 +373,14 @@ class AnalogUI:
                 self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                 self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-                # 목표 값을 설정하고 선형 보간을 위해 현재 값을 업데이트
-                self.box_states[box_index]["target_value"] = formatted_value
-                self.box_states[box_index]["last_value"] = self.box_states[box_index]["last_value"] + \
-                    (self.box_states[box_index]["target_value"] - self.box_states[box_index]["last_value"]) * 0.1
+                # EMA 적용 (지수 이동 평균)
+                alpha = 0.2  # EMA 계수 (0 < alpha <= 1)
+                self.ema_values[box_index] = alpha * formatted_value + (1 - alpha) * self.ema_values[box_index]
 
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
-                # 세그먼트 디스플레이에 부드럽게 반영
-                self.update_segment_display(str(int(self.box_states[box_index]["last_value"])).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                # 세그먼트 디스플레이에 EMA 값을 반영
+                self.update_segment_display(str(int(self.ema_values[box_index])).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 # 4~20mA 값 업데이트
                 milliamp_text = f"{avg_milliamp:.1f} mA"
