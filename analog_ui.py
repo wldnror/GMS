@@ -39,7 +39,7 @@ class AnalogUI:
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
-        self.alarm_callback = alarm_callback  # 알람 콜백 추가
+        self.alarm_callback = alarm_callback
         self.gas_types = gas_types
         self.num_boxes = num_boxes
         self.box_states = []
@@ -58,7 +58,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=30) for _ in range(num_boxes)]  # deque with maxlen of 30
+        self.adc_values = [deque(maxlen=30) for _ in range(num_boxes)]
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -131,16 +131,13 @@ class AnalogUI:
         circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
         box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
 
-        # GMS-1000 모델명
         box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
 
-        # 4~20mA 값 표시
         milliamp_var = StringVar(value="4-20 mA")
         milliamp_text_id = box_canvas.create_text(107, 330, text=milliamp_var.get(), font=("Helvetica", 14, "bold"), fill="#00ff00", anchor="center")
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
-        # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
         led1 = box_canvas.create_rectangle(0, 235, 105, 250, fill='#FF0000', outline='white')
         led2 = box_canvas.create_rectangle(103, 235, 205, 250, fill='#FF0000', outline='white')
         box_canvas.lift(led1)
@@ -168,7 +165,7 @@ class AnalogUI:
     def lerp(self, start, end, t):
         return start + t * (end - start)
 
-    def animate_value(self, box_index, target_value, duration=0.5):
+    def animate_value(self, box_index, target_value, duration=1.0):
         start_value = self.box_states[box_index]["current_display_value"]
         start_ma = self.box_states[box_index]["current_ma_value"]
         start_time = time.time()
@@ -183,13 +180,11 @@ class AnalogUI:
             self.box_states[box_index]["current_display_value"] = current_value
             self.box_states[box_index]["current_ma_value"] = current_ma
 
-            # 세그먼트 디스플레이 업데이트
             self.update_segment_display(str(current_value).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-            # mA 표시 업데이트
             self.box_states[box_index]["milliamp_var"].set(f"{current_ma:.1f} mA")
 
             if t < 1:
-                self.root.after(50, update_animation)  # 50ms 간격으로 애니메이션 업데이트
+                self.root.after(50, update_animation)
 
         update_animation()
 
@@ -201,8 +196,8 @@ class AnalogUI:
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
         outline_color_off = '#000000'
 
-        if states[1]:  # AL2가 활성화된 경우
-            states[0] = True  # AL1은 항상 켜져 있어야 함
+        if states[1]:
+            states[0] = True
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
@@ -212,17 +207,16 @@ class AnalogUI:
         self.alarm_callback(alarm_active)
 
         if states[1]:
-            outline_color = outline_colors[1]  # AL2의 색상
+            outline_color = outline_colors[1]
         elif states[0]:
-            outline_color = outline_colors[0]  # AL1의 색상
+            outline_color = outline_colors[0]
         elif states[3]:
-            outline_color = outline_colors[3]  # FUT의 색상
+            outline_color = outline_colors[3]
         else:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
 
-        # 사각형 LED 상태 업데이트
         box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
@@ -343,7 +337,7 @@ class AnalogUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     async def read_adc_data(self):
-        adc_addresses = [0x48, 0x4A, 0x4B]  # Removed 0x49
+        adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
         while True:
             tasks = []
@@ -351,7 +345,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도
+            await asyncio.sleep(0.05)
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -385,7 +379,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(50, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(50, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
@@ -404,33 +398,29 @@ class AnalogUI:
 
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
-                # 세그먼트 디스플레이 및 mA 값 애니메이션 적용
                 self.box_states[box_index]["target_value"] = avg_milliamp
                 self.animate_value(box_index, formatted_value)
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
-        self.schedule_ui_update()  # 다음 업데이트 예약
+        self.schedule_ui_update()
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
                 if is_second_alarm:
-                    # 2차 알람 조건
                     self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
-                    # 1차 알람 조건
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
 
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
-                # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
                 if self.box_states[box_index]["last_value"] is not None:
                     self.update_segment_display(str(self.box_states[box_index]["last_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(300, toggle_color)  # 300ms 간격으로 깜빡임
+                    self.root.after(300, toggle_color)
 
         toggle_color()
 
