@@ -61,7 +61,7 @@ class AnalogUI:
         self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
 
         for i in range(num_boxes):
-            self.create_analog_box(i)
+            self.(i)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
@@ -71,9 +71,13 @@ class AnalogUI:
         self.schedule_ui_update()
 
     def create_analog_box(self, index):
-        row = index // 7
-        col = index % 7
+        # 한 행에 몇 개의 박스를 배치할지 결정하는 변수
+        max_boxes_per_row = 6  # 여기를 6으로 설정
 
+        # 행과 열을 계산하는 부분
+        row = index // max_boxes_per_row
+        col = index % max_boxes_per_row
+    
         if col == 0:
             row_frame = Frame(self.box_frame)
             row_frame.grid(row=row, column=0)
