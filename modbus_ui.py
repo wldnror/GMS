@@ -125,15 +125,16 @@ class ModbusUI:
         row = index // max_boxes_per_row
         col = index % max_boxes_per_row
 
+        # 각 row_frame을 한 줄에 하나씩 생성하도록 함
         if col == 0:
             row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0)
+            row_frame.grid(row=row, column=0, sticky="w")  # sticky="w"로 왼쪽 정렬
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=20, pady=20)
+        box_frame.grid(row=0, column=col, padx=20, pady=20, sticky="w")
 
         box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
