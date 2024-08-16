@@ -97,7 +97,6 @@ class AnalogUI:
         self.box_states.append({
             "previous_value": 0,  # 마지막 실제 값을 저장
             "current_value": 0,  # 현재 보간된 값을 저장
-            "target_value": 0,   # 목표 값을 저장
             "interpolating": False,  # 현재 보간 중인지 여부
             "blink_state": False,
             "blinking_error": False,
@@ -262,7 +261,7 @@ class AnalogUI:
 
     def show_history_graph(self, box_index):
         with self.history_lock:
-            if self.history_window and self.history_window.winfo_exists():
+            if (self.history_window and self.history_window.winfo_exists()):
                 self.history_window.destroy()
 
             self.history_window = Toplevel(self.root)
@@ -323,7 +322,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.01)  # 샘플링 속도: 1초 간격으로 데이터 수집
+            await asyncio.sleep(0.1)  # 샘플링 속도: 1초 간격으로 데이터 수집
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -347,7 +346,7 @@ class AnalogUI:
                     current_value = self.adc_values[box_index][1]
 
                     self.box_states[box_index]["previous_value"] = previous_value
-                    self.box_states[box_index]["target_value"] = current_value
+                    self.box_states[box_index]["current_value"] = current_value
                     self.box_states[box_index]["interpolating"] = True
 
                     self.adc_queue.put(box_index)
@@ -363,7 +362,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.root.after(1, self.update_ui_from_queue)  # 50ms 간격으로 UI 업데이트 예약
+        self.root.after(10, self.update_ui_from_queue)  # 100ms 간격으로 UI 업데이트 예약
 
     def update_ui_from_queue(self):
         try:
@@ -373,14 +372,14 @@ class AnalogUI:
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
 
+                # 애니메이션 보간
                 def interpolate_values():
                     if self.box_states[box_index]["interpolating"]:
                         prev_value = self.box_states[box_index]["previous_value"]
-                        target_value = self.box_states[box_index]["target_value"]
+                        curr_value = self.box_states[box_index]["current_value"]
 
-                        # 10단계로 나누어 50ms 간격으로 보간
-                        for i in range(1, 21):
-                            interpolated_value = prev_value + (target_value - prev_value) * (i / 20.0)
+                        for i in range(1, 11):
+                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 10.0)
                             formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
                             formatted_value = max(0, min(formatted_value, full_scale))
 
@@ -401,7 +400,7 @@ class AnalogUI:
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
 
                             self.root.update_idletasks()
-                            time.sleep(0.005)  # 50ms 간격으로 업데이트
+                            time.sleep(0.1)  # 100ms 간격으로 업데이트
 
                         self.box_states[box_index]["interpolating"] = False
 
