@@ -22,9 +22,9 @@ class VirtualKeyboard:
 
         # 가상 키보드가 창 바깥으로 이탈하지 않도록 위치 조정
         if x + keyboard_width > root_width:
-            x = entry.winfo_rootx() - self.root.winfo_rootx() - keyboard_width - 10
+            x = entry.winfo_rootx() - self.root.winfo_rootx() - keyboard_width + 250
         if y + keyboard_height > root_height:
-            y = entry.winfo_rooty() - self.root.winfo_rooty() - keyboard_height + 50
+            y = entry.winfo_rooty() - self.root.winfo_rooty() - keyboard_height + 400
         if y < 0:
             y = 0
 
