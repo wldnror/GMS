@@ -381,9 +381,9 @@ class AnalogUI:
                         prev_value = self.box_states[box_index]["previous_value"]
                         curr_value = self.box_states[box_index]["current_value"]
 
-                        # 20단계로 나누어 50ms 간격으로 보간
-                        for i in range(1, 21):
-                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 20.0)
+                        # 50단계로 나누어 50ms 간격으로 보간
+                        for i in range(1, 51):
+                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 50.0)
                             formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
                             formatted_value = max(0, min(formatted_value, full_scale))
 
