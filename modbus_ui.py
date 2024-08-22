@@ -54,7 +54,7 @@ class ModbusUI:
         self.box_frame.grid(row=0, column=0, padx=int(20 * SCALE_FACTOR), pady=int(20 * SCALE_FACTOR))
         self.row_frames = []
         self.box_frames = []
-        self.gradient_bar = create_gradient_bar(int(140 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
+        self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.history_dir = "history_logs"
         self.gas_types = gas_types
 
@@ -190,8 +190,8 @@ class ModbusUI:
 
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
-        bar_canvas = Canvas(box_canvas, width=int(140 * SCALE_FACTOR), height=int(5 * SCALE_FACTOR), bg="white", highlightthickness=0)
-        bar_canvas.place(x=int(20 * SCALE_FACTOR), y=int(80 * SCALE_FACTOR))
+        bar_canvas = Canvas(box_canvas, width=int(120 * SCALE_FACTOR), height=int(5 * SCALE_FACTOR), bg="white", highlightthickness=0)
+        bar_canvas.place(x=int(20 * SCALE_FACTOR), y=int(75 * SCALE_FACTOR))
 
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
