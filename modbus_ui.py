@@ -162,7 +162,7 @@ class ModbusUI:
         self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
 
         control_frame = Frame(box_canvas, bg="black")
-        control_frame.place(x=int(10 * SCALE_FACTOR), y=int(200 * SCALE_FACTOR))
+        control_frame.place(x=int(10 * SCALE_FACTOR), y=int(205 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
 
@@ -170,11 +170,11 @@ class ModbusUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(123 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(123 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(20 * SCALE_FACTOR)))
         box_canvas.create_text(int(95 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(87 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
-        box_canvas.create_text(int(140 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+        box_canvas.create_text(int(140 * SCALE_FACTOR), int(220 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
         box_canvas.create_text(int(35 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
