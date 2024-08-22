@@ -26,10 +26,10 @@ class AnalogUI:
     }
 
     GAS_TYPE_POSITIONS = {
-        "ORG": (149, 117),
-        "ARF-T": (140, 117),
-        "HMDS": (143, 117),
-        "HC-100": (137, 117)
+        "ORG": (110, 100),
+        "ARF-T": (100, 100),
+        "HMDS": (105, 100),
+        "HC-100": (110, 100)
     }
 
     ALARM_LEVELS = {
@@ -101,7 +101,7 @@ class AnalogUI:
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
         gas_type_text_id = box_canvas.create_text(*[int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type_var.get()]],
-                                                  text=gas_type_var.get(), font=("Helvetica", int(12 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+                                                  text=gas_type_var.get(), font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "previous_value": 0,  # 마지막 실제 값을 저장
             "current_value": 0,  # 현재 보간된 값을 저장
