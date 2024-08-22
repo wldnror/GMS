@@ -162,7 +162,7 @@ class ModbusUI:
         self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
 
         control_frame = Frame(box_canvas, bg="black")
-        control_frame.place(x=int(10 * SCALE_FACTOR), y=int(20 * SCALE_FACTOR))
+        control_frame.place(x=int(10 * SCALE_FACTOR), y=int(150 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
 
