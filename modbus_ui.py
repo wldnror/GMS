@@ -186,7 +186,7 @@ class ModbusUI:
         gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", int(18 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
-        box_canvas.create_text(int(107 * SCALE_FACTOR), int(360 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(22 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         box_canvas.create_text(int(107 * SCALE_FACTOR), int(395 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(9 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
@@ -194,7 +194,7 @@ class ModbusUI:
         bar_canvas.place(x=int(27 * SCALE_FACTOR), y=int(98 * SCALE_FACTOR))
 
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
-        bar_item = bar_canvas.create_image(40, 0, anchor='nw', image=bar_image)
+        bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
         self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
 
