@@ -139,8 +139,8 @@ class ModbusUI:
         box_canvas = Canvas(box_frame, width=250, height=450, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, 260, 300, fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 250, 260, 460, fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)
         self.box_states.append({
