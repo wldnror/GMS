@@ -11,7 +11,9 @@ from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
 
-GAIN = 2 / 3  # 전역 변수로 설정
+# 전역 변수로 설정
+GAIN = 2 / 3  
+SCALE_FACTOR = 1.2  # 20% 키우기
 
 class AnalogUI:
     LOGS_PER_FILE = 10
@@ -49,7 +51,7 @@ class AnalogUI:
         self.history_lock = threading.Lock()
 
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=40, pady=40)
+        self.box_frame.grid(row=0, column=0, padx=int(40 * SCALE_FACTOR), pady=int(40 * SCALE_FACTOR))
 
         self.row_frames = []
         self.box_frames = []
@@ -86,18 +88,20 @@ class AnalogUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=30, pady=30)
+        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR))
 
-        box_canvas = Canvas(box_frame, width=250, height=450, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000", bg='white')
+        box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
+                            highlightbackground="#000000", highlightcolor="#000000", bg='white')
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 250, 210, 410, fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='black', outline='grey', tags='border')
 
         gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
-        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(*[int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type_var.get()]],
+                                                  text=gas_type_var.get(), font=("Helvetica", int(12 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "previous_value": 0,  # 마지막 실제 값을 저장
             "current_value": 0,  # 현재 보간된 값을 저장
@@ -122,34 +126,34 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
-        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(67 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
+        box_canvas.create_text(int(75 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
-        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(113 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(103 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
+        box_canvas.create_text(int(120 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
-        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(box_canvas.create_oval(int(20 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
+        box_canvas.create_text(int(25 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
 
-        circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
-        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
+        circle_items.append(box_canvas.create_oval(int(141 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(151 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
+        box_canvas.create_text(int(145 * SCALE_FACTOR), int(163 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
 
         # GMS-1000 모델명
-        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         # 4~20mA 값 표시
         milliamp_var = StringVar(value="4-20 mA")
-        milliamp_text_id = box_canvas.create_text(107, 330, text=milliamp_var.get(), font=("Helvetica", 14, "bold"), fill="#00ff00", anchor="center")
+        milliamp_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(240 * SCALE_FACTOR), text=milliamp_var.get(), font=("Helvetica", int(10 * SCALE_FACTOR), "bold"), fill="#00ff00", anchor="center")
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
         # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
-        led1 = box_canvas.create_rectangle(0, 235, 105, 250, fill='#FF0000', outline='white')
-        led2 = box_canvas.create_rectangle(103, 235, 205, 250, fill='#FF0000', outline='white')
+        led1 = box_canvas.create_rectangle(0, int(185 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='#FF0000', outline='white')
+        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(185 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='#FF0000', outline='white')
         box_canvas.lift(led1)
         box_canvas.lift(led2)
 
-        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas, circle_items, led1, led2, None))
 
@@ -161,7 +165,7 @@ class AnalogUI:
         self.box_states[box_index]["full_scale"] = full_scale
 
         box_canvas = self.box_frames[box_index][1]
-        position = self.GAS_TYPE_POSITIONS[gas_type]
+        position = [int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type]]
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
@@ -270,7 +274,7 @@ class AnalogUI:
 
             self.history_window = Toplevel(self.root)
             self.history_window.title(f"History - Box {box_index}")
-            self.history_window.geometry("1200x800")
+            self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
             self.history_window.attributes("-topmost", True)
 
             self.current_file_index = self.get_log_file_index(box_index) - 1
@@ -280,7 +284,7 @@ class AnalogUI:
         log_entries = self.load_log_files(box_index, file_index)
         times, values = zip(*log_entries) if log_entries else ([], [])
 
-        figure = plt.Figure(figsize=(12, 8), dpi=100)
+        figure = plt.Figure(figsize=(12 * SCALE_FACTOR, 8 * SCALE_FACTOR), dpi=100)
         ax = figure.add_subplot(111)
 
         ax.plot(times, values, marker='o')
