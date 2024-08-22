@@ -90,7 +90,7 @@ class AnalogUI:
         box_frame = Frame(row_frame)
         box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR))
 
-        box_canvas = Canvas(box_frame, width=int(100 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
+        box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
         box_canvas.pack()
 
