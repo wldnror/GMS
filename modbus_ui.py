@@ -14,6 +14,9 @@ import mplcursors
 from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment_display
 from virtual_keyboard import VirtualKeyboard
 
+# 스케일 팩터로 20% 확대
+SCALE_FACTOR = 1.2  
+
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
     SETTINGS_FILE = "modbus_settings.json"  # IP 설정 파일
@@ -25,10 +28,10 @@ class ModbusUI:
     }
     
     GAS_TYPE_POSITIONS = {
-        "ORG": (149, 122),
-        "ARF-T": (140, 122),
-        "HMDS": (143, 122),
-        "HC-100": (139, 122)
+        "ORG": (int(149 * SCALE_FACTOR), int(122 * SCALE_FACTOR)),
+        "ARF-T": (int(140 * SCALE_FACTOR), int(122 * SCALE_FACTOR)),
+        "HMDS": (int(143 * SCALE_FACTOR), int(122 * SCALE_FACTOR)),
+        "HC-100": (int(139 * SCALE_FACTOR), int(122 * SCALE_FACTOR))
     }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
@@ -48,10 +51,10 @@ class ModbusUI:
         self.history_window = None  # 히스토리 창을 저장할 변수
         self.history_lock = threading.Lock()  # 히스토리 창 중복 방지를 위한 락
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=20, pady=20)
+        self.box_frame.grid(row=0, column=0, padx=int(20 * SCALE_FACTOR), pady=int(20 * SCALE_FACTOR))
         self.row_frames = []
         self.box_frames = []
-        self.gradient_bar = create_gradient_bar(153, 5)
+        self.gradient_bar = create_gradient_bar(int(153 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.history_dir = "history_logs"
         self.gas_types = gas_types
 
@@ -64,8 +67,8 @@ class ModbusUI:
         connect_image_path = os.path.join(script_dir, "img/on.png")
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
 
-        self.connect_image = self.load_image(connect_image_path, (50, 70))
-        self.disconnect_image = self.load_image(disconnect_image_path, (50, 70))
+        self.connect_image = self.load_image(connect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
+        self.disconnect_image = self.load_image(disconnect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
 
         for i in range(num_boxes):
             self.create_modbus_box(i)
@@ -82,7 +85,7 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=16, highlightthickness=0)
+        entry = Entry(frame, textvariable=ip_var, width=int(16 * SCALE_FACTOR), highlightthickness=0)
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -91,11 +94,11 @@ class ModbusUI:
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=(0, 5))
+        entry.grid(row=0, column=0, padx=(0, int(5 * SCALE_FACTOR)))
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
-                               width=60, height=40, bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
+                               width=int(60 * SCALE_FACTOR), height=int(40 * SCALE_FACTOR), bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
         action_button.grid(row=0, column=1, padx=(0, 0))
         self.action_buttons.append(action_button)
 
@@ -134,13 +137,13 @@ class ModbusUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=20, pady=20, sticky="w")
+        box_frame.grid(row=0, column=col, padx=int(20 * SCALE_FACTOR), pady=int(20 * SCALE_FACTOR), sticky="w")
 
-        box_canvas = Canvas(box_frame, width=250, height=450, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=int(250 * SCALE_FACTOR), height=int(450 * SCALE_FACTOR), highlightthickness=int(4 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, 260, 300, fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, 250, 260, 460, fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(260 * SCALE_FACTOR), int(300 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, int(250 * SCALE_FACTOR), int(260 * SCALE_FACTOR), int(460 * SCALE_FACTOR), fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)
         self.box_states.append({
@@ -159,7 +162,7 @@ class ModbusUI:
         self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
 
         control_frame = Frame(box_canvas, bg="black")
-        control_frame.place(x=10, y=250)
+        control_frame.place(x=int(10 * SCALE_FACTOR), y=int(250 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
 
@@ -167,28 +170,28 @@ class ModbusUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(133, 200, 123, 190))
-        box_canvas.create_text(95, 220, text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(123 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
+        box_canvas.create_text(int(95 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(77, 200, 87, 190))
-        box_canvas.create_text(140, 220, text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(87 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
+        box_canvas.create_text(int(140 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(30, 200, 40, 190))
-        box_canvas.create_text(35, 220, text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
+        box_canvas.create_text(int(35 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
 
-        circle_items.append(box_canvas.create_oval(171, 200, 181, 190))
-        box_canvas.create_text(175, 213, text="FUT", fill="#cccccc", anchor="n")
+        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(181 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
+        box_canvas.create_text(int(175 * SCALE_FACTOR), int(213 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
 
         gas_type_var = self.box_states[index]["gas_type_var"]
-        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", 18, "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", int(18 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
-        box_canvas.create_text(107, 360, text="GMS-1000", font=("Helvetica", 22, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(107 * SCALE_FACTOR), int(360 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(22 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
-        box_canvas.create_text(107, 395, text="GDS ENGINEERING CO.,LTD", font=("Helvetica", 9, "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(107 * SCALE_FACTOR), int(395 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(9 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
-        bar_canvas = Canvas(box_canvas, width=153, height=5, bg="white", highlightthickness=0)
-        bar_canvas.place(x=27, y=98)
+        bar_canvas = Canvas(box_canvas, width=int(153 * SCALE_FACTOR), height=int(5 * SCALE_FACTOR), bg="white", highlightthickness=0)
+        bar_canvas.place(x=int(27 * SCALE_FACTOR), y=int(98 * SCALE_FACTOR))
 
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
@@ -310,7 +313,7 @@ class ModbusUI:
 
             self.history_window = Toplevel(self.root)
             self.history_window.title(f"History - Box {box_index}")
-            self.history_window.geometry("1200x800")
+            self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
             self.history_window.attributes("-topmost", True)
 
             self.current_file_index = self.get_log_file_index(box_index) - 1
@@ -320,7 +323,7 @@ class ModbusUI:
         log_entries = self.load_log_files(box_index, file_index)
         times, values = zip(*log_entries) if log_entries else ([], [])
 
-        figure = plt.Figure(figsize=(12, 8), dpi=100)
+        figure = plt.Figure(figsize=(12 * SCALE_FACTOR, 8 * SCALE_FACTOR), dpi=100)
         ax = figure.add_subplot(111)
 
         ax.plot(times, values, marker='o')
@@ -519,9 +522,9 @@ class ModbusUI:
 
     def update_bar(self, value, bar_canvas, bar_item):
         percentage = value / 100.0
-        bar_length = int(153 * percentage)
+        bar_length = int(153 * SCALE_FACTOR * percentage)
 
-        cropped_image = self.gradient_bar.crop((0, 0, bar_length, 5))
+        cropped_image = self.gradient_bar.crop((0, 0, bar_length, int(5 * SCALE_FACTOR)))
         bar_image = ImageTk.PhotoImage(cropped_image)
         bar_canvas.itemconfig(bar_item, image=bar_image)
         bar_canvas.bar_image = bar_image
