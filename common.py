@@ -30,7 +30,7 @@ BIT_TO_SEGMENT = {
 }
 
 # 확대 배율
-SCALE = 1.7
+SCALE = 1.5
 # 위치 이동 값
 x_shift = 0
 y_shift = 0
