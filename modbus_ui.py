@@ -177,7 +177,7 @@ class ModbusUI:
         box_canvas.create_text(int(140 * SCALE_FACTOR), int(220 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(20 * SCALE_FACTOR)))
-        box_canvas.create_text(int(35 * SCALE_FACTOR), int(220 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(220 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
 
         circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(20 * SCALE_FACTOR)))
         box_canvas.create_text(int(175 * SCALE_FACTOR), int(213 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
