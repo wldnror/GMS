@@ -139,7 +139,7 @@ class ModbusUI:
         box_frame = Frame(row_frame)
         box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR), sticky="w")
 
-        box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(4 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
         box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
@@ -170,7 +170,7 @@ class ModbusUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(123 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
+        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(67 * SCALE_FACTOR)))
         box_canvas.create_text(int(95 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(87 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
