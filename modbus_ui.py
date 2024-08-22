@@ -54,7 +54,7 @@ class ModbusUI:
         self.box_frame.grid(row=0, column=0, padx=int(20 * SCALE_FACTOR), pady=int(20 * SCALE_FACTOR))
         self.row_frames = []
         self.box_frames = []
-        self.gradient_bar = create_gradient_bar(int(153 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
+        self.gradient_bar = create_gradient_bar(int(133 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.history_dir = "history_logs"
         self.gas_types = gas_types
 
