@@ -136,7 +136,7 @@ class ModbusUI:
         box_frame = Frame(row_frame)
         box_frame.grid(row=0, column=col, padx=20, pady=20, sticky="w")
 
-        box_canvas = Canvas(box_frame, width=200, height=400, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=250, height=450, highlightthickness=4, highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
         box_canvas.create_rectangle(0, 0, 210, 250, fill='grey', outline='grey', tags='border')
