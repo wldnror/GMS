@@ -126,17 +126,17 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(67 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(75 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(113 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(103 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(120 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(20 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(25 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
 
-        circle_items.append(box_canvas.create_oval(int(141 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(151 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(145 * SCALE_FACTOR), int(163 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
+        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
 
         # GMS-1000 모델명
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
@@ -148,8 +148,8 @@ class AnalogUI:
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
         # 사각형 LED 추가 (2개) - 중앙 기준으로 왼쪽과 오른쪽에 배치
-        led1 = box_canvas.create_rectangle(0, int(185 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='#FF0000', outline='white')
-        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(185 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='#FF0000', outline='white')
+        led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
+        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
         box_canvas.lift(led1)
         box_canvas.lift(led2)
 
@@ -415,9 +415,10 @@ class AnalogUI:
 
                             # 4~20mA 값 업데이트
                             milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
+                            milliamp_color = "#00ff00" if pwr_on else "#ff0000"  # 파워가 꺼진 상태(PWR OFF)일 때 빨간색으로 설정
                             self.box_states[box_index]["milliamp_var"].set(milliamp_text)
                             box_canvas = self.box_frames[box_index][1]
-                            box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
+                            box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)  # 텍스트 색상을 설정
 
                             self.root.update_idletasks()
                             time.sleep(0.001)  # 1ms 간격으로 업데이트
