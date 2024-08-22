@@ -281,7 +281,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
     
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
 
 
