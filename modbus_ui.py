@@ -170,7 +170,7 @@ class ModbusUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(67 * SCALE_FACTOR)))
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(123 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
         box_canvas.create_text(int(95 * SCALE_FACTOR), int(220 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(87 * SCALE_FACTOR), int(190 * SCALE_FACTOR)))
