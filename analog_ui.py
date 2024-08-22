@@ -126,8 +126,8 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(67 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(75 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(150 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(67 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(140 * SCALE_FACTOR) - int(30 * SCALE_FACTOR)))
+        box_canvas.create_text(int(75 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(170 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(113 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(103 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
         box_canvas.create_text(int(120 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
