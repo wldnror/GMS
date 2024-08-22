@@ -13,7 +13,7 @@ import asyncio
 
 # 전역 변수로 설정
 GAIN = 2 / 3  
-SCALE_FACTOR = 1.2  # 20% 키우기
+SCALE_FACTOR = 2.5  # 20% 키우기
 
 class AnalogUI:
     LOGS_PER_FILE = 10
