@@ -129,14 +129,14 @@ class AnalogUI:
         circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
         box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(113 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(103 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(120 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(20 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(25 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
 
-        circle_items.append(box_canvas.create_oval(int(141 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(151 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
-        box_canvas.create_text(int(145 * SCALE_FACTOR), int(163 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
+        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
 
         # GMS-1000 모델명
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
