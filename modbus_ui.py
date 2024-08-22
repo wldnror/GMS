@@ -15,7 +15,7 @@ from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment
 from virtual_keyboard import VirtualKeyboard
 
 # 스케일 팩터로 20% 확대
-SCALE_FACTOR = 1.1  
+SCALE_FACTOR = 1.5
 
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
