@@ -15,7 +15,7 @@ from common import SEGMENTS, BIT_TO_SEGMENT, create_gradient_bar, create_segment
 from virtual_keyboard import VirtualKeyboard
 
 # 스케일 팩터로 20% 확대
-SCALE_FACTOR = 1.2  
+SCALE_FACTOR = 1.7  
 
 class ModbusUI:
     LOGS_PER_FILE = 10  # 로그 파일당 저장할 로그 개수
@@ -137,13 +137,13 @@ class ModbusUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=int(20 * SCALE_FACTOR), pady=int(20 * SCALE_FACTOR), sticky="w")
+        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR), sticky="w")
 
-        box_canvas = Canvas(box_frame, width=int(250 * SCALE_FACTOR), height=int(450 * SCALE_FACTOR), highlightthickness=int(4 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(4 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, int(260 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, int(250 * SCALE_FACTOR), int(260 * SCALE_FACTOR), int(450 * SCALE_FACTOR), fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(260 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='black', outline='grey', tags='border')
 
         create_segment_display(box_canvas)
         self.box_states.append({
