@@ -126,8 +126,8 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(57 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(150 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(67 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(140 * SCALE_FACTOR) - int(30 * SCALE_FACTOR)))
-        box_canvas.create_text(int(75 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(170 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(113 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(103 * SCALE_FACTOR), int(140 * SCALE_FACTOR)))
         box_canvas.create_text(int(120 * SCALE_FACTOR), int(170 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
