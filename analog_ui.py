@@ -415,6 +415,7 @@ class AnalogUI:
 
                             # 4~20mA 값 업데이트
                             milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
+                            milliamp_color = "#00ff00" if pwr_on else "#ff0000"  # 파워가 꺼진 상태(PWR OFF)일 때 빨간색으로 설정
                             self.box_states[box_index]["milliamp_var"].set(milliamp_text)
                             box_canvas = self.box_frames[box_index][1]
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text)
