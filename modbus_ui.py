@@ -188,7 +188,7 @@ class ModbusUI:
 
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
-        box_canvas.create_text(int(107 * SCALE_FACTOR), int(395 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(9 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         bar_canvas = Canvas(box_canvas, width=int(153 * SCALE_FACTOR), height=int(5 * SCALE_FACTOR), bg="white", highlightthickness=0)
         bar_canvas.place(x=int(27 * SCALE_FACTOR), y=int(98 * SCALE_FACTOR))
