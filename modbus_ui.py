@@ -85,7 +85,7 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(10 * SCALE_FACTOR), highlightthickness=0)
+        entry = Entry(frame, textvariable=ip_var, width=int(12 * SCALE_FACTOR), highlightthickness=0)
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -94,7 +94,7 @@ class ModbusUI:
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=(0, int(5 * SCALE_FACTOR)))
+        entry.grid(row=0, column=0, padx=(0, int(3 * SCALE_FACTOR)))
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
