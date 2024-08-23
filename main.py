@@ -269,12 +269,12 @@ if __name__ == "__main__":
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    for box_frame, box_type in all_boxes:
+    for box_frame, _ in all_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
 
-        box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)  # 패딩을 추가하여 상자 간의 간격 조정
+        box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
