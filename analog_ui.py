@@ -51,7 +51,7 @@ class AnalogUI:
         self.history_lock = threading.Lock()
 
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=int(40 * SCALE_FACTOR), pady=int(40 * SCALE_FACTOR))
+        self.box_frame.grid(row=0, column=0)
 
         self.row_frames = []
         self.box_frames = []
@@ -82,13 +82,13 @@ class AnalogUI:
 
         if col == 0:
             row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0, sticky="w")  # sticky="w"로 왼쪽 정렬
+            row_frame.grid(row=row, column=0)  # 간격 제거
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR), sticky="w")
+        box_frame.grid(row=0, column=col)  # 간격 제거
 
         box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
@@ -197,7 +197,7 @@ class AnalogUI:
         elif states[3]:
             outline_color = outline_colors[3]  # FUT의 색상
         else:
-            outline_color = outline_color_off
+            outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
 
@@ -340,10 +340,6 @@ class AnalogUI:
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
                 milliamp = current * 1000
-                
-                
-                # # mA 교정: 2mA를 더해줍니다.
-                # milliamp += 0.12
                 
                 values.append(milliamp)
 
