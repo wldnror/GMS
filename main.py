@@ -274,7 +274,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
+        box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
