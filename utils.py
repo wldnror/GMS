@@ -12,11 +12,13 @@ from cryptography.fernet import Fernet
 KEY_FILE = "secret.key"
 IGNORE_COMMIT_FILE = "ignore_commit.txt"
 IGNORE_BRANCH_FILE = "ignore_branch.txt"  # 브랜치 무시 파일 추가
+SYNCED_BRANCHES_FILE = "synced_branches.txt"  # 이미 동기화된 브랜치를 기록할 파일
 
 # 전역 변수
 checking_updates = False
 ignore_commit = None
 ignore_branch = None  # 무시된 브랜치 저장 변수
+synced_branches = set()  # 동기화된 브랜치 집합
 update_notification_frame = None
 
 # 암호화 키 생성 및 로드
@@ -82,6 +84,20 @@ def exit_application(root):
     root.destroy()
     sys.exit(0)
 
+def load_synced_branches():
+    """이미 동기화된 브랜치를 파일에서 로드"""
+    global synced_branches
+    if os.path.exists(SYNCED_BRANCHES_FILE):
+        with open(SYNCED_BRANCHES_FILE, "r") as file:
+            synced_branches = set(file.read().splitlines())
+
+def save_synced_branch(branch):
+    """동기화된 브랜치를 파일에 저장"""
+    global synced_branches
+    synced_branches.add(branch)
+    with open(SYNCED_BRANCHES_FILE, "a") as file:
+        file.write(branch + "\n")
+
 def update_system(root):
     global checking_updates
     checking_updates = False  # 업데이트 중에 확인을 중지
@@ -96,6 +112,8 @@ def update_system(root):
 
 def check_for_updates(root):
     global checking_updates, ignore_commit, ignore_branch
+    load_synced_branches()
+    
     while checking_updates:
         try:
             # 현재 체크아웃된 브랜치 이름 가져오기
@@ -110,7 +128,7 @@ def check_for_updates(root):
             local_branch_names = [branch.strip().replace('* ', '') for branch in local_branches]
 
             # 새로운 원격 브랜치 확인
-            new_branches = [branch for branch in remote_branch_names if branch not in local_branch_names]
+            new_branches = [branch for branch in remote_branch_names if branch not in local_branch_names and branch not in synced_branches]
 
             # 원격 브랜치의 커밋 해시 가져오기
             remote_branch_info = subprocess.check_output(['git', 'ls-remote', '--heads', 'origin', current_branch]).strip().decode()
@@ -124,6 +142,8 @@ def check_for_updates(root):
                 show_branch_deleted_notification(root, current_branch)
             elif new_branches:  # 새로운 브랜치가 발견된 경우
                 sync_branches(root)  # 새로운 브랜치가 있으면 자동 동기화
+                for branch in new_branches:
+                    save_synced_branch(branch)
                 show_temporary_notification(root, "새로운 브랜치가 동기화되었습니다.")
             elif local_commit != remote_branch_commit and remote_branch_commit != ignore_commit:
                 sync_branches(root)  # 변경사항이 있으면 자동 동기화
