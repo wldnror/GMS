@@ -262,12 +262,19 @@ if __name__ == "__main__":
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # 모든 박스를 배치할 부모 프레임
-    box_parent_frame = tk.Frame(main_frame)
-    box_parent_frame.grid(row=0, column=0)
+    box_parent_frame = tk.Frame(main_frame, bg="lightgrey")
+    box_parent_frame.grid(row=0, column=0, sticky="nsew")
 
     # modbus_ui와 analog_ui 프레임을 부모 프레임에 배치
-    modbus_ui.box_frame.grid(row=0, column=0, padx=5, pady=5, in_=box_parent_frame)
-    analog_ui.box_frame.grid(row=0, column=1, padx=5, pady=5, in_=box_parent_frame)
+    modbus_ui.box_frame.config(bg="red")  # 시각적 구분을 위해 배경색 추가
+    modbus_ui.box_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+
+    analog_ui.box_frame.config(bg="blue")  # 시각적 구분을 위해 배경색 추가
+    analog_ui.box_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+
+    box_parent_frame.grid_columnconfigure(0, weight=1)
+    box_parent_frame.grid_columnconfigure(1, weight=1)
+    box_parent_frame.grid_rowconfigure(0, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
