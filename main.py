@@ -272,8 +272,8 @@ if __name__ == "__main__":
 
     # 먼저 모드버스 박스를 배치
     for i in range(len(modbus_boxes)):
-        modbus_box = tk.Frame(box_parent_frame)  # 각 박스를 개별적으로 생성
-        modbus_box.grid(row=row_index, column=column_index, padx=0, pady=0)
+        box = modbus_ui.create_box(box_parent_frame, i)  # ModbusUI에서 box 생성 함수 호출
+        box.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
@@ -281,8 +281,8 @@ if __name__ == "__main__":
 
     # 다음으로 아날로그 박스를 이어서 배치
     for i in range(len(analog_boxes)):
-        analog_box = tk.Frame(box_parent_frame)  # 각 박스를 개별적으로 생성
-        analog_box.grid(row=row_index, column=column_index, padx=0, pady=0)
+        box = analog_ui.create_box(box_parent_frame, i)  # AnalogUI에서 box 생성 함수 호출
+        box.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
