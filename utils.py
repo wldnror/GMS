@@ -10,10 +10,12 @@ from cryptography.fernet import Fernet
 
 KEY_FILE = "secret.key"
 IGNORE_COMMIT_FILE = "ignore_commit.txt"
+IGNORE_BRANCH_FILE = "ignore_branch.txt"  # 브랜치 무시 파일 추가
 
 # 전역 변수
 checking_updates = False
 ignore_commit = None
+ignore_branch = None  # 무시된 브랜치 저장 변수
 update_notification_frame = None
 
 # 암호화 키 생성 및 로드
@@ -92,17 +94,23 @@ def update_system(root):
     messagebox.showinfo("시스템 업데이트", message)
 
 def check_for_updates(root):
-    global checking_updates, ignore_commit
+    global checking_updates, ignore_commit, ignore_branch
     while checking_updates:
         try:
             current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
             local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
             remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
             
-            if local_commit != remote_commit and remote_commit != ignore_commit:
+            # 브랜치 변경 여부 확인
+            local_branches = subprocess.check_output(['git', 'branch', '-r']).strip().decode().splitlines()
+            local_branches = [b.strip() for b in local_branches if "origin/" in b]
+
+            if (current_branch not in local_branches or current_branch != ignore_branch):
+                show_branch_sync_notification(root, current_branch)
+            elif local_commit != remote_commit and remote_commit != ignore_commit:
                 show_update_notification(root, remote_commit)
         except Exception as e:
-            print(f"Error checking for updates: {e}")
+            print(f"Error checking for updates or branch sync: {e}")
         
         time.sleep(1)
 
@@ -128,6 +136,28 @@ def show_update_notification(root, remote_commit):
     no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
     no_button.pack(side="left", padx=5)
 
+def show_branch_sync_notification(root, current_branch):
+    global update_notification_frame
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        return
+
+    def on_yes():
+        start_branch_sync(root)
+    def on_no():
+        ignore_branch_sync(current_branch)
+
+    update_notification_frame = Frame(root)
+    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
+
+    update_label = Label(update_notification_frame, text=f"브랜치 '{current_branch}'가 변경되었습니다. 동기화하시겠습니까?", font=("Arial", 15), fg="red")
+    update_label.pack(side="left", padx=5)
+
+    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
+    yes_button.pack(side="left", padx=5)
+    
+    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
+    no_button.pack(side="left", padx=5)
+
 def start_update(root, remote_commit):
     global update_notification_frame, ignore_commit
     ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
@@ -135,11 +165,34 @@ def start_update(root, remote_commit):
         update_notification_frame.destroy()
     threading.Thread(target=update_system, args=(root,)).start()
 
+def start_branch_sync(root):
+    global update_notification_frame
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        update_notification_frame.destroy()
+    threading.Thread(target=sync_branches, args=(root,)).start()
+
+def sync_branches(root):
+    try:
+        subprocess.check_call(['git', 'fetch', '--all'])
+        subprocess.check_call(['git', 'pull', '--all'])
+        subprocess.check_call(['git', 'remote', 'prune', 'origin'])
+        messagebox.showinfo("브랜치 동기화", "브랜치 목록이 원격 저장소와 동기화되었습니다.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("브랜치 동기화 오류", f"브랜치 동기화 중 오류가 발생했습니다: {e}")
+
 def ignore_update(remote_commit):
     global ignore_commit, update_notification_frame
     ignore_commit = remote_commit
     with open(IGNORE_COMMIT_FILE, "w") as file:
         file.write(ignore_commit.decode())
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        update_notification_frame.destroy()
+
+def ignore_branch_sync(current_branch):
+    global ignore_branch, update_notification_frame
+    ignore_branch = current_branch
+    with open(IGNORE_BRANCH_FILE, "w") as file:
+        file.write(ignore_branch)
     if update_notification_frame and update_notification_frame.winfo_exists():
         update_notification_frame.destroy()
 
