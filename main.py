@@ -261,30 +261,13 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치하고, 6개를 넘으면 다음 줄로 이동
-    row_index = 0
-    column_index = 0
-    max_columns = 6  # 한 줄에 최대 6개 상자 배치
-
     # 모든 박스를 배치할 부모 프레임
     box_parent_frame = tk.Frame(main_frame)
     box_parent_frame.grid(row=0, column=0)
 
-    # 모드버스 박스 배치
-    for widget in modbus_ui.box_frame.winfo_children():  # modbus_ui 내의 모든 위젯 가져오기
-        widget.grid(row=row_index, column=column_index, padx=0, pady=0, in_=box_parent_frame)
-        column_index += 1
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
-
-    # 아날로그 박스 배치
-    for widget in analog_ui.box_frame.winfo_children():  # analog_ui 내의 모든 위젯 가져오기
-        widget.grid(row=row_index, column=column_index, padx=0, pady=0, in_=box_parent_frame)
-        column_index += 1
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
+    # modbus_ui와 analog_ui 프레임을 부모 프레임에 배치
+    modbus_ui.box_frame.grid(row=0, column=0, padx=5, pady=5, in_=box_parent_frame)
+    analog_ui.box_frame.grid(row=0, column=1, padx=5, pady=5, in_=box_parent_frame)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
