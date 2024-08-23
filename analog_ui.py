@@ -26,10 +26,10 @@ class AnalogUI:
     }
 
     GAS_TYPE_POSITIONS = {
-        "ORG": (int(115 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
-        "ARF-T": (int(107 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
-        "HMDS": (int(110 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
-        "HC-100": (int(104 * SCALE_FACTOR), int(100 * SCALE_FACTOR))
+        "ORG": (115, 95),
+        "ARF-T": (107, 95),
+        "HMDS": (110, 95),
+        "HC-100": (104, 95)
     }
 
     ALARM_LEVELS = {
@@ -82,13 +82,13 @@ class AnalogUI:
 
         if col == 0:
             row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0)
+            row_frame.grid(row=row, column=0, sticky="w")  # sticky="w"로 왼쪽 정렬
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR))
+        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR), sticky="w")
 
         box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
