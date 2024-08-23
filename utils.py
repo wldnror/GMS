@@ -123,9 +123,16 @@ def check_for_updates(root):
             remote_branches = subprocess.check_output(['git', 'ls-remote', '--heads', 'origin']).strip().decode().splitlines()
             remote_branch_names = [line.split()[1].split('/')[-1] for line in remote_branches]
 
+            # 로컬에서 추적하는 원격 브랜치 목록 가져오기
+            tracked_remote_branches = subprocess.check_output(['git', 'branch', '-r']).strip().decode().splitlines()
+            tracked_remote_branch_names = [line.split('/')[-1].strip() for line in tracked_remote_branches]
+
             # 로컬 브랜치 목록 가져오기
             local_branches = subprocess.check_output(['git', 'branch', '--list']).strip().decode().splitlines()
             local_branch_names = [branch.strip().replace('* ', '') for branch in local_branches]
+
+            # 삭제된 원격 브랜치 확인
+            deleted_branches = [branch for branch in tracked_remote_branch_names if branch not in remote_branch_names]
 
             # 새로운 원격 브랜치 확인
             new_branches = [branch for branch in remote_branch_names if branch not in local_branch_names and branch not in synced_branches]
@@ -138,8 +145,8 @@ def check_for_updates(root):
             local_commit = subprocess.check_output(['git', 'rev-parse', current_branch]).strip().decode()
 
             # 브랜치 삭제 여부 확인: 원격에 브랜치가 없으면 알림 표시
-            if not remote_branch_commit:
-                show_branch_deleted_notification(root, current_branch)
+            if deleted_branches:
+                show_branch_deleted_notification(root, deleted_branches)
             elif new_branches:  # 새로운 브랜치가 발견된 경우
                 sync_branches(root)  # 새로운 브랜치가 있으면 자동 동기화
                 for branch in new_branches:
@@ -193,7 +200,7 @@ def show_temporary_notification(root, message, duration=5000):
     # 지정된 시간 후 알림이 사라지도록 설정
     root.after(duration, notification_frame.destroy)
 
-def show_branch_deleted_notification(root, current_branch):
+def show_branch_deleted_notification(root, deleted_branches):
     global update_notification_frame
     if update_notification_frame and update_notification_frame.winfo_exists():
         return
@@ -201,12 +208,13 @@ def show_branch_deleted_notification(root, current_branch):
     def on_yes():
         prune_deleted_branches(root)
     def on_no():
-        ignore_branch_sync(current_branch)
+        pass  # 무시하고 아무 동작도 하지 않음
 
     update_notification_frame = Frame(root)
     update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
 
-    update_label = Label(update_notification_frame, text=f"브랜치 '{current_branch}'가 원격에서 삭제되었습니다. 로컬에서 삭제하시겠습니까?", font=("Arial", 15), fg="red")
+    branch_list = ', '.join(deleted_branches)
+    update_label = Label(update_notification_frame, text=f"원격 저장소에서 삭제된 브랜치가 있습니다: {branch_list}. 로컬에서 삭제하시겠습니까?", font=("Arial", 15), fg="red")
     update_label.pack(side="left", padx=5)
 
     yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
