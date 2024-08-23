@@ -255,7 +255,7 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
+    main_frame.grid(row=0, column=0, sticky="nsew")
 
     # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
@@ -278,7 +278,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
+        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=(5, 10), sticky="nsew")
         column_index += 1
 
     # 아날로그 상자들을 계속해서 배치
@@ -287,7 +287,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=(5, 10), sticky="nsew")
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
