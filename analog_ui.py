@@ -51,7 +51,7 @@ class AnalogUI:
         self.history_lock = threading.Lock()
 
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR))
+        self.box_frame.grid(row=0, column=0, padx=int(40 * SCALE_FACTOR), pady=int(40 * SCALE_FACTOR))
 
         self.row_frames = []
         self.box_frames = []
@@ -88,7 +88,7 @@ class AnalogUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=int(5 * SCALE_FACTOR), pady=int(5 * SCALE_FACTOR), sticky="w")
+        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR), sticky="w")
 
         box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
