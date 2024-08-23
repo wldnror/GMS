@@ -256,6 +256,10 @@ if __name__ == "__main__":
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")  # main_frame을 중앙에 배치
+   
+    # ModbusUI와 AnalogUI 인스턴스 초기화
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # 각 열과 행에 대해 동일한 가중치를 부여하여 중앙 정렬
     for i in range(6):  # 최대 열 수는 6개
