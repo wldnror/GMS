@@ -265,7 +265,10 @@ if __name__ == "__main__":
     row_index = 0
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
-
+    
+    # 모드버스 상자들과 아날로그 상자들을 한 번에 배치
+    all_boxes = modbus_boxes + analog_boxes  # 두 리스트를 하나로 합침
+    
     # 모드버스 상자들을 먼저 배치
     for i in range(len(modbus_boxes)):
         if column_index >= max_columns:
@@ -273,17 +276,14 @@ if __name__ == "__main__":
             row_index += 1
 
         modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
-        column_index += 1
+         column_index += 1
+ 
+        if i < len(modbus_boxes):
+            modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        else:
+            analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
 
-    # 아날로그 상자들을 계속해서 배치
-    for i in range(len(analog_boxes)):
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
-    
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
-
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
