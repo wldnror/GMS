@@ -26,8 +26,8 @@ class AnalogUI:
     }
 
     GAS_TYPE_POSITIONS = {
-        "ORG": (120, 95),
-        "ARF-T": (110, 95),
+        "ORG": (115, 95),
+        "ARF-T": (105, 95),
         "HMDS": (110, 95),
         "HC-100": (100, 95)
     }
