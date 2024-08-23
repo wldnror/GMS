@@ -271,8 +271,7 @@ if __name__ == "__main__":
     box_parent_frame.grid(row=0, column=0)
 
     # 먼저 모드버스 박스를 배치
-    for i in range(len(modbus_boxes)):
-        box = modbus_ui.create_box(box_parent_frame, i)  # ModbusUI에서 box 생성 함수 호출
+    for box in modbus_ui.boxes:  # modbus_ui 내의 박스들
         box.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
         if column_index >= max_columns:
@@ -280,21 +279,18 @@ if __name__ == "__main__":
             row_index += 1
 
     # 다음으로 아날로그 박스를 이어서 배치
-    for i in range(len(analog_boxes)):
-        box = analog_ui.create_box(box_parent_frame, i)  # AnalogUI에서 box 생성 함수 호출
+    for box in analog_ui.boxes:  # analog_ui 내의 박스들
         box.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
-    
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
-        column_index += 1
-
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
+    
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
