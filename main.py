@@ -266,17 +266,21 @@ if __name__ == "__main__":
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    # 모드버스 상자들을 먼저 배치
+    # 먼저 모드버스 상자를 배치
     for i in range(len(modbus_boxes)):
+        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        column_index += 1
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
-
+     
         modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
 
-    # 아날로그 상자들을 계속해서 배치
+    # 다음으로 아날로그 상자를 이어서 배치
     for i in range(len(analog_boxes)):
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        column_index += 1
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
