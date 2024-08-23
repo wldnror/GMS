@@ -288,15 +288,15 @@ if __name__ == "__main__":
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
-    # # main_frame이 화면 중앙에 위치하도록 설정
-    # main_frame.grid(row=0, column=0, padx=0, pady=0, sticky="nsew")
+    # main_frame이 화면 중앙에 위치하도록 설정
+    main_frame.grid(row=0, column=0, padx=0, pady=0, sticky="nsew")
 
-    # # 각 열과 행에 대해 동일한 가중치를 부여하여 중앙 정렬
-    # for i in range(max_columns):
-    #     main_frame.grid_columnconfigure(i, weight=1)
+    # 각 열과 행에 대해 동일한 가중치를 부여하여 중앙 정렬
+    for i in range(max_columns):
+        main_frame.grid_columnconfigure(i, weight=1)
 
-    # for i in range(row_index + 1):
-    #     main_frame.grid_rowconfigure(i, weight=1)
+    for i in range(row_index + 1):
+        main_frame.grid_rowconfigure(i, weight=1)
 
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
