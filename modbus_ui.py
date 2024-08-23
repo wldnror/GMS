@@ -26,12 +26,12 @@ class ModbusUI:
         "HMDS": 3000,
         "HC-100": 5000
     }
-    
+
     GAS_TYPE_POSITIONS = {
         "ORG": (int(115 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
-        "ARF-T": (int(110 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
+        "ARF-T": (int(107 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
         "HMDS": (int(110 * SCALE_FACTOR), int(100 * SCALE_FACTOR)),
-        "HC-100": (int(110 * SCALE_FACTOR), int(100 * SCALE_FACTOR))
+        "HC-100": (int(104 * SCALE_FACTOR), int(100 * SCALE_FACTOR))
     }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
