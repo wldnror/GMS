@@ -271,7 +271,7 @@ if __name__ == "__main__":
     max_columns = 6
 
     for widget in modbus_ui.box_frame.winfo_children():  # modbus_ui 내의 모든 위젯 가져오기
-        widget.grid(row=row_index, column=column_index, padx=5, pady=5, in_=box_parent_frame)
+        widget.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
@@ -279,7 +279,7 @@ if __name__ == "__main__":
 
     # analog_ui의 상자들 배치
     for widget in analog_ui.box_frame.winfo_children():  # analog_ui 내의 모든 위젯 가져오기
-        widget.grid(row=row_index, column=column_index, padx=5, pady=5, in_=box_parent_frame)
+        widget.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
