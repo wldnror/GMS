@@ -233,7 +233,7 @@ if __name__ == "__main__":
     root.attributes("-fullscreen", True)
     root.attributes("-topmost", True)
 
-    root.grid_rowconfigure(0, weight=0)  # 첫 번째 행의 가중치를 0으로 설정하여 위쪽 여백 최소화
+    root.grid_rowconfigure(0, weight=1)  # 첫 번째 행의 가중치를 1로 설정하여 위쪽 여백 최소화
     root.grid_columnconfigure(0, weight=1)
 
     root.bind("<Escape>", exit_fullscreen)
@@ -270,7 +270,7 @@ if __name__ == "__main__":
         root.grid_columnconfigure(i, weight=1)
 
     for i in range((len(modbus_boxes) + len(analog_boxes)) // max_columns + 1):
-        root.grid_rowconfigure(i, weight=1)
+        root.grid_rowconfigure(i + 1, weight=1)
 
     # 모드버스 상자들을 먼저 배치
     for i in range(len(modbus_boxes)):
@@ -278,7 +278,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=5, sticky="nsew")
+        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=0, sticky="nsew")
         column_index += 1
 
     # 아날로그 상자들을 계속해서 배치
@@ -287,7 +287,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=5, sticky="nsew")
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=0, sticky="nsew")
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
