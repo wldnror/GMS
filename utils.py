@@ -107,6 +107,8 @@ def update_system(root):
         root.after(2000, restart_application)
     except Exception as e:
         message = f"업데이트 중 오류 발생: {e}"
+    finally:
+        checking_updates = True  # 업데이트 완료 후 다시 업데이트 체크 가능하게 설정
     
     messagebox.showinfo("시스템 업데이트", message)
 
@@ -209,8 +211,9 @@ def prune_deleted_branches(root):
         messagebox.showerror("브랜치 정리 오류", f"브랜치 정리 중 오류가 발생했습니다: {e}")
 
 def start_update(root, remote_commit):
-    global update_notification_frame, ignore_commit
+    global update_notification_frame, ignore_commit, checking_updates
     ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
+    checking_updates = False  # 업데이트 시작 시 업데이트 체크 중지
     if update_notification_frame and update_notification_frame.winfo_exists():
         update_notification_frame.destroy()
     threading.Thread(target=update_system, args=(root,)).start()
