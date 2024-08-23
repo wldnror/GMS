@@ -197,7 +197,7 @@ class AnalogUI:
         elif states[3]:
             outline_color = outline_colors[3]  # FUT의 색상
         else:
-            outline_color_off
+            outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
 
@@ -464,3 +464,4 @@ if __name__ == "__main__":
     analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id}"))
 
     root.mainloop()
+
