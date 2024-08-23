@@ -144,9 +144,10 @@ def check_for_updates(root):
             # 로컬 브랜치의 커밋 해시 가져오기
             local_commit = subprocess.check_output(['git', 'rev-parse', current_branch]).strip().decode()
 
-            # 브랜치 삭제 여부 확인: 원격에 브랜치가 없으면 알림 표시
+            # 삭제된 원격 브랜치 동기화
             if deleted_branches:
-                show_branch_deleted_notification(root, deleted_branches)
+                prune_deleted_branches(root)
+                show_temporary_notification(root, "삭제된 브랜치가 정리되었습니다.")
             elif new_branches:  # 새로운 브랜치가 발견된 경우
                 sync_branches(root)  # 새로운 브랜치가 있으면 자동 동기화
                 for branch in new_branches:
@@ -200,34 +201,10 @@ def show_temporary_notification(root, message, duration=5000):
     # 지정된 시간 후 알림이 사라지도록 설정
     root.after(duration, notification_frame.destroy)
 
-def show_branch_deleted_notification(root, deleted_branches):
-    global update_notification_frame
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        return
-
-    def on_yes():
-        prune_deleted_branches(root)
-    def on_no():
-        pass  # 무시하고 아무 동작도 하지 않음
-
-    update_notification_frame = Frame(root)
-    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
-
-    branch_list = ', '.join(deleted_branches)
-    update_label = Label(update_notification_frame, text=f"원격 저장소에서 삭제된 브랜치가 있습니다: {branch_list}. 로컬에서 삭제하시겠습니까?", font=("Arial", 15), fg="red")
-    update_label.pack(side="left", padx=5)
-
-    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
-    yes_button.pack(side="left", padx=5)
-    
-    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
-    no_button.pack(side="left", padx=5)
-
 def prune_deleted_branches(root):
     try:
         # 로컬에서 원격에서 삭제된 브랜치를 삭제합니다
         subprocess.check_call(['git', 'fetch', '--prune'])
-        show_temporary_notification(root, "삭제된 브랜치가 정리되었습니다.")
     except subprocess.CalledProcessError as e:
         messagebox.showerror("브랜치 정리 오류", f"브랜치 정리 중 오류가 발생했습니다: {e}")
 
