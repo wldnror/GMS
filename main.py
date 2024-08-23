@@ -266,20 +266,23 @@ if __name__ == "__main__":
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    # 먼저 모드버스 상자를 배치
+    # 모든 박스를 배치할 부모 프레임
+    box_parent_frame = tk.Frame(main_frame)
+    box_parent_frame.grid(row=0, column=0)
+
+    # 먼저 모드버스 박스를 배치
     for i in range(len(modbus_boxes)):
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        modbus_box = tk.Frame(box_parent_frame)  # 각 박스를 개별적으로 생성
+        modbus_box.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
-     
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
-        column_index += 1
 
-    # 다음으로 아날로그 상자를 이어서 배치
+    # 다음으로 아날로그 박스를 이어서 배치
     for i in range(len(analog_boxes)):
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        analog_box = tk.Frame(box_parent_frame)  # 각 박스를 개별적으로 생성
+        analog_box.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
         if column_index >= max_columns:
             column_index = 0
