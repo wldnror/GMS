@@ -6,6 +6,7 @@ import sys
 import threading
 import time
 from tkinter import Frame, Button, Label, messagebox, Toplevel
+
 from cryptography.fernet import Fernet
 
 KEY_FILE = "secret.key"
@@ -122,35 +123,34 @@ def check_for_updates(root):
             if not remote_branch_commit:
                 show_branch_deleted_notification(root, current_branch)
             elif new_branches:  # 새로운 브랜치가 발견된 경우
-                show_new_branch_notification(root, new_branches)
+                sync_branches(root)  # 새로운 브랜치가 있으면 자동 동기화
+                show_temporary_notification(root, "새로운 브랜치가 동기화되었습니다.")
             elif local_commit != remote_branch_commit and remote_branch_commit != ignore_commit:
-                show_update_notification(root, remote_branch_commit)
+                sync_branches(root)  # 변경사항이 있으면 자동 동기화
+                show_temporary_notification(root, "브랜치가 원격 저장소와 동기화되었습니다.")
         except Exception as e:
             print(f"Error checking for updates or branch sync: {e}")
         
         time.sleep(1)
 
-def show_update_notification(root, remote_commit):
-    global update_notification_frame
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        return
+def sync_branches(root):
+    try:
+        subprocess.check_call(['git', 'fetch', '--all'])
+        subprocess.check_call(['git', 'pull', '--all'])
+        subprocess.check_call(['git', 'remote', 'prune', 'origin'])
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("브랜치 동기화 오류", f"브랜치 동기화 중 오류가 발생했습니다: {e}")
 
-    def on_yes():
-        start_update(root, remote_commit)
-    def on_no():
-        ignore_update(remote_commit)
+def show_temporary_notification(root, message, duration=5000):
+    """ 일시적인 알림을 화면에 표시 """
+    notification_frame = Frame(root, bg="green")
+    notification_frame.place(relx=0.5, rely=0.95, anchor='center')
 
-    update_notification_frame = Frame(root)
-    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
+    notification_label = Label(notification_frame, text=message, font=("Arial", 14), fg="white", bg="green")
+    notification_label.pack(side="left", padx=5)
 
-    update_label = Label(update_notification_frame, text="새로운 버젼이 있습니다. 업데이트를 진행하시겠습니까?", font=("Arial", 15), fg="red")
-    update_label.pack(side="left", padx=5)
-
-    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
-    yes_button.pack(side="left", padx=5)
-    
-    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
-    no_button.pack(side="left", padx=5)
+    # 지정된 시간 후 알림이 사라지도록 설정
+    root.after(duration, notification_frame.destroy)
 
 def show_branch_deleted_notification(root, current_branch):
     global update_notification_frame
@@ -174,50 +174,11 @@ def show_branch_deleted_notification(root, current_branch):
     no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
     no_button.pack(side="left", padx=5)
 
-def show_new_branch_notification(root, new_branches):
-    global update_notification_frame
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        return
-
-    def on_yes():
-        fetch_new_branches(root)
-    def on_no():
-        pass  # 사용자 무시
-
-    update_notification_frame = Frame(root)
-    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
-
-    branch_list = ', '.join(new_branches)
-    update_label = Label(update_notification_frame, text=f"새로운 브랜치가 발견되었습니다: {branch_list}. 동기화하시겠습니까?", font=("Arial", 15), fg="red")
-    update_label.pack(side="left", padx=5)
-
-    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
-    yes_button.pack(side="left", padx=5)
-    
-    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
-    no_button.pack(side="left", padx=5)
-
-def fetch_new_branches(root):
-    try:
-        subprocess.check_call(['git', 'fetch', '--all'])
-        subprocess.check_call(['git', 'pull', '--all'])
-        subprocess.check_call(['git', 'remote', 'prune', 'origin'])
-        messagebox.showinfo("브랜치 동기화", "새로운 브랜치가 로컬 저장소에 동기화되었습니다.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("브랜치 동기화 오류", f"브랜치 동기화 중 오류가 발생했습니다: {e}")
-
-def start_update(root, remote_commit):
-    global update_notification_frame, ignore_commit
-    ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
-    if update_notification_frame and update_notification_frame.winfo_exists():
-        update_notification_frame.destroy()
-    threading.Thread(target=update_system, args=(root,)).start()
-
 def prune_deleted_branches(root):
     try:
         # 로컬에서 원격에서 삭제된 브랜치를 삭제합니다
         subprocess.check_call(['git', 'fetch', '--prune'])
-        messagebox.showinfo("브랜치 정리", "로컬에서 원격에서 삭제된 브랜치를 정리했습니다.")
+        show_temporary_notification(root, "삭제된 브랜치가 정리되었습니다.")
     except subprocess.CalledProcessError as e:
         messagebox.showerror("브랜치 정리 오류", f"브랜치 정리 중 오류가 발생했습니다: {e}")
 
