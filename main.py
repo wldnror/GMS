@@ -274,7 +274,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)  # 패딩을 추가하여 상자 간의 간격 조정
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
