@@ -146,8 +146,7 @@ def check_for_updates(root):
                     save_synced_branch(branch)
                 show_temporary_notification(root, "새로운 브랜치가 동기화되었습니다.")
             elif local_commit != remote_branch_commit and remote_branch_commit != ignore_commit:
-                sync_branches(root)  # 변경사항이 있으면 자동 동기화
-                show_temporary_notification(root, "브랜치가 원격 저장소와 동기화되었습니다.")
+                show_update_notification(root, remote_branch_commit)
         except Exception as e:
             print(f"Error checking for updates or branch sync: {e}")
         
@@ -160,6 +159,28 @@ def sync_branches(root):
         subprocess.check_call(['git', 'remote', 'prune', 'origin'])
     except subprocess.CalledProcessError as e:
         messagebox.showerror("브랜치 동기화 오류", f"브랜치 동기화 중 오류가 발생했습니다: {e}")
+
+def show_update_notification(root, remote_commit):
+    global update_notification_frame
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        return
+
+    def on_yes():
+        start_update(root, remote_commit)
+    def on_no():
+        ignore_update(remote_commit)
+
+    update_notification_frame = Frame(root)
+    update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
+
+    update_label = Label(update_notification_frame, text="새로운 버젼이 있습니다. 업데이트를 진행하시겠습니까?", font=("Arial", 15), fg="red")
+    update_label.pack(side="left", padx=5)
+
+    yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
+    yes_button.pack(side="left", padx=5)
+    
+    no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
+    no_button.pack(side="left", padx=5)
 
 def show_temporary_notification(root, message, duration=5000):
     """ 일시적인 알림을 화면에 표시 """
@@ -201,6 +222,13 @@ def prune_deleted_branches(root):
         show_temporary_notification(root, "삭제된 브랜치가 정리되었습니다.")
     except subprocess.CalledProcessError as e:
         messagebox.showerror("브랜치 정리 오류", f"브랜치 정리 중 오류가 발생했습니다: {e}")
+
+def start_update(root, remote_commit):
+    global update_notification_frame, ignore_commit
+    ignore_commit = None  # '예'를 누르면 기록된 커밋을 초기화
+    if update_notification_frame and update_notification_frame.winfo_exists():
+        update_notification_frame.destroy()
+    threading.Thread(target=update_system, args=(root,)).start()
 
 def ignore_update(remote_commit):
     global ignore_commit, update_notification_frame
