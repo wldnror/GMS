@@ -29,7 +29,7 @@ class AnalogUI:
         "ORG": (115, 95),
         "ARF-T": (108, 95),
         "HMDS": (110, 95),
-        "HC-100": (105, 95)
+        "HC-100": (103, 95)
     }
 
     ALARM_LEVELS = {
