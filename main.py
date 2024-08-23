@@ -255,26 +255,35 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
+    main_frame.grid(row=0, column=0, sticky="nsew")
 
     # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # 모든 박스를 배치할 부모 프레임
-    box_parent_frame = tk.Frame(main_frame, bg="lightgrey")
+    box_parent_frame = tk.Frame(main_frame)
     box_parent_frame.grid(row=0, column=0, sticky="nsew")
 
-    # modbus_ui와 analog_ui 프레임을 부모 프레임에 배치
-    modbus_ui.box_frame.config(bg="red")  # 시각적 구분을 위해 배경색 추가
-    modbus_ui.box_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
+    # modbus_ui의 상자들 배치
+    row_index = 0
+    column_index = 0
+    max_columns = 6
 
-    analog_ui.box_frame.config(bg="blue")  # 시각적 구분을 위해 배경색 추가
-    analog_ui.box_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+    for widget in modbus_ui.box_frame.winfo_children():  # modbus_ui 내의 모든 위젯 가져오기
+        widget.grid(row=row_index, column=column_index, padx=5, pady=5, in_=box_parent_frame)
+        column_index += 1
+        if column_index >= max_columns:
+            column_index = 0
+            row_index += 1
 
-    box_parent_frame.grid_columnconfigure(0, weight=1)
-    box_parent_frame.grid_columnconfigure(1, weight=1)
-    box_parent_frame.grid_rowconfigure(0, weight=1)
+    # analog_ui의 상자들 배치
+    for widget in analog_ui.box_frame.winfo_children():  # analog_ui 내의 모든 위젯 가져오기
+        widget.grid(row=row_index, column=column_index, padx=5, pady=5, in_=box_parent_frame)
+        column_index += 1
+        if column_index >= max_columns:
+            column_index = 0
+            row_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
