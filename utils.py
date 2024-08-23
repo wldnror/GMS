@@ -97,18 +97,21 @@ def check_for_updates(root):
     global checking_updates, ignore_commit, ignore_branch
     while checking_updates:
         try:
+            # 현재 체크아웃된 브랜치 이름 가져오기
             current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-            local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
-            remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
             
-            # 브랜치 변경 여부 확인
-            local_branches = subprocess.check_output(['git', 'branch', '-r']).strip().decode().splitlines()
-            local_branches = [b.strip() for b in local_branches if "origin/" in b]
+            # 원격 브랜치의 커밋 해시 가져오기
+            remote_branch_info = subprocess.check_output(['git', 'ls-remote', '--heads', 'origin', current_branch]).strip().decode()
+            remote_branch_commit = remote_branch_info.split()[0] if remote_branch_info else None
 
-            if (current_branch not in local_branches or current_branch != ignore_branch):
+            # 로컬 브랜치의 커밋 해시 가져오기
+            local_commit = subprocess.check_output(['git', 'rev-parse', current_branch]).strip().decode()
+
+            # 브랜치 변경 여부 확인
+            if remote_branch_commit and local_commit != remote_branch_commit and remote_branch_commit != ignore_commit:
+                show_update_notification(root, remote_branch_commit)
+            elif not remote_branch_commit:  # 원격 브랜치가 삭제된 경우
                 show_branch_sync_notification(root, current_branch)
-            elif local_commit != remote_commit and remote_commit != ignore_commit:
-                show_update_notification(root, remote_commit)
         except Exception as e:
             print(f"Error checking for updates or branch sync: {e}")
         
