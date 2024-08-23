@@ -135,7 +135,7 @@ def show_password_prompt(callback):
                 if lock_label.winfo_exists():
                     remaining_time = int(lock_time - time.time())
                     lock_label.config(text=f"비밀번호 입력 시도가 5회 초과되었습니다.\n{remaining_time}초 후에 다시 시도하십시오.")
-                    if remaining_time > 0:
+                    if (remaining_time > 0):
                         root.after(1000, update_lock_message)
                     else:
                         lock_window.destroy()
@@ -295,7 +295,7 @@ def show_box_settings():
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
 
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0)
     modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
 
@@ -316,17 +316,17 @@ def show_box_settings():
             var.set(str(new_value))
 
     frame_modbus = Frame(box_settings_window)
-    frame_modbus.grid(row=0, column=1, padx=2, pady=2)
-    Button(frame_modbus, text="-", command=lambda: modify_box_count(modbus_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
-    Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=2, pady=2)
-    Button(frame_modbus, text="+", command=lambda: modify_box_count(modbus_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=2, pady=2)
+    frame_modbus.grid(row=0, column=1)
+    Button(frame_modbus, text="-", command=lambda: modify_box_count(modbus_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0)
+    Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1)
+    Button(frame_modbus, text="+", command=lambda: modify_box_count(modbus_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2)
 
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=2, pady=2)
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0)
     frame_analog = Frame(box_settings_window)
-    frame_analog.grid(row=1, column=1, padx=2, pady=2)
-    Button(frame_analog, text="-", command=lambda: modify_box_count(analog_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
-    Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=2, pady=2)
-    Button(frame_analog, text="+", command=lambda: modify_box_count(analog_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=2, pady=2)
+    frame_analog.grid(row=1, column=1)
+    Button(frame_analog, text="-", command=lambda: modify_box_count(analog_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0)
+    Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1)
+    Button(frame_analog, text="+", command=lambda: modify_box_count(analog_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2)
 
     gas_type_labels = ["ORG", "ARF-T", "HMDS", "HC-100"]
     modbus_gas_type_vars = []
@@ -361,8 +361,8 @@ def show_box_settings():
                 combo = modbus_gas_type_combos[i]
                 label = modbus_labels[i]
 
-            label.grid(row=i + 2, column=0, padx=2, pady=2)
-            combo.grid(row=i + 2, column=1, padx=2, pady=2)
+            label.grid(row=i + 2, column=0)
+            combo.grid(row=i + 2, column=1)
 
         for i in range(analog_boxes):  # 4~20mA 상자 설정을 표시
             if len(analog_gas_type_combos) <= i:
@@ -376,8 +376,8 @@ def show_box_settings():
                 combo = analog_gas_type_combos[i]
                 label = analog_labels[i]
 
-            label.grid(row=i + 2, column=2, padx=2, pady=2)
-            combo.grid(row=i + 2, column=3, padx=2, pady=2)
+            label.grid(row=i + 2, column=2)
+            combo.grid(row=i + 2, column=3)
 
     update_gas_type_options()
 
