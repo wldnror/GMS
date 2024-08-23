@@ -107,11 +107,11 @@ def check_for_updates(root):
             # 로컬 브랜치의 커밋 해시 가져오기
             local_commit = subprocess.check_output(['git', 'rev-parse', current_branch]).strip().decode()
 
-            # 브랜치 변경 여부 확인
-            if remote_branch_commit and local_commit != remote_branch_commit and remote_branch_commit != ignore_commit:
+            # 브랜치 삭제 여부 확인: 원격에 브랜치가 없으면 알림 표시
+            if not remote_branch_commit:
+                show_branch_deleted_notification(root, current_branch)
+            elif local_commit != remote_branch_commit and remote_branch_commit != ignore_commit:
                 show_update_notification(root, remote_branch_commit)
-            elif not remote_branch_commit:  # 원격 브랜치가 삭제된 경우
-                show_branch_sync_notification(root, current_branch)
         except Exception as e:
             print(f"Error checking for updates or branch sync: {e}")
         
@@ -139,20 +139,20 @@ def show_update_notification(root, remote_commit):
     no_button = Button(update_notification_frame, text="건너뛰기", command=on_no, font=("Arial", 14), fg="red")
     no_button.pack(side="left", padx=5)
 
-def show_branch_sync_notification(root, current_branch):
+def show_branch_deleted_notification(root, current_branch):
     global update_notification_frame
     if update_notification_frame and update_notification_frame.winfo_exists():
         return
 
     def on_yes():
-        start_branch_sync(root)
+        prune_deleted_branches(root)
     def on_no():
         ignore_branch_sync(current_branch)
 
     update_notification_frame = Frame(root)
     update_notification_frame.place(relx=0.5, rely=0.95, anchor='center')
 
-    update_label = Label(update_notification_frame, text=f"브랜치 '{current_branch}'가 변경되었습니다. 동기화하시겠습니까?", font=("Arial", 15), fg="red")
+    update_label = Label(update_notification_frame, text=f"브랜치 '{current_branch}'가 원격에서 삭제되었습니다. 로컬에서 삭제하시겠습니까?", font=("Arial", 15), fg="red")
     update_label.pack(side="left", padx=5)
 
     yes_button = Button(update_notification_frame, text="예", command=on_yes, font=("Arial", 14), fg="red")
@@ -183,11 +183,19 @@ def sync_branches(root):
     except subprocess.CalledProcessError as e:
         messagebox.showerror("브랜치 동기화 오류", f"브랜치 동기화 중 오류가 발생했습니다: {e}")
 
+def prune_deleted_branches(root):
+    try:
+        # 로컬에서 원격에서 삭제된 브랜치를 삭제합니다
+        subprocess.check_call(['git', 'fetch', '--prune'])
+        messagebox.showinfo("브랜치 정리", "로컬에서 원격에서 삭제된 브랜치를 정리했습니다.")
+    except subprocess.CalledProcessError as e:
+        messagebox.showerror("브랜치 정리 오류", f"브랜치 정리 중 오류가 발생했습니다: {e}")
+
 def ignore_update(remote_commit):
     global ignore_commit, update_notification_frame
     ignore_commit = remote_commit
     with open(IGNORE_COMMIT_FILE, "w") as file:
-        file.write(ignore_commit.decode())
+        file.write(ignore_commit)
     if update_notification_frame and update_notification_frame.winfo_exists():
         update_notification_frame.destroy()
 
