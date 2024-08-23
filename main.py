@@ -233,7 +233,7 @@ if __name__ == "__main__":
     root.attributes("-fullscreen", True)
     root.attributes("-topmost", True)
 
-    root.grid_rowconfigure(0, weight=1)  # 첫 번째 행의 가중치를 1로 설정하여 위쪽 여백 최소화
+    root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
     root.bind("<Escape>", exit_fullscreen)
@@ -255,22 +255,16 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0, sticky="nsew")
+    main_frame.grid(row=0, column=0)
 
     # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 그리드 레이아웃의 행과 열 가중치 설정
-    max_columns = 6  # 한 줄에 최대 6개 상자 배치
+    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치하고, 6개를 넘으면 다음 줄로 이동
     row_index = 0
     column_index = 0
-
-    for i in range(max_columns):
-        root.grid_columnconfigure(i, weight=1)
-
-    for i in range((len(modbus_boxes) + len(analog_boxes)) // max_columns + 1):
-        root.grid_rowconfigure(i + 1, weight=1)
+    max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
     # 모드버스 상자들을 먼저 배치
     for i in range(len(modbus_boxes)):
@@ -278,7 +272,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=0, sticky="nsew")
+        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
 
     # 아날로그 상자들을 계속해서 배치
@@ -286,9 +280,10 @@ if __name__ == "__main__":
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
-
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=5, pady=0, sticky="nsew")
+    
+        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
+
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     def on_enter(event):
