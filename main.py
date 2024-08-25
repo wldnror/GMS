@@ -262,24 +262,20 @@ if __name__ == "__main__":
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
-    all_boxes = [(modbus_ui.box_frames[i][0], "modbus") for i in range(len(modbus_boxes))] + \
-                [(analog_ui.box_frames[i][0], "analog") for i in range(len(analog_boxes))]
+    all_boxes = [(modbus_ui.box_frames[i][0]) for i in range(len(modbus_boxes))] + \
+                [(analog_ui.box_frames[i][0]) for i in range(len(analog_boxes))]
 
     row_index = 0
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    for box_frame, _ in all_boxes:
+    for box_frame in all_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
 
         box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
-
-    # Ensure the box frames are properly packed into their parent frame
-    for box_frame, _ in all_boxes:
-        box_frame.update_idletasks()
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
