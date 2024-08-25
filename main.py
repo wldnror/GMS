@@ -256,27 +256,26 @@ if __name__ == "__main__":
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # 디지털 및 아날로그 상자를 순차적으로 배치합니다.
+    combined_boxes = []
+
+    # Combine modbus and analog boxes into one list for unified grid placement
+    for i in range(max(len(modbus_ui.box_frames), len(analog_ui.box_frames))):
+        if i < len(modbus_ui.box_frames):
+            combined_boxes.append(modbus_ui.box_frames[i])
+        if i < len(analog_ui.box_frames):
+            combined_boxes.append(analog_ui.box_frames[i])
+
     row_index = 0
     column_index = 0
     max_columns = 6
 
-    for i in range(max(len(modbus_boxes), len(analog_boxes))):
-        if i < len(modbus_boxes):
-            box_frame = modbus_ui.box_frames[i][0]
-            box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
-            column_index += 1
-
-        if i < len(analog_boxes):
-            if column_index >= max_columns:
-                column_index = 0
-                row_index += 1
-            box_frame = analog_ui.box_frames[i][0]
-            box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
-            column_index += 1
-
+    for box_frame, *_ in combined_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
+
+        box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
+        column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
