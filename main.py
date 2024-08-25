@@ -261,8 +261,14 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 모드버스 상자들과 아날로그 상자들을 하나로 묶어서 한 줄에 최대 6개씩 배치
-    all_boxes = [(modbus_ui, i) for i in range(len(modbus_boxes))] + [(analog_ui, i) for i in range(len(analog_boxes))]
+    # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
+    all_boxes = []
+
+    for i in range(len(modbus_boxes)):
+        all_boxes.append((modbus_ui, i))
+
+    for i in range(len(analog_boxes)):
+        all_boxes.append((analog_ui, i))
 
     row_index = 0
     column_index = 0
@@ -273,7 +279,11 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        if isinstance(ui, ModbusUI):
+            ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        elif isinstance(ui, AnalogUI):
+            ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+
         column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
