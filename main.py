@@ -262,8 +262,8 @@ if __name__ == "__main__":
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
     # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
-    all_boxes = [(modbus_ui.box_frames[i], "modbus") for i in range(len(modbus_boxes))] + \
-                [(analog_ui.box_frames[i], "analog") for i in range(len(analog_boxes))]
+    all_boxes = [(modbus_ui.box_frames[i][0], "modbus") for i in range(len(modbus_boxes))] + \
+                [(analog_ui.box_frames[i][0], "analog") for i in range(len(analog_boxes))]
 
     row_index = 0
     column_index = 0
