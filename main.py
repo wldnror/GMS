@@ -279,12 +279,10 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        pady_value = 10 if column_index == 0 else 0  # 행의 첫 번째 상자에만 pady 추가
-
         if isinstance(ui, ModbusUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=pady_value)
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)  # padx와 pady 값을 조정
         elif isinstance(ui, AnalogUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=pady_value)
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)  # padx와 pady 값을 조정
 
         column_index += 1
 
