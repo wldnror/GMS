@@ -17,7 +17,6 @@ import tkinter as tk
 import pygame
 import queue
 
-# 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
 
 # 암호화 키 생성 및 로드
@@ -255,7 +254,6 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 디지털 및 아날로그 상자를 순차적으로 배치합니다.
     combined_boxes = []
 
     # Combine modbus and analog boxes into one list for unified grid placement
