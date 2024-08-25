@@ -277,6 +277,10 @@ if __name__ == "__main__":
         box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
 
+    # Ensure the box frames are properly packed into their parent frame
+    for box_frame, _ in all_boxes:
+        box_frame.update_idletasks()
+
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
     def on_enter(event):
