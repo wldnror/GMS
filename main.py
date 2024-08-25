@@ -280,9 +280,9 @@ if __name__ == "__main__":
             row_index += 1
 
         if isinstance(ui, ModbusUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
         elif isinstance(ui, AnalogUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)
 
         column_index += 1
 
