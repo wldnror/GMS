@@ -12,10 +12,10 @@ import sys
 import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils  # utils 모듈 임포트 추가
+import utils
 import tkinter as tk
-import pygame  # 오디오 재생을 위한 pygame 모듈 추가
-import queue  # 큐 사용을 위해 추가
+import pygame
+import queue
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -30,26 +30,23 @@ def encrypt_data(data):
 def decrypt_data(data):
     return utils.decrypt_data(data)
 
-settings = load_settings()  # 여기서 settings를 불러옵니다
-admin_password = settings.get("admin_password")  # settings를 불러온 후에 admin_password를 설정합니다
+settings = load_settings()
+admin_password = settings.get("admin_password")
 
-ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 초기화
-update_notification_frame = None  # update_notification_frame 변수를 전역 변수로 선언하고 초기화
-checking_updates = True  # 전역 변수로 선언 및 초기화
-branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
-alarm_active = False  # 알람 상태를 저장하는 전역 변수
-alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
-selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
-audio_playing = False  # 오디오 재생 상태를 저장하는 변수
+ignore_commit = None
+update_notification_frame = None
+checking_updates = True
+branch_window = None
+alarm_active = False
+alarm_blinking = False
+selected_audio_file = settings.get("audio_file")
+audio_playing = False
 
-# 오디오 재생 큐와 락 초기화
 audio_queue = queue.Queue()
 audio_lock = threading.Lock()
 
-# 현재 알람을 제어하는 상자 ID (None일 경우 알람을 제어하는 상자가 없음)
 current_alarm_box_id = None
 
-# 오디오 재생 초기화
 pygame.mixer.init()
 
 def play_alarm_sound(box_id):
@@ -76,7 +73,7 @@ def check_music_end():
     global audio_playing
     if not pygame.mixer.music.get_busy():
         audio_playing = False
-        play_next_in_queue()  # 큐에 남은 소리가 있으면 재생
+        play_next_in_queue()
     root.after(100, check_music_end)
 
 def stop_alarm_sound(box_id):
@@ -85,7 +82,7 @@ def stop_alarm_sound(box_id):
         if current_alarm_box_id == box_id:
             pygame.mixer.music.stop()
             audio_playing = False
-            while not audio_queue.empty():  # 큐를 비움
+            while not audio_queue.empty():
                 audio_queue.get()
             current_alarm_box_id = None
 
@@ -95,11 +92,11 @@ def set_alarm_status(active, box_id):
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
-        play_alarm_sound(box_id)  # 알람 소리 재생
+        play_alarm_sound(box_id)
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
         root.config(background=default_background)
-        stop_alarm_sound(box_id)  # 알람 소리 정지
+        stop_alarm_sound(box_id)
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -197,8 +194,8 @@ def change_branch():
         branch_window.destroy()
 
 def alarm_blink():
-    red_duration = 200  # 빨간색 상태에서 머무는 시간 (밀리초)
-    off_duration = 200  # 기본 배경색 상태에서 머무는 시간 (밀리초)
+    red_duration = 200
+    off_duration = 200
 
     def toggle_color():
         if alarm_active:
@@ -258,20 +255,28 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
-    all_boxes = modbus_ui.box_frames + analog_ui.box_frames
-
+    # 디지털 및 아날로그 상자를 순차적으로 배치합니다.
     row_index = 0
     column_index = 0
     max_columns = 6
 
-    for box_frame, *_ in all_boxes:
+    for i in range(max(len(modbus_boxes), len(analog_boxes))):
+        if i < len(modbus_boxes):
+            box_frame = modbus_ui.box_frames[i][0]
+            box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
+            column_index += 1
+
+        if i < len(analog_boxes):
+            if column_index >= max_columns:
+                column_index = 0
+                row_index += 1
+            box_frame = analog_ui.box_frames[i][0]
+            box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
+            column_index += 1
+
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
-
-        box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
-        column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
