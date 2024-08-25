@@ -257,37 +257,31 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    # main.py 내에서 modbus_ui 초기화 부분 수정
+    # ModbusUI와 AnalogUI 초기화
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치하고, 6개를 넘으면 다음 줄로 이동
+    # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
+    all_boxes = [(modbus_ui.box_frames[i][0], "modbus") for i in range(len(modbus_boxes))] + \
+                [(analog_ui.box_frames[i][0], "analog") for i in range(len(analog_boxes))]
+
     row_index = 0
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    # 모드버스 상자들을 먼저 배치
-    for i in range(len(modbus_boxes)):
+    for box_frame, _ in all_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
 
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
+        box_frame.grid(row=row_index, column=column_index, padx=5, pady=5)
         column_index += 1
-
-    # 아날로그 상자들을 계속해서 배치
-    for i in range(len(analog_boxes)):
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
-    
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
-        column_index += 1
-
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
+    
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
