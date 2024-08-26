@@ -261,33 +261,42 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # modbus_ui와 analog_ui의 상자들을 한 줄에 배치하고, 6개를 넘으면 다음 줄로 이동
+    # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
+    all_boxes = []
+
+    for i in range(len(modbus_boxes)):
+        all_boxes.append((modbus_ui, i))
+
+    for i in range(len(analog_boxes)):
+        all_boxes.append((analog_ui, i))
+
     row_index = 0
     column_index = 0
     max_columns = 6  # 한 줄에 최대 6개 상자 배치
 
-    # 모드버스 상자들을 먼저 배치
-    for i in range(len(modbus_boxes)):
+    for ui, idx in all_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
 
-        modbus_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
-        column_index += 1
+        if isinstance(ui, ModbusUI):
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
+        elif isinstance(ui, AnalogUI):
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
 
-    # 아날로그 상자들을 계속해서 배치
-    for i in range(len(analog_boxes)):
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
-    
-        analog_ui.box_frame.grid(row=row_index, column=column_index, padx=0, pady=0)
         column_index += 1
+    # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
+    for i in range(max_columns):
+        main_frame.grid_columnconfigure(i, weight=1)
 
+    for i in range((len(all_boxes) + max_columns - 1) // max_columns):  # 총 행 수 계산
+        main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
+    
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 

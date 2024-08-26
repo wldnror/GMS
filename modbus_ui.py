@@ -51,7 +51,7 @@ class ModbusUI:
         self.history_window = None  # 히스토리 창을 저장할 변수
         self.history_lock = threading.Lock()  # 히스토리 창 중복 방지를 위한 락
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0, padx=int(20 * SCALE_FACTOR), pady=int(20 * SCALE_FACTOR))
+        self.box_frame.grid(row=0, column=0)  # 간격 제거
         self.row_frames = []
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
@@ -94,12 +94,12 @@ class ModbusUI:
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=(0, int(3 * SCALE_FACTOR)))
+        entry.grid(row=0, column=0)
         self.entries.append(entry)
 
         action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
                                width=int(60 * SCALE_FACTOR), height=int(40 * SCALE_FACTOR), bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
-        action_button.grid(row=0, column=1, padx=(0, 0))
+        action_button.grid(row=0, column=1)
         self.action_buttons.append(action_button)
 
     def show_virtual_keyboard(self, entry):
@@ -137,7 +137,7 @@ class ModbusUI:
             row_frame = self.row_frames[-1]
 
         box_frame = Frame(row_frame)
-        box_frame.grid(row=0, column=col, padx=int(10 * SCALE_FACTOR), pady=int(10 * SCALE_FACTOR), sticky="w")
+        box_frame.grid(row=0, column=col)  # 간격 제거
 
         box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
@@ -609,8 +609,3 @@ class ModbusUI:
                 self.root.after(600, toggle_color)
 
         toggle_color()
-
-# ModbusUI 클래스 사용 예시:
-# root = Tk()
-# app = ModbusUI(root, num_boxes=4, gas_types={"modbus_box_0": "ORG", "modbus_box_1": "ARF-T"}, alarm_callback=lambda active: print("Alarm active:", active))
-# root.mainloop()
