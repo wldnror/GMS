@@ -280,9 +280,9 @@ if __name__ == "__main__":
             row_index += 1
 
         if isinstance(ui, ModbusUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
+            ui.box_frame.grid(row=row_index, column=column_index, padx=50, pady=50, sticky="nsew")  # padx와 pady 값을 조정
         elif isinstance(ui, AnalogUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
+            ui.box_frame.grid(row=row_index, column=column_index, padx=50, pady=50, sticky="nsew")  # padx와 pady 값을 조정
 
         column_index += 1
     # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
