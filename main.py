@@ -285,6 +285,12 @@ if __name__ == "__main__":
             ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10)  # padx와 pady 값을 조정
 
         column_index += 1
+    # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
+    for i in range(max_columns):
+        main_frame.grid_columnconfigure(i, weight=1)
+
+    for i in range((len(all_boxes) + max_columns - 1) // max_columns):  # 총 행 수 계산
+        main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
     
