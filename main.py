@@ -256,7 +256,6 @@ if __name__ == "__main__":
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")
-    main_frame.grid_propagate(False)  # Frame 크기 고정
 
     # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
@@ -282,7 +281,7 @@ if __name__ == "__main__":
             
         if isinstance(ui, ModbusUI) or isinstance(ui, AnalogUI):
             # 내부 패딩을 추가하여 각 상자의 크기를 일정하게 유지
-            ui.box_frame.grid(row=row_index, column=column_index, padx=20, pady=20, ipadx=10, ipady=10, sticky="nsew")  
+            ui.box_frame.grid(row=row_index, column=column_index, padx=20, pady=20, sticky="nsew")  
                    
         column_index += 1
         
@@ -297,6 +296,9 @@ if __name__ == "__main__":
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
        
+    # 설정 버튼 생성
+    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     
