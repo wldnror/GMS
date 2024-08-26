@@ -255,7 +255,7 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
+    main_frame.grid(row=0, column=0, sticky="nsew")
     main_frame.grid_propagate(False)  # Frame 크기 고정
 
     # main.py 내에서 modbus_ui 초기화 부분 수정
@@ -279,20 +279,24 @@ if __name__ == "__main__":
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
+            
         if isinstance(ui, ModbusUI) or isinstance(ui, AnalogUI):
             # 내부 패딩을 추가하여 각 상자의 크기를 일정하게 유지
             ui.box_frame.grid(row=row_index, column=column_index, padx=20, pady=20, ipadx=10, ipady=10, sticky="nsew")  
-            ui.box_frame.grid_propagate(False)  # 개별 박스 프레임 크기 고정
-            
+                   
         column_index += 1
+        
     # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
     for i in range(max_columns):
         main_frame.grid_columnconfigure(i, weight=1, uniform="column")  # 각 열을 동일한 크기로 설정
 
     for i in range((len(all_boxes) + max_columns - 1) // max_columns):  # 총 행 수 계산
         main_frame.grid_rowconfigure(i, weight=1, uniform="row")  # 각 행을 동일한 크기로 설정
-        settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
-    
+  
+    # 전체 창이 크기를 조정하도록 설정
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+       
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
     
