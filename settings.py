@@ -43,7 +43,7 @@ def decrypt_data(data):
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'rb') as file:
+        with open(SETTINGS_FILE, 'rb') as file):
             encrypted_data = file.read()
         decrypted_data = decrypt_data(encrypted_data)
         return json.loads(decrypted_data)
@@ -58,7 +58,7 @@ def load_settings():
         }
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'wb') as file:
+    with open(SETTINGS_FILE, 'wb') as file):
         encrypted_data = encrypt_data(json.dumps(settings))
         file.write(encrypted_data)
 
@@ -207,6 +207,8 @@ def show_settings():
     frame2.pack(pady=5)
     update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=check_and_update_system).start())
     update_button.grid(row=0, column=0)
+    branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
+    branch_button.grid(row=0, column=1)
 
     # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
     frame3 = Frame(settings_window)
