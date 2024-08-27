@@ -318,7 +318,7 @@ if __name__ == "__main__":
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
         date_label = tk.Label(root, font=("Helvetica", 30), fg="white", bg="black")
-        date_label.place(relx=0.5, rely=0.2, anchor='n')
+        date_label.place(relx=0.5, rely=0.1, anchor='n')
 
         def update_clock():
             now = datetime.datetime.now()
