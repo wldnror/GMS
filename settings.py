@@ -43,7 +43,7 @@ def decrypt_data(data):
 
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'rb') as file):
+        with open(SETTINGS_FILE, 'rb') as file:
             encrypted_data = file.read()
         decrypted_data = decrypt_data(encrypted_data)
         return json.loads(decrypted_data)
