@@ -2,6 +2,7 @@ import json
 import os
 import time
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from settings import load_settings  # settings 모듈에서 load_settings 함수를 임포트
 from tkinter import ttk
 import threading
 import psutil
