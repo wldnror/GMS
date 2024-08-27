@@ -2,7 +2,6 @@ from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
 from tkinter import ttk
 import json
 import os
-import sys
 import threading
 import subprocess
 import time
@@ -383,9 +382,9 @@ def show_box_settings():
             for i, var in enumerate(analog_gas_type_vars):
                 settings["analog_gas_types"][f"analog_box_{i}"] = var.get()
             save_settings(settings)
-            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
+            update_gas_type_options()  # UI 업데이트
+            messagebox.showinfo("설정 저장", "설정이 저장되었으며, 실시간으로 반영되었습니다.")
             box_settings_window.destroy()
-            utils.restart_application()  # 설정이 변경되면 애플리케이션을 재시작
         except ValueError:
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
