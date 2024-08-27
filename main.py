@@ -321,7 +321,7 @@ if __name__ == "__main__":
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black",anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
-        date_label = tk.Label(root, font=("Helvetica", 29), fg="white", bg="black", anchor='center', padx=5, pady=5)
+        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
         def update_clock():
