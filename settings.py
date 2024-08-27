@@ -283,6 +283,10 @@ def show_box_settings():
     modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
 
+    # 상자 수 변경 시 자동으로 update_gas_type_options 호출
+    modbus_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
+    analog_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
+
     try:
         modbus_box_count = int(modbus_boxes_var.get())
         analog_box_count = int(analog_boxes_var.get())
