@@ -314,7 +314,7 @@ if __name__ == "__main__":
 
     # 만약 상자가 0~4개일 경우 시계와 날짜를 표시
     if 0 <= total_boxes <= 4:
-        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=15, pady=0)
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=105, pady=0)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
         date_label = tk.Label(root, font=("Helvetica", 29), fg="white", bg="black", anchor='center', padx=15, pady=0)
