@@ -314,11 +314,11 @@ if __name__ == "__main__":
 
     # 만약 상자가 0~4개일 경우 시계와 날짜를 표시
     if 0 <= total_boxes <= 4:
-        clock_label = tk.Label(root, font=("Arial", 20))
-        clock_label.place(relx=0.5, rely=0.0, anchor='n')
+        clock_label = tk.Label(root, font=("Helvetica", 48, "bold"), fg="white", bg="black")
+        clock_label.place(relx=0.5, rely=0.05, anchor='n')
 
-        date_label = tk.Label(root, font=("Arial", 20))
-        date_label.place(relx=0.5, rely=0.05, anchor='n')
+        date_label = tk.Label(root, font=("Helvetica", 36, "bold"), fg="white", bg="black")
+        date_label.place(relx=0.5, rely=0.15, anchor='n')
 
         def update_clock():
             now = datetime.datetime.now()
