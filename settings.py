@@ -210,10 +210,6 @@ def show_settings():
     branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
     branch_button.grid(row=0, column=1)
 
-    # "브랜치 목록 동기화" 버튼 추가
-    sync_branches_button = Button(frame2, text="브랜치 동기화", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=sync_branches).start())
-    sync_branches_button.grid(row=1, column=0, columnspan=2)
-
     # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
     frame3 = Frame(settings_window)
     frame3.pack(pady=5)
@@ -258,18 +254,6 @@ def show_settings():
         audio_combo.bind("<<ComboboxSelected>>", on_audio_select)
 
     Button(settings_window, text="경고 오디오 선택", command=select_audio_file, font=("Arial", 14), width=25, height=2, padx=10, pady=10).pack(pady=5)
-
-def sync_branches():
-    try:
-        # 원격 저장소에서 모든 브랜치를 가져옵니다
-        subprocess.check_call(['git', 'fetch', '--all'])
-        # 로컬 브랜치를 원격 브랜치와 동기화합니다
-        subprocess.check_call(['git', 'pull', '--all'])
-        # 로컬에 없는 원격 브랜치를 생성하고, 원격에 없는 로컬 브랜치를 삭제합니다
-        subprocess.check_call(['git', 'remote', 'prune', 'origin'])
-        messagebox.showinfo("브랜치 동기화", "브랜치 목록이 원격 저장소와 동기화되었습니다.")
-    except subprocess.CalledProcessError as e:
-        messagebox.showerror("브랜치 동기화 오류", f"브랜치 동기화 중 오류가 발생했습니다: {e}")
 
 def check_and_update_system():
     try:
