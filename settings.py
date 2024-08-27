@@ -272,6 +272,7 @@ def check_and_update_system():
 def show_box_settings():
     global box_settings_window
     if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.attributes("-topmost", True)  # 창이 존재하는 경우 다시 최상위로 설정
         box_settings_window.focus()
         return
 
@@ -282,6 +283,10 @@ def show_box_settings():
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
     modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
+
+    # 상자 수 변경 시 자동으로 update_gas_type_options 호출
+    modbus_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
+    analog_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
 
     try:
         modbus_box_count = int(modbus_boxes_var.get())
