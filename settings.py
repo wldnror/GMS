@@ -272,6 +272,7 @@ def check_and_update_system():
 def show_box_settings():
     global box_settings_window
     if box_settings_window and box_settings_window.winfo_exists():
+        box_settings_window.attributes("-topmost", True)  # 창이 존재하는 경우 다시 최상위로 설정
         box_settings_window.focus()
         return
 
