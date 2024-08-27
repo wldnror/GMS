@@ -323,7 +323,7 @@ if __name__ == "__main__":
         def update_clock():
             now = datetime.datetime.now()
             current_time = now.strftime("%H:%M:%S")
-            current_date = now.strftime("%Y-%m-%d")
+            current_date = now.strftime("%Y-%m-%d %A")
             clock_label.config(text=current_time)
             date_label.config(text=current_date)
             root.after(1000, update_clock)  # 1초마다 갱신
