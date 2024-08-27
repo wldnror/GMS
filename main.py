@@ -2,7 +2,6 @@ import json
 import os
 import time
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
-from settings import load_settings  # settings 모듈에서 load_settings 함수를 임포트
 from tkinter import ttk
 import threading
 import psutil
@@ -32,6 +31,10 @@ def encrypt_data(data):
 
 def decrypt_data(data):
     return utils.decrypt_data(data)
+    
+def load_settings():
+    with open(SETTINGS_FILE, "r") as file:
+        return json.load(file)
 
 settings = load_settings()
 admin_password = settings.get("admin_password")
