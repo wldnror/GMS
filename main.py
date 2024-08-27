@@ -217,6 +217,15 @@ def alarm_blink():
 
     toggle_color()
 
+def update_clock_thread(clock_label, date_label, stop_event):
+    while not stop_event.is_set():
+        now = datetime.datetime.now()
+        current_time = now.strftime("%H:%M:%S")
+        current_date = now.strftime("%Y-%m-%d %A")
+        clock_label.config(text=current_time)
+        date_label.config(text=current_date)
+        time.sleep(1)
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -318,21 +327,23 @@ if __name__ == "__main__":
 
     # 만약 상자가 0~4개일 경우 시계와 날짜를 표시
     if 0 <= total_boxes <= 4:
-        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black",anchor='center', padx=10, pady=10)
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
         date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
-        def update_clock():
-            now = datetime.datetime.now()
-            current_time = now.strftime("%H:%M:%S")
-            current_date = now.strftime("%Y-%m-%d %A")
-            clock_label.config(text=current_time)
-            date_label.config(text=current_date)
-            root.after(1000, update_clock)  # 1초마다 갱신
+        stop_event = threading.Event()
+        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
+        clock_thread.start()
 
-        update_clock()  # 시계 갱신 시작
+    def on_closing():
+        if 0 <= total_boxes <= 4:
+            stop_event.set()
+            clock_thread.join()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
 
     def system_info_thread():
         while True:
