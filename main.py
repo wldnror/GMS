@@ -16,6 +16,7 @@ import utils  # utils 모듈 임포트 추가
 import tkinter as tk
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 import queue  # 큐 사용을 위해 추가
+import datetime  # 날짜와 시간을 가져오기 위해 추가
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
@@ -307,6 +308,27 @@ if __name__ == "__main__":
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
+
+    # 상자의 개수를 계산
+    total_boxes = len(modbus_boxes) + len(analog_boxes)
+
+    # 만약 상자가 0~4개일 경우 시계와 날짜를 표시
+    if 0 <= total_boxes <= 4:
+        clock_label = tk.Label(root, font=("Arial", 20))
+        clock_label.place(relx=0.5, rely=0.0, anchor='n')
+
+        date_label = tk.Label(root, font=("Arial", 20))
+        date_label.place(relx=0.5, rely=0.05, anchor='n')
+
+        def update_clock():
+            now = datetime.datetime.now()
+            current_time = now.strftime("%H:%M:%S")
+            current_date = now.strftime("%Y-%m-%d")
+            clock_label.config(text=current_time)
+            date_label.config(text=current_date)
+            root.after(1000, update_clock)  # 1초마다 갱신
+
+        update_clock()  # 시계 갱신 시작
 
     def system_info_thread():
         while True:
