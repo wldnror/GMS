@@ -58,7 +58,7 @@ def load_settings():
         }
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'wb') as file):
+    with open(SETTINGS_FILE, 'wb') as file:
         encrypted_data = encrypt_data(json.dumps(settings))
         file.write(encrypted_data)
 
