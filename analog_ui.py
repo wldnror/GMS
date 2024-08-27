@@ -206,7 +206,7 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)  # 네 자리로 맞추기
+        value = value.zfill(4)
         leading_zero = True
         blink_state = self.box_states[box_index]["blink_state"]
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
@@ -215,14 +215,8 @@ class AnalogUI:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
-        def update_digit(index):
-            if index >= len(value):
-                return  # 모든 자릿수 업데이트가 완료된 경우
-
-            digit = value[index]
-
-            if leading_zero and digit == '0' and index < 3:
+        for i, digit in enumerate(value):
+            if leading_zero and digit == '0' and i < 3:
                 segments = SEGMENTS[' ']
             else:
                 segments = SEGMENTS[digit]
@@ -233,13 +227,7 @@ class AnalogUI:
 
             for j, state in enumerate(segments):
                 color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
-
-            # 다음 자릿수를 일정 시간 후에 업데이트
-            self.root.after(50, lambda: update_digit(index + 1))
-
-        # 애니메이션 시작: 일의 자리부터 업데이트
-        update_digit(0)
+                box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
 
         self.box_states[box_index]["blink_state"] = not blink_state
 
