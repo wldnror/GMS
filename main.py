@@ -17,6 +17,10 @@ import tkinter as tk
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 import queue  # 큐 사용을 위해 추가
 import datetime  # 날짜와 시간을 가져오기 위해 추가
+import locale
+
+# 라즈베리 파이에서 한글 로케일 설정
+locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
 # 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
