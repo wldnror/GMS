@@ -87,10 +87,14 @@ class AnalogUI:
         else:
             row_frame = self.row_frames[-1]
 
-        box_frame = Frame(row_frame)
+        box_frame = Frame(row_frame, bg='white', highlightthickness=int(2.5 * SCALE_FACTOR))  # 투명 테두리 부분 추가
         box_frame.grid(row=0, column=col)  # 간격 제거
 
-        box_canvas = Canvas(box_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR),
+        inner_frame = Frame(box_frame)  # 실제 내부 Frame
+        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))  # 투명 테두리만큼 패딩 추가
+
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), 
+                            highlightthickness=int(3 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
         box_canvas.pack()
 
