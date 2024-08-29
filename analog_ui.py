@@ -87,7 +87,7 @@ class AnalogUI:
         else:
             row_frame = self.row_frames[-1]
 
-        box_frame = Frame(row_frame, bg='white', highlightthickness=int(2.5 * SCALE_FACTOR))  # 투명 테두리 부분 추가
+        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))  # 투명 테두리 부분 추가
         box_frame.grid(row=0, column=col)  # 간격 제거
 
         inner_frame = Frame(box_frame)  # 실제 내부 Frame
