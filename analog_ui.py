@@ -21,7 +21,7 @@ class AnalogUI:
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
-        "HMDS": 3000,
+        "HMDS": 3000,  # 여기서는 내부적으로 300.0을 표현할 수 있도록 수정
         "HC-100": 5000
     }
 
@@ -210,7 +210,14 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)  # 네 자리로 맞추기
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        if gas_type == "HMDS":
+            # HMDS의 경우 0.0 형식으로 표시
+            value = f"{int(value) / 10:.1f}".zfill(4)  # value를 300.0까지 가능하도록 조정
+
+        else:
+            value = value.zfill(4)  # 다른 가스 타입은 기존 방식으로 네 자리로 맞춤
+
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
@@ -274,7 +281,7 @@ class AnalogUI:
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
+            with open(log_file, 'r') as file):
                 lines = file.readlines()
                 for line in lines:
                     timestamp, value = line.strip().split(',')
