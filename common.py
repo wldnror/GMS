@@ -6,19 +6,20 @@ import numpy as np
 
 # 세그먼트 표시 매핑
 SEGMENTS = {
-    '0': '1111110',
-    '1': '0110000',
-    '2': '1101101',
-    '3': '1111001',
-    '4': '0110011',
-    '5': '1011011',
-    '6': '1011111',
-    '7': '1110000',
-    '8': '1111111',
-    '9': '1111011',
-    'E': '1001111',  # a, f, e, g, d
-    '-': '0000001',  # g
-    ' ': '0000000'  # 모든 세그먼트 꺼짐
+    '0': '11111100',
+    '1': '01100000',
+    '2': '11011010',
+    '3': '11110010',
+    '4': '01100110',
+    '5': '10110110',
+    '6': '10111110',
+    '7': '11100000',
+    '8': '11111110',
+    '9': '11110110',
+    'E': '10011110',  # a, f, e, g, d
+    '-': '00000010',  # g
+    ' ': '00000000',  # 모든 세그먼트 꺼짐
+    '.': '00000001'   # 점만 켜짐
 }
 
 # Bit to segment mapping
@@ -26,7 +27,8 @@ BIT_TO_SEGMENT = {
     0: 'E-10',  # E-10
     1: 'E-22',  # E-22
     2: 'E-12',  # E-12
-    3: 'E-23'  # E-23
+    3: 'E-23',  # E-23
+    4: 'DOT'    # 점 세그먼트
 }
 
 # 확대 배율
@@ -105,10 +107,25 @@ def create_segment_display(box_canvas):
                                           12 * SCALE + x_offset, 32.6 * SCALE + y_offset, 4 * SCALE + x_offset, 32.6 * SCALE + y_offset, 0 * SCALE + x_offset, 30.2 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_g')
         ]
+
+        # 각 세그먼트의 점 추가 (기본으로 꺼져 있음)
+        dot = segment_canvas.create_oval((26 + i * 29) * SCALE, 54 * SCALE, (28 + i * 29) * SCALE, 56 * SCALE,
+                                         fill='#000000', outline='#424242', tags=f'segment_{i}_dot')
+
+        segments.append(dot)
         segment_items.append(segments)
 
     box_canvas.segment_canvas = segment_canvas
     box_canvas.segment_items = segment_items
+
+def update_segments(display_canvas, segment_values):
+    for i, value in enumerate(segment_values):
+        segments = display_canvas.segment_items[i]
+        for j, segment in enumerate(segments):
+            if SEGMENTS[value][j] == '1':
+                display_canvas.segment_canvas.itemconfig(segment, fill='#FF0000')
+            else:
+                display_canvas.segment_canvas.itemconfig(segment, fill='#424242')
 
 def show_history_graph(root, box_index, histories, graph_windows):
     if graph_windows[box_index] is not None:
