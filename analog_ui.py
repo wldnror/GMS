@@ -227,13 +227,12 @@ class AnalogUI:
                 return  # 모든 자릿수 업데이트가 완료된 경우
 
             digit = value[index]
-            
-            # .을 켜는 로직 추가
+            segments = SEGMENTS[digit]
+        
             # HMDS 가스이고, full_scale이 3000이면, 각 자리의 점을 켭니다.
+            
             segments = SEGMENTS[digit]
             if gas_type == "HMDS" and full_scale == 3000:
-                segments = SEGMENTS[digit]
-                # 마지막 자리는 점을 켜지 않습니다.
                 if index < 3:
                     segments = segments[:-1] + '1'  # 마지막 비트 (점) 켜기
                 else:
