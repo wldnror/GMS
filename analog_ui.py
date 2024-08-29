@@ -219,7 +219,10 @@ class AnalogUI:
             if value.strip() == "":
                 numeric_value = 0
             else:
-                numeric_value = int(value)
+                try:
+                    numeric_value = int(value)
+                except ValueError:
+                    numeric_value = 0
         
             formatted_value = f"{numeric_value / 10:.1f}".zfill(5)  # "0.0" 형식으로 변환
 
