@@ -213,9 +213,14 @@ class AnalogUI:
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         full_scale = self.GAS_FULL_SCALE[gas_type]
 
-        if gas_type == "HMDS" and full_scale == 3000:
-            # 값 포맷팅: 소수점 두 자리를 포함한 문자열로 변환
-            numeric_value = int(value)
+        if gas_type == "HMDS" and full_scale == 3000
+           
+            # 값이 공백인 경우 0으로 처리
+            if value.strip() == "":
+                numeric_value = 0
+            else:
+                numeric_value = int(value)
+        
             formatted_value = f"{numeric_value / 10:.1f}".zfill(5)  # "0.0" 형식으로 변환
 
             # 세그먼트에 표시될 각 문자
