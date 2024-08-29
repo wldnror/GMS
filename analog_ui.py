@@ -216,6 +216,10 @@ class AnalogUI:
         if value != previous_segment_display:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
+        
+        # 여기서 gas_type과 full_scale 변수를 정의합니다.
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        full_scale = self.GAS_FULL_SCALE[gas_type]
 
         # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
         def update_digit(index, leading_zero=True):
