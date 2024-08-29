@@ -225,6 +225,7 @@ class AnalogUI:
             digit = value[index]
             # .을 켜는 로직 추가
             # HMDS 가스이고, full_scale이 3000이면, 각 자리의 점을 켭니다.
+            
             if gas_type == "HMDS" and full_scale == 3000:
                 segments = SEGMENTS[digit]
                 # 마지막 자리는 점을 켜지 않습니다.
