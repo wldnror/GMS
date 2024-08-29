@@ -281,7 +281,7 @@ class AnalogUI:
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
-            with open(log_file, 'r') as file):
+            with open(log_file, 'r') as file:
                 lines = file.readlines()
                 for line in lines:
                     timestamp, value = line.strip().split(',')
