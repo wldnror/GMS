@@ -213,7 +213,7 @@ class AnalogUI:
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         full_scale = self.GAS_FULL_SCALE[gas_type]
 
-        if gas_type == "HMDS" and full_scale == 3000
+        if gas_type == "HMDS" and full_scale == 3000:
            
             # 값이 공백인 경우 0으로 처리
             if value.strip() == "":
