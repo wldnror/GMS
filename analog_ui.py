@@ -212,9 +212,11 @@ class AnalogUI:
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            # HMDS의 경우 0.0 형식으로 표시
-            value = f"{int(value) / 10:.1f}".zfill(4)  # value를 300.0까지 가능하도록 조정
-
+            try:
+                numeric_value = int(value)
+                value = f"{numeric_value / 10:.1f}".zfill(4)  # value를 300.0까지 가능하도록 조정
+            except ValueError:
+                value = "0.0"  # 기본값으로 0.0을 설정
         else:
             value = value.zfill(4)  # 다른 가스 타입은 기존 방식으로 네 자리로 맞춤
 
