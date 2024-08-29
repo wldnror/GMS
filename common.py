@@ -107,12 +107,6 @@ def create_segment_display(box_canvas):
         ]
         segment_items.append(segments)
 
-        # 각 세그먼트 사이에 점 추가
-        if i < 3:  # 마지막 세그먼트 뒤에는 점을 추가하지 않음
-            dot = segment_canvas.create_oval((24 + i * 29) * SCALE, 54 * SCALE, (26 + i * 29) * SCALE, 56 * SCALE,
-                                             fill='#424242', outline='#424242', tags=f'dot_{i}')
-            segment_items.append(dot)
-
     box_canvas.segment_canvas = segment_canvas
     box_canvas.segment_items = segment_items
 
