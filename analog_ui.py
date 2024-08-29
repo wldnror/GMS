@@ -7,7 +7,7 @@ import Adafruit_ADS1x15
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import mplcursors
-from common import SEGMENTS, create_segment_display, update_segments
+from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
 
@@ -210,95 +210,40 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
-        full_scale = self.GAS_FULL_SCALE[gas_type]
+        value = value.zfill(4)  # 네 자리로 맞추기
+        previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
-        if gas_type == "HMDS" and full_scale == 3000:
-           
-            # 값이 공백인 경우 0으로 처리
-            if value.strip() == "":
-                numeric_value = 0
+        if value != previous_segment_display:
+            self.record_history(box_index, value)
+            self.box_states[box_index]["previous_segment_display"] = value
+
+        # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
+        def update_digit(index, leading_zero=True):
+            if index >= len(value):
+                return  # 모든 자릿수 업데이트가 완료된 경우
+
+            digit = value[index]
+
+            if leading_zero and digit == '0' and index < 3:
+                segments = SEGMENTS[' ']
             else:
-                try:
-                    numeric_value = int(value)
-                except ValueError:
-                    numeric_value = 0
-        
-            formatted_value = f"{numeric_value / 10:.1f}".zfill(5)  # "0.0" 형식으로 변환
-
-            # 세그먼트에 표시될 각 문자
-            value = formatted_value.replace('.', '')
-
-            previous_segment_display = self.box_states[box_index]["previous_segment_display"]
-
-            if value != previous_segment_display:
-                self.record_history(box_index, value)
-                self.box_states[box_index]["previous_segment_display"] = value
-
-            # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
-            def update_digit(index):
-                if index >= len(value):
-                    return  # 모든 자릿수 업데이트가 완료된 경우
-
-                digit = value[index]
                 segments = SEGMENTS[digit]
+                leading_zero = False
 
-                # 점 추가: 소수점 위치에 점을 켜기
-                if index == 1:  # 소수점은 두 번째 자리 뒤에
-                    segments = segments[:-1] + '1'
-                else:
-                    segments = segments[:-1] + '0'
+            if blink and self.box_states[box_index]["blink_state"]:
+                segments = SEGMENTS[' ']
 
-                if blink and self.box_states[box_index]["blink_state"]:
-                    segments = SEGMENTS[' ']
+            for j, state in enumerate(segments):
+                color = '#fc0c0c' if state == '1' else '#424242'
+                box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-                for j, state in enumerate(segments):
-                    color = '#fc0c0c' if state == '1' else '#424242'
-                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
+            # 다음 자릿수를 일정 시간 후에 업데이트
+            self.root.after(50, lambda: update_digit(index + 1, leading_zero))
 
-                # 다음 자릿수를 일정 시간 후에 업데이트
-                self.root.after(50, lambda: update_digit(index + 1))
+        # 애니메이션 시작: 일의 자리부터 업데이트
+        update_digit(0)
 
-            # 애니메이션 시작: 일의 자리부터 업데이트
-            update_digit(0)
-
-            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-        else:
-            # 다른 가스 타입의 경우 기존 방식 유지
-            value = value.zfill(4)  # 네 자리로 맞추기
-            previous_segment_display = self.box_states[box_index]["previous_segment_display"]
-
-            if value != previous_segment_display:
-                self.record_history(box_index, value)
-                self.box_states[box_index]["previous_segment_display"] = value
-
-            def update_digit(index, leading_zero=True):
-                if index >= len(value):
-                    return  # 모든 자릿수 업데이트가 완료된 경우
-
-                digit = value[index]
-                segments = SEGMENTS[digit]
-
-                if leading_zero and digit == '0' and index < 3:
-                    segments = SEGMENTS[' ']
-                else:
-                    segments = SEGMENTS[digit]
-                    leading_zero = False
-
-                if blink and self.box_states[box_index]["blink_state"]:
-                    segments = SEGMENTS[' ']
-
-                for j, state in enumerate(segments):
-                    color = '#fc0c0c' if state == '1' else '#424242'
-                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
-
-                # 다음 자릿수를 일정 시간 후에 업데이트
-                self.root.after(50, lambda: update_digit(index + 1, leading_zero))
-
-            # 애니메이션 시작: 일의 자리부터 업데이트
-            update_digit(0)
-
-            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
         if value.strip():
