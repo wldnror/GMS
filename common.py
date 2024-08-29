@@ -109,7 +109,7 @@ def create_segment_display(box_canvas):
         ]
 
         # 각 세그먼트의 점 추가 (기본으로 꺼져 있음)
-        dot = segment_canvas.create_oval((26 + i * 29) * SCALE, 54 * SCALE, (28 + i * 29) * SCALE, 56 * SCALE,
+        dot = segment_canvas.create_oval((26 + i * 29 + 3) * SCALE, (54 - 5) * SCALE, (30 + i * 29 + 3) * SCALE, (58 - 5) * SCALE,
                                          fill='#000000', outline='#424242', tags=f'segment_{i}_dot')
 
         segments.append(dot)
