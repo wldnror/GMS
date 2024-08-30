@@ -241,35 +241,44 @@ class ModbusUI:
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)  # 네 자리로 맞추기
-        leading_zero = True
-        blink_state = self.box_states[box_index]["blink_state"]
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        for i, digit in enumerate(value):
-            if leading_zero and digit == '0' and i < 3:
+        # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
+        def update_digit(index, leading_zero=True):
+            if index >= len(value):
+                return  # 모든 자릿수 업데이트가 완료된 경우
+    
+            digit = value[index]
+
+            if leading_zero and digit == '0' and index < 3:
                 segments = SEGMENTS[' ']
             else:
                 segments = SEGMENTS[digit]
                 leading_zero = False
 
-            if blink and blink_state:
+            if blink and self.box_states[box_index]["blink_state"]:
                 segments = SEGMENTS[' ']
 
             for j, state in enumerate(segments):
-                # 기존의 `segment_{i}_{chr(97 + j)}`와 같은 세그먼트 태그를 사용하여 업데이트합니다.
-                segment_tag = f'segment_{i}_{chr(97 + j)}'
-                color = '#fc0c0c' if state == '1' else '#424242'  # 빨간색으로 세그먼트를 설정합니다.
-                
-                # 세그먼트가 존재하는지 확인한 후 색상을 업데이트합니다.
+                color = '#fc0c0c' if state == '1' else '#424242'
+                segment_tag = f'segment_{index}_{chr(97 + j)}'
+            
+                # 세그먼트가 존재하는지 확인하고 색상 업데이트
                 if box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
+            # 다음 자릿수를 일정 시간 후에 업데이트
+            self.root.after(10, lambda: update_digit(index + 1, leading_zero))
+
+        # 애니메이션 시작: 일의 자리부터 업데이트
+        update_digit(0)
+
         # 블링크 상태 업데이트
-        self.box_states[box_index]["blink_state"] = not blink_state
+        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
         if value.strip():
