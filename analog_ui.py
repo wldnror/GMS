@@ -395,29 +395,34 @@ class AnalogUI:
             print(f"Unexpected error reading ADC data: {e}")
 
     def start_adc_thread(self):
-        loop = asyncio.get_event_loop()
-        adc_thread = threading.Thread(target=loop.run_until_complete, args=(self.read_adc_data(),))
+        # ADC 데이터를 별도의 스레드에서 비동기적으로 처리
+        adc_thread = threading.Thread(target=self.run_async_adc)
         adc_thread.daemon = True
         adc_thread.start()
 
+    def run_async_adc(self):
+        # 비동기 이벤트 루프를 스레드 내에서 실행
+        asyncio.run(self.read_adc_data())
+
     def schedule_ui_update(self):
-        self.root.after(10, self.update_ui_from_queue)  # 10ms 간격으로 UI 업데이트 예약
+        # UI 업데이트를 메인 스레드에서 주기적으로 수행
+        self.root.after(10, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
+            # 큐에서 데이터를 가져와서 UI를 업데이트
             while not self.adc_queue.empty():
                 box_index = self.adc_queue.get_nowait()
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
 
-                # 애니메이션 보간을 별도 함수로 호출하여 비동기적으로 처리
                 self.start_interpolation(box_index, full_scale, alarm_levels)
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
-        self.schedule_ui_update()  # 다음 업데이트 예약
+        self.schedule_ui_update()
 
     def start_interpolation(self, box_index, full_scale, alarm_levels):
         if self.box_states[box_index]["interpolating"]:
