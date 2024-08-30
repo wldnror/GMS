@@ -333,7 +333,7 @@ class ModbusUI:
         log_entries = self.load_log_files(box_index, file_index)
         times, values = zip(*log_entries) if log_entries else ([], [])
 
-        figure = plt.Figure(figsize=(12 * SCALE_FACTOR, 8 * SCALE_FACTOR), dpi=100)
+        figure = plt.Figure(figsize=(12 * SCALE_FACTOR), dpi=100)
         ax = figure.add_subplot(111)
 
         ax.plot(times, values, marker='o')
@@ -561,7 +561,8 @@ class ModbusUI:
         while not self.data_queue.empty():
             box_index, value, blink = self.data_queue.get()
             box_canvas = self.box_frames[box_index][1]
-            self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
+            # 비동기적으로 세그먼트 디스플레이 업데이트
+            threading.Thread(target=self.update_segment_display, args=(value, box_canvas, blink, box_index)).start()
         self.root.after(100, self.process_queue)
 
     def check_click(self, event):
