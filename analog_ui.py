@@ -1,3 +1,4 @@
+# analog_ui.py
 import os
 import time
 import threading
@@ -73,25 +74,23 @@ class AnalogUI:
         self.schedule_ui_update()
 
     def create_analog_box(self, index):
-        # 한 행에 몇 개의 박스를 배치할지 결정하는 변수
-        max_boxes_per_row = 6  # 여기를 6으로 설정
+        max_boxes_per_row = 6
 
-        # 행과 열을 계산하는 부분
         row = index // max_boxes_per_row
         col = index % max_boxes_per_row
 
         if col == 0:
             row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0)  # 간격 제거
+            row_frame.grid(row=row, column=0)
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
-        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))  # 투명 테두리 부분 추가
-        box_frame.grid(row=0, column=col)  # 간격 제거
+        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))
+        box_frame.grid(row=0, column=col)
 
-        inner_frame = Frame(box_frame)  # 실제 내부 Frame
-        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))  # 투명 테두리만큼 패딩 추가
+        inner_frame = Frame(box_frame)
+        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), 
                             highlightthickness=int(3 * SCALE_FACTOR),
@@ -107,9 +106,9 @@ class AnalogUI:
         gas_type_text_id = box_canvas.create_text(*[int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type_var.get()]],
                                                   text=gas_type_var.get(), font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
-            "previous_value": 0,  # 마지막 실제 값을 저장
-            "current_value": 0,  # 현재 보간된 값을 저장
-            "interpolating": False,  # 현재 보간 중인지 여부
+            "previous_value": 0,
+            "current_value": 0,
+            "interpolating": False,
             "blink_state": False,
             "blinking_error": False,
             "previous_segment_display": None,
@@ -210,17 +209,16 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)  # 네 자리로 맞추기
+        value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
         def update_digit(index, leading_zero=True):
             if index >= len(value):
-                return  # 모든 자릿수 업데이트가 완료된 경우
+                return
 
             digit = value[index]
 
@@ -237,10 +235,8 @@ class AnalogUI:
                 color = '#fc0c0c' if state == '1' else '#424242'
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-            # 다음 자릿수를 일정 시간 후에 업데이트
             self.root.after(50, lambda: update_digit(index + 1, leading_zero))
 
-        # 애니메이션 시작: 일의 자리부터 업데이트
         update_digit(0)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
@@ -343,7 +339,6 @@ class AnalogUI:
         for addr in adc_addresses:
             try:
                 adc = Adafruit_ADS1x15.ADS1115(address=addr)
-                # ADC가 제대로 작동하는지 간단한 읽기를 시도하여 확인
                 adc.read_adc(0, gain=GAIN)
                 adcs.append(adc)
                 print(f"ADC at address {hex(addr)} initialized successfully.")
@@ -356,7 +351,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도: 100ms 간격으로 데이터 수집
+            await asyncio.sleep(0.1)
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -395,22 +390,21 @@ class AnalogUI:
             print(f"Unexpected error reading ADC data: {e}")
 
     def start_adc_thread(self):
-        # ADC 데이터를 별도의 스레드에서 비동기적으로 처리
+        # 비동기 작업을 별도 스레드에서 실행하여 메인 스레드를 차단하지 않음
         adc_thread = threading.Thread(target=self.run_async_adc)
         adc_thread.daemon = True
         adc_thread.start()
 
     def run_async_adc(self):
-        # 비동기 이벤트 루프를 스레드 내에서 실행
+        # asyncio 이벤트 루프를 새 스레드에서 실행
         asyncio.run(self.read_adc_data())
 
     def schedule_ui_update(self):
-        # UI 업데이트를 메인 스레드에서 주기적으로 수행
+        # UI 업데이트를 주기적으로 실행
         self.root.after(10, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
-            # 큐에서 데이터를 가져와서 UI를 업데이트
             while not self.adc_queue.empty():
                 box_index = self.adc_queue.get_nowait()
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
