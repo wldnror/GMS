@@ -390,15 +390,15 @@ class AnalogUI:
     def schedule_ui_update(self):
         self.root.after(10, self.update_ui_from_queue)  # 10ms 간격으로 UI 업데이트 예약
 
-    def interpolate_values():
+    def interpolate_values(self, box_index):
         if self.box_states[box_index]["interpolating"]:
             prev_value = self.box_states[box_index]["previous_value"]
             curr_value = self.box_states[box_index]["current_value"]
-            
+        
             # 보간 단계 수와 업데이트 간격 설정
             steps = 5  # 보간 단계 수
             interval = 10  # 각 단계의 간격 (ms)
-        
+
             # 보간을 수행하는 내부 함수
             def step_interpolation(step):
                 if step > steps:
@@ -407,14 +407,14 @@ class AnalogUI:
             
                 t = step / steps
                 interpolated_value = prev_value + (curr_value - prev_value) * t
-                formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-                formatted_value = max(0, min(formatted_value, full_scale))
+                formatted_value = int((interpolated_value - 4) / (20 - 4) * self.box_states[box_index]["full_scale"])
+                formatted_value = max(0, min(formatted_value, self.box_states[box_index]["full_scale"]))
             
                 pwr_on = interpolated_value >= 1.5
             
-                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-                
+                self.box_states[box_index]["alarm1_on"] = formatted_value >= self.ALARM_LEVELS[self.gas_types[f"analog_box_{box_index}"]]["AL1"]
+                self.box_states[box_index]["alarm2_on"] = formatted_value >= self.ALARM_LEVELS[self.gas_types[f"analog_box_{box_index}"]]["AL2"] if pwr_on else False
+            
                 self.update_circle_state(
                     [self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False],
                     box_index=box_index
@@ -448,6 +448,7 @@ class AnalogUI:
         
             # 보간 시작
             step_interpolation(1)
+
 
 
         except Exception as e:
