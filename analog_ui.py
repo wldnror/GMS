@@ -419,6 +419,7 @@ class AnalogUI:
 
                         # 보간 단계 수를 늘려 부드럽게 변화 (여기서는 10단계로 설정)
                         steps = 10
+                        interval = 100 / steps  # 전체 100ms 동안 steps 횟수만큼 분할하여 실행
                         for i in range(1, steps + 1):
                             interpolated_value = prev_value + (curr_value - prev_value) * (i / steps)
                             formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
@@ -445,7 +446,7 @@ class AnalogUI:
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)  # 텍스트 색상을 설정
 
                             self.root.update_idletasks()
-                            time.sleep(0.01)  # 10ms 간격으로 업데이트하여 부드럽게 애니메이션 효과
+                            time.sleep(interval / 1000.0)  # 10ms 간격으로 업데이트하여 부드럽게 애니메이션 효과
 
                         self.box_states[box_index]["interpolating"] = False
 
