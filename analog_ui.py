@@ -380,6 +380,7 @@ class AnalogUI:
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
 
                 if len(self.adc_values[box_index]) == 5:  # 필터링을 위한 최소 값이 모였을 때
+                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
                     previous_value = self.box_states[box_index]["current_value"]
                     current_value = filtered_value
 
