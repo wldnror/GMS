@@ -373,10 +373,14 @@ class AnalogUI:
             print(f"Unexpected error reading ADC data: {e}")
 
     def start_adc_thread(self):
-        loop = asyncio.get_event_loop()
-        adc_thread = threading.Thread(target=loop.run_until_complete, args=(self.read_adc_data(),))
+        adc_thread = threading.Thread(target=self.run_asyncio_loop)
         adc_thread.daemon = True
         adc_thread.start()
+
+    def run_asyncio_loop(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.read_adc_data())
 
     def schedule_ui_update(self):
         self.root.after(10, self.update_ui_from_queue)
