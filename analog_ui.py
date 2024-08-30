@@ -411,51 +411,54 @@ class AnalogUI:
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
 
-                # 애니메이션 보간
-                def interpolate_values():
-                    if self.box_states[box_index]["interpolating"]:
-                        prev_value = self.box_states[box_index]["previous_value"]
-                        curr_value = self.box_states[box_index]["current_value"]
-
-                        # 보간 단계 수를 늘려 부드럽게 변화 (여기서는 10단계로 설정)
-                        steps = 10
-                        interval = 100 / steps  # 전체 100ms 동안 steps 횟수만큼 분할하여 실행
-                        for i in range(1, steps + 1):
-                            interpolated_value = prev_value + (curr_value - prev_value) * (i / steps)
-                            formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-                            formatted_value = max(0, min(formatted_value, full_scale))
-                
-                            pwr_on = interpolated_value >= 1.5
-                
-                            self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                            self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-
-                            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-
-                            # 세그먼트 디스플레이에 값을 반영
-                            if pwr_on:
-                                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                            else:
-                                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-
-                            # 4~20mA 값 업데이트
-                            milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
-                            milliamp_color = "#00ff00" if pwr_on else "#ff0000"  # 파워가 꺼진 상태(PWR OFF)일 때 빨간색으로 설정
-                            self.box_states[box_index]["milliamp_var"].set(milliamp_text)
-                            box_canvas = self.box_frames[box_index][1]
-                            box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)  # 텍스트 색상을 설정
-
-                            self.root.update_idletasks()
-                            time.sleep(interval / 1000.0)  # 10ms 간격으로 업데이트하여 부드럽게 애니메이션 효과
-
-                        self.box_states[box_index]["interpolating"] = False
-
-                interpolate_values()
+                # 애니메이션 보간을 별도 함수로 호출하여 비동기적으로 처리
+                self.start_interpolation(box_index, full_scale, alarm_levels)
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
         self.schedule_ui_update()  # 다음 업데이트 예약
+
+    def start_interpolation(self, box_index, full_scale, alarm_levels):
+        if self.box_states[box_index]["interpolating"]:
+            prev_value = self.box_states[box_index]["previous_value"]
+            curr_value = self.box_states[box_index]["current_value"]
+
+            steps = 10
+            interval = 10  # 10ms 간격으로 애니메이션 처리
+
+            # 비동기 애니메이션 처리
+            self.animate_step(box_index, 0, steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def animate_step(self, box_index, step, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval):
+        if step >= total_steps:
+            self.box_states[box_index]["interpolating"] = False
+            return
+
+        interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
+        formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+        formatted_value = max(0, min(formatted_value, full_scale))
+
+        pwr_on = interpolated_value >= 1.5
+
+        self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+        self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+
+        if pwr_on:
+            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+        else:
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+
+        milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
+        milliamp_color = "#00ff00" if pwr_on else "#ff0000"
+        self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+        box_canvas = self.box_frames[box_index][1]
+        box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
+
+        # 비동기적으로 다음 단계 호출
+        self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
