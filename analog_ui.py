@@ -350,12 +350,12 @@ class AnalogUI:
                 print(f"ADC at address {hex(addr)} is not available: {e}")
                 
          while True:
-            tasks = []
-            for adc_index, adc in enumerate(adcs):
-                task = self.read_adc_values(adc, adc_index)
-                tasks.append(task)
-            await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)  # 샘플링 속도: 100ms 간격으로 데이터 수집
+             tasks = []
+             for adc_index, adc in enumerate(adcs):
+                 task = self.read_adc_values(adc, adc_index)
+                 tasks.append(task)
+             await asyncio.gather(*tasks)
+             await asyncio.sleep(0.1)  # 샘플링 속도: 100ms 간격으로 데이터 수집
 
     async def read_adc_values(self, adc, adc_index):
         try:
