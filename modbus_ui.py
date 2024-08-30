@@ -240,7 +240,7 @@ class ModbusUI:
         box_canvas.config(highlightbackground=outline_color)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)
+        value = value.zfill(4)  # 네 자리로 맞추기
         leading_zero = True
         blink_state = self.box_states[box_index]["blink_state"]
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
@@ -249,12 +249,8 @@ class ModbusUI:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        def update_digit(index):
-            if index >= len(value):
-                return
-
-            digit = value[index]
-            if leading_zero and digit == '0' and index < 3:
+        for i, digit in enumerate(value):
+            if leading_zero and digit == '0' and i < 3:
                 segments = SEGMENTS[' ']
             else:
                 segments = SEGMENTS[digit]
@@ -264,12 +260,15 @@ class ModbusUI:
                 segments = SEGMENTS[' ']
 
             for j, state in enumerate(segments):
-                color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
+                # 기존의 `segment_{i}_{chr(97 + j)}`와 같은 세그먼트 태그를 사용하여 업데이트합니다.
+                segment_tag = f'segment_{i}_{chr(97 + j)}'
+                color = '#fc0c0c' if state == '1' else '#424242'  # 빨간색으로 세그먼트를 설정합니다.
+                
+                # 세그먼트가 존재하는지 확인한 후 색상을 업데이트합니다.
+                if box_canvas.segment_canvas.find_withtag(segment_tag):
+                    box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
-            self.root.after(10, lambda: update_digit(index + 1))
-
-        update_digit(0)
+        # 블링크 상태 업데이트
         self.box_states[box_index]["blink_state"] = not blink_state
 
     def record_history(self, box_index, value):
