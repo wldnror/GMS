@@ -417,14 +417,15 @@ class AnalogUI:
                         prev_value = self.box_states[box_index]["previous_value"]
                         curr_value = self.box_states[box_index]["current_value"]
 
-                        # 3단계로 나누어 1ms 간격으로 보간
-                        for i in range(1, 2):
-                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 1.0)
+                        # 보간 단계 수를 늘려 부드럽게 변화 (여기서는 10단계로 설정)
+                        steps = 10
+                        for i in range(1, steps + 1):
+                            interpolated_value = prev_value + (curr_value - prev_value) * (i / steps)
                             formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
                             formatted_value = max(0, min(formatted_value, full_scale))
-
+                
                             pwr_on = interpolated_value >= 1.5
-
+                
                             self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
                             self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
@@ -444,7 +445,7 @@ class AnalogUI:
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)  # 텍스트 색상을 설정
 
                             self.root.update_idletasks()
-                            time.sleep(0.001)  # 1ms 간격으로 업데이트
+                            time.sleep(0.01)  # 10ms 간격으로 업데이트하여 부드럽게 애니메이션 효과
 
                         self.box_states[box_index]["interpolating"] = False
 
