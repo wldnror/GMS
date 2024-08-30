@@ -164,6 +164,7 @@ def get_ip_address():
 
 def update_status_label():
     status_label.config(text=get_system_info())
+    root.after(1000, update_status_label)  # 1초마다 시스템 상태 업데이트
 
 def change_branch():
     global branch_window
@@ -213,18 +214,16 @@ def alarm_blink():
             root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            root.after_cancel(toggle_color)
 
     toggle_color()
 
-def update_clock_thread(clock_label, date_label, stop_event):
-    while not stop_event.is_set():
-        now = datetime.datetime.now()
-        current_time = now.strftime("%H:%M:%S")
-        current_date = now.strftime("%Y-%m-%d %A")
-        clock_label.config(text=current_time)
-        date_label.config(text=current_date)
-        time.sleep(1)
+def update_clock(clock_label, date_label):
+    now = datetime.datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    current_date = now.strftime("%Y-%m-%d %A")
+    clock_label.config(text=current_time)
+    date_label.config(text=current_date)
+    root.after(1000, update_clock, clock_label, date_label)
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -252,30 +251,20 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
-    # main.py 내의 코드를 수정하여 정수 값을 리스트로 변환
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
-        modbus_boxes = [None] * modbus_boxes  # 정수 값을 리스트로 변환
+        modbus_boxes = [None] * modbus_boxes
 
     analog_boxes = settings.get("analog_boxes", [])
     if isinstance(analog_boxes, int):
-        analog_boxes = [None] * analog_boxes  # 정수 값을 리스트로 변환
-
-    # modbus_boxes와 analog_boxes가 리스트인지 확인
-    if not isinstance(modbus_boxes, list):
-        raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
-
-    if not isinstance(analog_boxes, list):
-        raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
+        analog_boxes = [None] * analog_boxes
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
     all_boxes = []
 
     for i in range(len(modbus_boxes)):
@@ -286,7 +275,7 @@ if __name__ == "__main__":
 
     row_index = 0
     column_index = 0
-    max_columns = 6  # 한 줄에 최대 6개 상자 배치
+    max_columns = 6
 
     for ui, idx in all_boxes:
         if column_index >= max_columns:
@@ -294,16 +283,16 @@ if __name__ == "__main__":
             row_index += 1
 
         if isinstance(ui, ModbusUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
         elif isinstance(ui, AnalogUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
 
         column_index += 1
-    # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
+
     for i in range(max_columns):
         main_frame.grid_columnconfigure(i, weight=1)
 
-    for i in range((len(all_boxes) + max_columns - 1) // max_columns):  # 총 행 수 계산
+    for i in range((len(all_boxes) + max_columns - 1) // max_columns):
         main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
@@ -322,10 +311,8 @@ if __name__ == "__main__":
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    # 상자의 개수를 계산
     total_boxes = len(modbus_boxes) + len(analog_boxes)
 
-    # 만약 상자가 0~4개일 경우 시계와 날짜를 표시
     if 0 <= total_boxes <= 4:
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
@@ -333,32 +320,17 @@ if __name__ == "__main__":
         date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
-        stop_event = threading.Event()
-        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
-        clock_thread.start()
+        update_clock(clock_label, date_label)
 
     def on_closing():
-        if 0 <= total_boxes <= 4:
-            stop_event.set()
-            clock_thread.join()
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
 
-    def system_info_thread():
-        while True:
-            update_status_label()
-            time.sleep(1)
+    update_status_label()  # 시스템 상태 업데이트 시작
 
-    # 기록된 ignore_commit을 로드
-    if os.path.exists(utils.IGNORE_COMMIT_FILE):
-        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
-            ignore_commit = file.read().strip().encode()
-        utils.ignore_commit = ignore_commit
-
-    utils.checking_updates = True
-    threading.Thread(target=system_info_thread, daemon=True).start()
-    threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
+    if total_boxes > 0:
+        threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
     check_music_end()  # 음악 재생 상태 확인 함수 호출
 
