@@ -436,7 +436,7 @@ class AnalogUI:
                             box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)  # 텍스트 색상을 설정
 
                             self.root.update_idletasks()
-                            time.sleep(0.001)  # 1ms 간격으로 업데이트
+                            time.sleep(0.005)  # 1ms 간격으로 업데이트
 
                         self.box_states[box_index]["interpolating"] = False
 
