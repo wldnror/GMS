@@ -337,8 +337,19 @@ class AnalogUI:
 
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
-        adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
-        while True:
+        adcs = []
+
+        for addr in adc_addresses:
+            try:
+                adc = Adafruit_ADS1x15.ADS1115(address=addr)
+                # ADC가 제대로 작동하는지 간단한 읽기를 시도하여 확인
+                adc.read_adc(0, gain=GAIN)
+                adcs.append(adc)
+                print(f"ADC at address {hex(addr)} initialized successfully.")
+            except Exception as e:
+                print(f"ADC at address {hex(addr)} is not available: {e}")
+                
+         while True:
             tasks = []
             for adc_index, adc in enumerate(adcs):
                 task = self.read_adc_values(adc, adc_index)
