@@ -339,6 +339,7 @@ class AnalogUI:
         adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = []
 
+        # ADC 모듈 확인 및 초기화
         for addr in adc_addresses:
             try:
                 adc = Adafruit_ADS1x15.ADS1115(address=addr)
@@ -348,14 +349,14 @@ class AnalogUI:
                 print(f"ADC at address {hex(addr)} initialized successfully.")
             except Exception as e:
                 print(f"ADC at address {hex(addr)} is not available: {e}")
-                
-         while True:
-             tasks = []
-             for adc_index, adc in enumerate(adcs):
-                 task = self.read_adc_values(adc, adc_index)
-                 tasks.append(task)
-             await asyncio.gather(*tasks)
-             await asyncio.sleep(0.1)  # 샘플링 속도: 100ms 간격으로 데이터 수집
+
+        while True:
+            tasks = []
+            for adc_index, adc in enumerate(adcs):
+                task = self.read_adc_values(adc, adc_index)
+                tasks.append(task)
+            await asyncio.gather(*tasks)
+            await asyncio.sleep(0.1)  # 샘플링 속도: 100ms 간격으로 데이터 수집
 
     async def read_adc_values(self, adc, adc_index):
         try:
