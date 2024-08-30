@@ -391,63 +391,63 @@ class AnalogUI:
         self.root.after(10, self.update_ui_from_queue)  # 10ms 간격으로 UI 업데이트 예약
 
     def interpolate_values():
-    if self.box_states[box_index]["interpolating"]:
-        prev_value = self.box_states[box_index]["previous_value"]
-        curr_value = self.box_states[box_index]["current_value"]
+        if self.box_states[box_index]["interpolating"]:
+            prev_value = self.box_states[box_index]["previous_value"]
+            curr_value = self.box_states[box_index]["current_value"]
+            
+            # 보간 단계 수와 업데이트 간격 설정
+            steps = 5  # 보간 단계 수
+            interval = 10  # 각 단계의 간격 (ms)
         
-        # 보간 단계 수와 업데이트 간격 설정
-        steps = 5  # 보간 단계 수
-        interval = 10  # 각 단계의 간격 (ms)
-        
-        # 보간을 수행하는 내부 함수
-        def step_interpolation(step):
-            if step > steps:
-                self.box_states[box_index]["interpolating"] = False
-                return
+            # 보간을 수행하는 내부 함수
+            def step_interpolation(step):
+                if step > steps:
+                    self.box_states[box_index]["interpolating"] = False
+                    return
             
-            t = step / steps
-            interpolated_value = prev_value + (curr_value - prev_value) * t
-            formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-            formatted_value = max(0, min(formatted_value, full_scale))
+                t = step / steps
+                interpolated_value = prev_value + (curr_value - prev_value) * t
+                formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+                formatted_value = max(0, min(formatted_value, full_scale))
             
-            pwr_on = interpolated_value >= 1.5
+                pwr_on = interpolated_value >= 1.5
             
-            self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-            self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-            
-            self.update_circle_state(
-                [self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False],
-                box_index=box_index
-            )
-            
-            # 세그먼트 디스플레이에 값을 반영
-            if pwr_on:
-                self.update_segment_display(
-                    str(int(formatted_value)).zfill(4), 
-                    self.box_frames[box_index][1], 
-                    blink=False, 
-                    box_index=box_index
-                )
-            else:
-                self.update_segment_display(
-                    "    ", 
-                    self.box_frames[box_index][1], 
-                    blink=False, 
+                self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+                self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+                
+                self.update_circle_state(
+                    [self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False],
                     box_index=box_index
                 )
             
-            # 4~20mA 값 업데이트
-            milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
-            milliamp_color = "#00ff00" if pwr_on else "#ff0000"
-            self.box_states[box_index]["milliamp_var"].set(milliamp_text)
-            box_canvas = self.box_frames[box_index][1]
-            box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
+                # 세그먼트 디스플레이에 값을 반영
+                if pwr_on:
+                    self.update_segment_display(
+                        str(int(formatted_value)).zfill(4), 
+                        self.box_frames[box_index][1], 
+                        blink=False, 
+                        box_index=box_index
+                    )
+                else:
+                    self.update_segment_display(
+                        "    ", 
+                        self.box_frames[box_index][1], 
+                        blink=False, 
+                        box_index=box_index
+                    )
             
-            # 다음 단계로 넘어가도록 예약
-            self.root.after(interval, step_interpolation, step + 1)
+                # 4~20mA 값 업데이트
+                milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
+                milliamp_color = "#00ff00" if pwr_on else "#ff0000"
+                self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+                box_canvas = self.box_frames[box_index][1]
+                box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
+            
+                # 다음 단계로 넘어가도록 예약
+                self.root.after(interval, step_interpolation, step + 1)
         
-        # 보간 시작
-        step_interpolation(1)
+            # 보간 시작
+            step_interpolation(1)
 
 
         except Exception as e:
