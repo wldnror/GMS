@@ -1,5 +1,4 @@
 import os
-import time
 import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
@@ -213,10 +212,36 @@ class AnalogUI:
         value = value.zfill(4)  # 네 자리로 맞추기
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
+        # 큐를 사용하여 세그먼트 업데이트를 관리하여 UI 멈춤 방지
         if value != previous_segment_display:
-            self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
+            self.schedule_segment_update(box_canvas, value, box_index, blink)
 
+    def schedule_segment_update(self, box_canvas, value, box_index, blink):
+        segment_queue = self.box_states[box_index].get("segment_queue", None)
+        if not segment_queue:
+            segment_queue = queue.Queue(maxsize=10)
+            self.box_states[box_index]["segment_queue"] = segment_queue
+        
+        # 세그먼트 업데이트 요청을 큐에 넣기
+        if not segment_queue.full():
+            segment_queue.put((value, blink))
+
+        # 큐에서 업데이트 실행
+        if not self.box_states[box_index].get("segment_updating", False):
+            self.box_states[box_index]["segment_updating"] = True
+            self.root.after(10, self.process_segment_queue, box_canvas, box_index)
+
+    def process_segment_queue(self, box_canvas, box_index):
+        segment_queue = self.box_states[box_index]["segment_queue"]
+        if not segment_queue.empty():
+            value, blink = segment_queue.get()
+            self.perform_segment_update(box_canvas, value, blink, box_index)
+            self.root.after(10, self.process_segment_queue, box_canvas, box_index)
+        else:
+            self.box_states[box_index]["segment_updating"] = False
+
+    def perform_segment_update(self, box_canvas, value, blink, box_index):
         # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
         def update_digit(index, leading_zero=True):
             if index >= len(value):
@@ -238,7 +263,7 @@ class AnalogUI:
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
             # 다음 자릿수를 일정 시간 후에 업데이트
-            self.root.after(50, lambda: update_digit(index + 1, leading_zero))
+            self.root.after(10, lambda: update_digit(index + 1, leading_zero))
 
         # 애니메이션 시작: 일의 자리부터 업데이트
         update_digit(0)
@@ -337,7 +362,19 @@ class AnalogUI:
 
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
-        adcs = [Adafruit_ADS1x15.ADS1115(address=addr) for addr in adc_addresses]
+        adcs = []
+
+        # ADC 모듈 확인 및 초기화
+        for addr in adc_addresses:
+            try:
+                adc = Adafruit_ADS1x15.ADS1115(address=addr)
+                # ADC가 제대로 작동하는지 간단한 읽기를 시도하여 확인
+                adc.read_adc(0, gain=GAIN)
+                adcs.append(adc)
+                print(f"ADC at address {hex(addr)} initialized successfully.")
+            except Exception as e:
+                print(f"ADC at address {hex(addr)} is not available: {e}")
+
         while True:
             tasks = []
             for adc_index, adc in enumerate(adcs):
@@ -368,6 +405,7 @@ class AnalogUI:
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
 
                 if len(self.adc_values[box_index]) == 5:  # 필터링을 위한 최소 값이 모였을 때
+                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
                     previous_value = self.box_states[box_index]["current_value"]
                     current_value = filtered_value
 
@@ -382,65 +420,75 @@ class AnalogUI:
             print(f"Unexpected error reading ADC data: {e}")
 
     def start_adc_thread(self):
-        loop = asyncio.get_event_loop()
-        adc_thread = threading.Thread(target=loop.run_until_complete, args=(self.read_adc_data(),))
+        # ADC 데이터를 별도의 스레드에서 비동기적으로 처리
+        adc_thread = threading.Thread(target=self.run_async_adc)
         adc_thread.daemon = True
         adc_thread.start()
 
+    def run_async_adc(self):
+        # 비동기 이벤트 루프를 스레드 내에서 실행
+        asyncio.run(self.read_adc_data())
+
     def schedule_ui_update(self):
-        self.root.after(10, self.update_ui_from_queue)  # 10ms 간격으로 UI 업데이트 예약
+        # UI 업데이트를 메인 스레드에서 주기적으로 수행
+        self.root.after(10, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
+            # 큐에서 데이터를 가져와서 UI를 업데이트
             while not self.adc_queue.empty():
                 box_index = self.adc_queue.get_nowait()
                 gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
 
-                # 애니메이션 보간
-                def interpolate_values():
-                    if self.box_states[box_index]["interpolating"]:
-                        prev_value = self.box_states[box_index]["previous_value"]
-                        curr_value = self.box_states[box_index]["current_value"]
-
-                        # 3단계로 나누어 1ms 간격으로 보간
-                        for i in range(1, 2):
-                            interpolated_value = prev_value + (curr_value - prev_value) * (i / 1.0)
-                            formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-                            formatted_value = max(0, min(formatted_value, full_scale))
-
-                            pwr_on = interpolated_value >= 1.5
-
-                            self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
-                            self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
-
-                            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
-
-                            # 세그먼트 디스플레이에 값을 반영
-                            if pwr_on:
-                                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                            else:
-                                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-
-                            # 4~20mA 값 업데이트
-                            milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
-                            milliamp_color = "#00ff00" if pwr_on else "#ff0000"  # 파워가 꺼진 상태(PWR OFF)일 때 빨간색으로 설정
-                            self.box_states[box_index]["milliamp_var"].set(milliamp_text)
-                            box_canvas = self.box_frames[box_index][1]
-                            box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)  # 텍스트 색상을 설정
-
-                            self.root.update_idletasks()
-                            time.sleep(0.001)  # 1ms 간격으로 업데이트
-
-                        self.box_states[box_index]["interpolating"] = False
-
-                interpolate_values()
+                self.start_interpolation(box_index, full_scale, alarm_levels)
 
         except Exception as e:
             print(f"Error updating UI from queue: {e}")
 
-        self.schedule_ui_update()  # 다음 업데이트 예약
+        self.schedule_ui_update()
+
+    def start_interpolation(self, box_index, full_scale, alarm_levels):
+        if self.box_states[box_index]["interpolating"]:
+            prev_value = self.box_states[box_index]["previous_value"]
+            curr_value = self.box_states[box_index]["current_value"]
+
+            steps = 10
+            interval = 10  # 10ms 간격으로 애니메이션 처리
+
+            # 비동기 애니메이션 처리
+            self.animate_step(box_index, 0, steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def animate_step(self, box_index, step, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval):
+        if step >= total_steps:
+            self.box_states[box_index]["interpolating"] = False
+            return
+
+        interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
+        formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+        formatted_value = max(0, min(formatted_value, full_scale))
+
+        pwr_on = interpolated_value >= 1.5
+
+        self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+        self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+
+        if pwr_on:
+            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+        else:
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+
+        milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
+        milliamp_color = "#00ff00" if pwr_on else "#ff0000"
+        self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+        box_canvas = self.box_frames[box_index][1]
+        box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
+
+        # 비동기적으로 다음 단계 호출
+        self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():

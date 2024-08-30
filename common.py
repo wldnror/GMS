@@ -6,19 +6,20 @@ import numpy as np
 
 # 세그먼트 표시 매핑
 SEGMENTS = {
-    '0': '1111110',
-    '1': '0110000',
-    '2': '1101101',
-    '3': '1111001',
-    '4': '0110011',
-    '5': '1011011',
-    '6': '1011111',
-    '7': '1110000',
-    '8': '1111111',
-    '9': '1111011',
-    'E': '1001111',  # a, f, e, g, d
-    '-': '0000001',  # g
-    ' ': '0000000'  # 모든 세그먼트 꺼짐
+    '0': '11111100',
+    '1': '01100000',
+    '2': '11011010',
+    '3': '11110010',
+    '4': '01100110',
+    '5': '10110110',
+    '6': '10111110',
+    '7': '11100000',
+    '8': '11111110',
+    '9': '11110110',
+    'E': '10011110',  # a, f, e, g, d
+    '-': '00000010',  # g
+    ' ': '00000000',  # 모든 세그먼트 꺼짐
+    '.': '00000001'   # 점만 켜짐
 }
 
 # Bit to segment mapping
@@ -26,7 +27,8 @@ BIT_TO_SEGMENT = {
     0: 'E-10',  # E-10
     1: 'E-22',  # E-22
     2: 'E-12',  # E-12
-    3: 'E-23'  # E-23
+    3: 'E-23',  # E-23
+    4: 'DOT'    # 점 세그먼트
 }
 
 # 확대 배율
@@ -105,128 +107,22 @@ def create_segment_display(box_canvas):
                                           12 * SCALE + x_offset, 32.6 * SCALE + y_offset, 4 * SCALE + x_offset, 32.6 * SCALE + y_offset, 0 * SCALE + x_offset, 30.2 * SCALE + y_offset, fill='#424242',
                                           tags=f'segment_{i}_g')
         ]
+
+        # 각 세그먼트의 점 추가 (기본으로 꺼져 있음)
+        dot = segment_canvas.create_oval((26 + i * 29 + 6) * SCALE, (54 - 9) * SCALE, (30 + i * 29 + 6) * SCALE, (58 - 9) * SCALE,
+                                         fill='#424242', outline='#424242', tags=f'segment_{i}_dot')
+
+        segments.append(dot)
         segment_items.append(segments)
 
     box_canvas.segment_canvas = segment_canvas
     box_canvas.segment_items = segment_items
 
-def show_history_graph(root, box_index, histories, graph_windows):
-    if graph_windows[box_index] is not None:
-        return  # 그래프 창이 이미 열려 있으면 새로 열지 않음
-
-    graph_window = Toplevel(root)
-    graph_window.title(f"Box {box_index + 1} Segment Value History")
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    graph_windows[box_index] = graph_window
-    canvas = FigureCanvasTkAgg(fig, master=graph_window)
-    canvas.get_tk_widget().pack(side="top", fill="both", expand=1)
-    canvas.draw()
-
-    def on_close():
-        graph_windows[box_index] = None
-        graph_window.destroy()
-
-    graph_window.protocol("WM_DELETE_WINDOW", on_close)
-
-    # 주기적으로 그래프를 업데이트하는 함수 호출
-    def periodic_update():
-        if graph_windows[box_index] is not None:
-            update_graph(box_index, ax, histories)
-            canvas.draw()
-            graph_window.after(100, periodic_update)
-
-    periodic_update()
-
-def update_graph(box_index, ax, histories):
-    timestamps = [record[0] for record in histories[box_index]]
-    values = []
-    labels = []
-    errors = {'E-10': [], 'E-22': [], 'E-12': [], 'E-23': []}
-    alarms = {'A1': [], 'A2': []}
-    disconnects = []
-
-    for record in histories[box_index]:
-        try:
-            value = int(record[1])
-            values.append(value)
-            labels.append('')
-        except ValueError:
-            if record[1] in errors:
-                errors[record[1]].append((record[0], record[2]))
-            elif record[1] in alarms:
-                alarms[record[1]].append((record[0], record[2]))
+def update_segments(display_canvas, segment_values):
+    for i, value in enumerate(segment_values):
+        segments = display_canvas.segment_items[i]
+        for j, segment in enumerate(segments):
+            if SEGMENTS[value][j] == '1':
+                display_canvas.segment_canvas.itemconfig(segment, fill='#FF0000')
             else:
-                values.append(0)
-                labels.append('')
-
-    # Ensure timestamps and values have the same length
-    min_length = min(len(timestamps), len(values))
-    timestamps = timestamps[:min_length]
-    values = values[:min_length]
-    labels = labels[:min_length]
-
-    ax.clear()
-    line, = ax.plot(timestamps, values, marker='o')
-    ax.set_xlabel('Timestamp')
-    ax.set_ylabel('Value')
-    ax.set_title(f'Box {box_index + 1} Segment Value History')
-    ax.tick_params(axis='x', rotation=45)
-    ax.figure.tight_layout()
-
-    annot = ax.annotate("", xy=(0, 0), xytext=(20, 20),
-                        textcoords="offset points",
-                        bbox=dict(boxstyle="round", fc="w"),
-                        arrowprops=dict(arrowstyle="->"))
-    annot.set_visible(False)
-
-    def update_annot(ind):
-        x, y = line.get_data()
-        annot.xy = (x[ind["ind"][0]], y[ind["ind"][0]])
-        text = f'Time: {timestamps[ind["ind"][0]]}\nValue: {values[ind["ind"][0]]}'
-        annot.set_text(text)
-        annot.get_bbox_patch().set_alpha(0.6)
-
-    def on_hover(event):
-        vis = annot.get_visible()
-        if event.inaxes == ax:
-            cont, ind = line.contains(event)
-            if cont:
-                update_annot(ind)
-                annot.set_visible(True)
-                ax.figure.canvas.draw_idle()
-            else:
-                if vis:
-                    annot.set_visible(False)
-                    ax.figure.canvas.draw_idle()
-
-    ax.figure.canvas.mpl_connect("motion_notify_event", on_hover)
-
-    # 에러와 알람 시각적 표시
-    for error, points in errors.items():
-        for time, value in points:
-            if time in timestamps:
-                idx = timestamps.index(time)
-                ax.scatter(timestamps[idx], values[idx], color='red', label=error, zorder=5)
-                ax.annotate(error, (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
-                            ha='center', color='red')
-
-    for alarm, points in alarms.items():
-        for time, value in points:
-            if time in timestamps:
-                idx = timestamps.index(time)
-                ax.scatter(timestamps[idx], values[idx], color='orange', label=alarm, zorder=5)
-                ax.annotate(alarm, (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
-                            ha='center', color='orange')
-
-    # 연결 끊어짐 시각적 표시
-    for time in disconnects:
-        if time in timestamps:
-            idx = timestamps.index(time)
-            ax.scatter(timestamps[idx], values[idx], color='black', label='Disconnect', zorder=5)
-            ax.annotate('Disconnect', (timestamps[idx], values[idx]), textcoords="offset points", xytext=(0, 10),
-                        ha='center', color='black')
-
-    handles, labels = ax.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
-    ax.legend(by_label.values(), by_label.keys())
+                display_canvas.segment_canvas.itemconfig(segment, fill='#424242')
