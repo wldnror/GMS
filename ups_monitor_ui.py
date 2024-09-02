@@ -6,7 +6,7 @@ SCALE_FACTOR = 1.65
 class UPSMonitorUI:
     def __init__(self, root, num_boxes):
         self.root = root
-        self.box_frame = Frame(self.root, bg='black')  # 메인 프레임의 배경색을 검정으로 설정
+        self.box_frame = Frame(self.root, bg='black')
         self.box_frame.grid(row=0, column=0)
         self.row_frames = []
         self.box_frames = []
@@ -20,43 +20,43 @@ class UPSMonitorUI:
         col = index % max_boxes_per_row
 
         if col == 0:
-            row_frame = Frame(self.box_frame, bg='black')  # 각 행의 배경색을 검정으로 설정
+            row_frame = Frame(self.box_frame, bg='black')
             row_frame.grid(row=row, column=0, sticky="w")
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
-        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR), bg='black')
+        box_frame = Frame(row_frame, highlightthickness=int(1.5 * SCALE_FACTOR), bg='black')  # 테두리 두께 조정
         box_frame.grid(row=0, column=col)
 
         inner_frame = Frame(box_frame, bg='black')
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000", bg='black')
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(1.5 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000", bg='black')  # 테두리 두께 조정
         box_canvas.pack()
 
-        # 외곽 상자 디자인 - 배경색을 회색으로 설정
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        # 외곽 상자 디자인 - 테두리 두께 조정
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='black', width=int(2 * SCALE_FACTOR))  # 테두리 두께 조정
 
-        # 상시 모드 / 배터리 모드 표시 - 텍스트 색상 조정
+        # 상시 모드 / 배터리 모드 표시
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(60 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")
 
         # 배터리 잔량 바
-        box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(100 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(150 * SCALE_FACTOR), fill='black', outline='grey')
+        box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(100 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(150 * SCALE_FACTOR), fill='black', outline='grey', width=int(1 * SCALE_FACTOR))  # 테두리 두께 조정
         self.battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(100 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(150 * SCALE_FACTOR), fill='#00AA00', outline='')
 
-        # 잔량 퍼센트 텍스트 - 텍스트 색상 조정
+        # 잔량 퍼센트 텍스트
         self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(125 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
-        # UPS 및 제조사 정보 - 위치 및 텍스트 색상 조정
+        # UPS 및 제조사 정보
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas))
 
-        # 예시로 배터리 상태를 업데이트하는 함수 호출 (실제 구현에서는 실제 배터리 상태를 받아서 업데이트)
-        self.update_battery_status(box_canvas, battery_level=75, mode="배터리 모드")  # 예시로 75% 잔량, 배터리 모드로 설정
+        # 예시로 배터리 상태를 업데이트하는 함수 호출
+        self.update_battery_status(box_canvas, battery_level=75, mode="배터리 모드")
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
