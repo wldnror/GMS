@@ -32,11 +32,11 @@ class UPSMonitorUI:
         inner_frame = Frame(box_frame, bg='black')
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
-        box_canvas = Canvas(inner_frame, width=int(155 * SCALE_FACTOR), height=int(200 * SCALE_FACTOR), bg='grey', highlightthickness=0)
+        box_canvas = Canvas(inner_frame, width=int(180 * SCALE_FACTOR), height=int(200 * SCALE_FACTOR), bg='grey', highlightthickness=0)
         box_canvas.pack()
 
         # 외곽 상자 디자인
-        box_canvas.create_rectangle(0, 0, int(180 * SCALE_FACTOR), int(40 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(180 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
 
 
         # 상시 모드 / 배터리 모드 표시
