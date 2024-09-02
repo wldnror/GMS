@@ -32,17 +32,16 @@ class UPSMonitorUI:
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
-        # Canvas 배경색을 회색으로 설정
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), 
-                            highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", 
-                            highlightcolor="#000000", bg='lightgrey')
+                            bg='black', highlightthickness=int(3 * SCALE_FACTOR), 
+                            highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
         # 외곽 상자 디자인
         box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='lightgrey', outline='black', tags='border')
 
         # 상시 모드 / 배터리 모드 표시
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#000000", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
         self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(60 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")  # 상시 모드 기본
 
         # 배터리 잔량 바
@@ -50,12 +49,12 @@ class UPSMonitorUI:
         self.battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(100 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(150 * SCALE_FACTOR), fill='#00AA00', outline='')  # 잔량 초기값 0%
 
         # 잔량 퍼센트 텍스트
-        self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(125 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#000000", anchor="center")
+        self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(125 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
         # UPS 및 제조사 정보
-        text_y_position = int(180 * SCALE_FACTOR)  # 동일한 y 좌표 사용
-        box_canvas.create_text(int(80 * SCALE_FACTOR), text_y_position, text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#333333", anchor="center")
-        box_canvas.create_text(int(80 * SCALE_FACTOR), text_y_position + int(15 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#666666", anchor="center")
+        # 동일한 위치로 조정
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(180 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#CCCCCC", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(195 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#666666", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas))
 
