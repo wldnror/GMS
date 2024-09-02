@@ -56,7 +56,7 @@ class UPSMonitorUI:
 
         # 모드 전환 버튼 추가 (UPS Monitor 텍스트의 10포인트 위, 우측 정렬)
         self.toggle_button = Button(inner_frame, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
-        self.toggle_button.pack(pady=(0, int(10 * SCALE_FACTOR)), anchor="e")
+        self.toggle_button.pack(pady=(0, int(60 * SCALE_FACTOR)), anchor="e")
 
         self.box_frames.append((box_frame, box_canvas))
 
