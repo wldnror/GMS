@@ -442,10 +442,10 @@ class ModbusUI:
                 address_40007 = 40008 - 1
                 address_40011 = 40011 - 1
                 count = 1
-                result_40001 = client.read_holding_registers(address_40001, count, unit=1)
-                result_40005 = client.read_holding_registers(address_40005, count, unit=1)
-                result_40007 = client.read_holding_registers(address_40007, count, unit=1)
-                result_40011 = client.read_holding_registers(address_40011, count, unit=1)
+                result_40001 = client.read_holding_registers(address_40001, count)
+                result_40005 = client.read_holding_registers(address_40005, count)
+                result_40007 = client.read_holding_registers(address_40007, count)
+                result_40011 = client.read_holding_registers(address_40011, count)
 
                 if not result_40001.isError():
                     value_40001 = result_40001.registers[0]
