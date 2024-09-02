@@ -230,10 +230,12 @@ class AnalogUI:
 
     def stop_blinking(self, box_index):
         # 깜빡임을 멈추는 이벤트 설정
-        if self.box_states[box_index]["blink_thread"] is not None:
+        blink_thread = self.box_states[box_index]["blink_thread"]
+        if blink_thread is not None and blink_thread != threading.current_thread():
             self.box_states[box_index]["stop_blinking"].set()
-            self.box_states[box_index]["blink_thread"].join()
-            self.box_states[box_index]["blink_thread"] = None
+            blink_thread.join()
+        self.box_states[box_index]["blink_thread"] = None
+
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
