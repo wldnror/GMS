@@ -1,7 +1,7 @@
 from tkinter import Frame, Canvas
 
 # 스케일 팩터로 20% 확대
-SCALE_FACTOR = 1.20  # 더 작은 값으로 줄여 전체 크기를 조정
+SCALE_FACTOR = 1.65  # 더 작은 값으로 줄여 전체 크기를 조정
 
 class UPSMonitorUI:
     def __init__(self, root, num_boxes):
