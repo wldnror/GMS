@@ -36,7 +36,7 @@ class UPSMonitorUI:
         box_canvas.pack()
 
         # 상단 영역 (진한 회색)
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(100 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(180 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
         # 하단 영역 (검정색)
         box_canvas.create_rectangle(0, int(100 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
 
