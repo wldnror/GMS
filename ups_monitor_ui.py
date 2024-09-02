@@ -36,7 +36,7 @@ class UPSMonitorUI:
         box_canvas.pack()
 
         # 외곽 상자 디자인
-        box_canvas.create_rectangle(0, 0, int(155), int(130), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(180), int(130), fill='grey', outline='grey', tags='border')
 
         # 상시 모드 / 배터리 모드 표시
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
