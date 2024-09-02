@@ -218,9 +218,13 @@ class AnalogUI:
             self.stop_blinking(box_index)
 
     def start_blinking(self, box_index, is_second_alarm):
+        # 이미 깜빡임이 시작된 경우 다시 시작하지 않음
+        if self.box_states[box_index]["blink_thread"] is not None:
+            return
+
         # 기존 깜빡임 중지 이벤트가 있으면 초기화
         self.stop_blinking(box_index)
-
+    
         # 깜빡임 시작
         self.box_states[box_index]["stop_blinking"].clear()
         self.box_states[box_index]["blink_state"] = True  # 깜빡임 상태 초기화
@@ -230,24 +234,28 @@ class AnalogUI:
 
     def stop_blinking(self, box_index):
         # 깜빡임을 멈추는 이벤트 설정
-        self.box_states[box_index]["stop_blinking"].set()
-    
+        if self.box_states[box_index]["blink_thread"] is not None:
+            self.box_states[box_index]["stop_blinking"].set()
+            self.box_states[box_index]["blink_thread"] = None
+
     def toggle_blink(self, box_index, is_second_alarm):
         # 스톱 이벤트가 설정된 경우 깜빡임 중지
         if self.box_states[box_index]["stop_blinking"].is_set():
-            self.update_circle_state([True, False, True, False], box_index=box_index)  # 최종 상태 설정 (AL1 또는 AL2만 켜짐)
+            self.box_states[box_index]["blink_thread"] = None
             return
 
         # AL1 또는 AL2의 깜빡임 상태 토글
         blink_state = self.box_states[box_index]["blink_state"]
         if is_second_alarm:
-            self.update_circle_state([True, blink_state, True, False], box_index=box_index)  # AL2 깜빡임
+            # AL2 깜빡임 상태만 업데이트
+            self.update_circle_state([True, blink_state, True, False], box_index=box_index)
         else:
-            self.update_circle_state([blink_state, False, True, False], box_index=box_index)  # AL1 깜빡임
+            # AL1 깜빡임 상태만 업데이트
+            self.update_circle_state([blink_state, False, True, False], box_index=box_index)
 
         # 다음 깜빡임 상태 설정
         self.box_states[box_index]["blink_state"] = not blink_state
-
+    
         # 일정 시간 후에 다시 호출하여 깜빡임 지속
         interval = 1000 if is_second_alarm else 600  # AL2는 1000ms, AL1은 600ms 간격으로 깜빡임
         self.root.after(interval, self.toggle_blink, box_index, is_second_alarm)
