@@ -29,7 +29,7 @@ class UPSMonitorUI:
         # highlightthickness 값을 줄여서 테두리 두께를 조정
         highlight_thickness = int(1 * SCALE_FACTOR)  # 예시로 두께를 줄임
 
-        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR), bg='black')
+        box_frame = Frame(row_frame, highlightthickness=int(2 * SCALE_FACTOR), bg='black')
         box_frame.grid(row=0, column=col)
 
         inner_frame = Frame(box_frame, bg='black')
