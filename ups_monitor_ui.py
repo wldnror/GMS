@@ -1,7 +1,7 @@
 from tkinter import Frame, Canvas
 
 # 스케일 팩터로 20% 확대
-SCALE_FACTOR = 1.65  
+SCALE_FACTOR = 1.63  
 
 class UPSMonitorUI:
     def __init__(self, root, num_boxes):
