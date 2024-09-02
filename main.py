@@ -71,9 +71,17 @@ def play_next_in_queue():
     global audio_playing, current_alarm_box_id
     if not audio_queue.empty():
         next_audio_file = audio_queue.get()
-        pygame.mixer.music.load(next_audio_file)
-        pygame.mixer.music.play()
-        audio_playing = True
+        print(f"Trying to play: {next_audio_file}")  # 파일 경로를 출력하여 확인
+        if os.path.isfile(next_audio_file):  # 파일이 존재하는지 확인
+            try:
+                pygame.mixer.music.load(next_audio_file)
+                pygame.mixer.music.play()
+                audio_playing = True
+            except pygame.error as e:
+                print(f"Pygame error: {e}")  # pygame 관련 오류 출력
+        else:
+            print(f"File not found: {next_audio_file}")  # 파일이 없을 때 오류 메시지 출력
+            current_alarm_box_id = None
     else:
         current_alarm_box_id = None
 
