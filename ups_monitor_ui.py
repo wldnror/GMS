@@ -46,7 +46,7 @@ class UPSMonitorUI:
         self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(45 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
         # UPS 모드 표시 (배터리 모드와 상시 모드 텍스트를 배터리 퍼센트 아래로 이동)
-        self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")
+        self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00AA00", anchor="center")
 
         # 모드 전환 버튼을 상자 내부에 배치
         toggle_button = Button(inner_frame, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
