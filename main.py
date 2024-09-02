@@ -59,6 +59,10 @@ pygame.mixer.init()
 
 def play_alarm_sound(box_id):
     global selected_audio_file, audio_playing, current_alarm_box_id
+    if selected_audio_file is None:
+        print("No audio file selected. Skipping alarm sound.")  # 경고 메시지 출력
+        return  # 오디오 파일이 없을 경우 함수를 종료
+
     with audio_lock:
         if current_alarm_box_id is None or current_alarm_box_id == box_id:
             current_alarm_box_id = box_id
@@ -72,6 +76,12 @@ def play_next_in_queue():
     if not audio_queue.empty():
         next_audio_file = audio_queue.get()
         print(f"Trying to play: {next_audio_file}")  # 파일 경로를 출력하여 확인
+
+        if next_audio_file is None:
+            print("Error: No audio file to play. Skipping.")  # 파일이 None인 경우 무시
+            current_alarm_box_id = None
+            return
+
         if os.path.isfile(next_audio_file):  # 파일이 존재하는지 확인
             try:
                 pygame.mixer.music.load(next_audio_file)
@@ -79,11 +89,13 @@ def play_next_in_queue():
                 audio_playing = True
             except pygame.error as e:
                 print(f"Pygame error: {e}")  # pygame 관련 오류 출력
+                current_alarm_box_id = None
         else:
             print(f"File not found: {next_audio_file}")  # 파일이 없을 때 오류 메시지 출력
             current_alarm_box_id = None
     else:
         current_alarm_box_id = None
+
 
 def check_music_end():
     global audio_playing
