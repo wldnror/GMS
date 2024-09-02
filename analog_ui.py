@@ -130,6 +130,7 @@ class AnalogUI:
         circle_items = []
 
         # AL1과 AL2의 위치를 바꾸기 위해 좌표를 변경
+        # AL1과 AL2의 원과 텍스트의 위치 및 레이블을 교체
         circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
         box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
 
