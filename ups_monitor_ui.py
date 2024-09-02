@@ -1,7 +1,7 @@
-from tkinter import Frame, Canvas
+from tkinter import Frame, Canvas, Button, Tk
 
 # 스케일 팩터로 20% 확대
-SCALE_FACTOR = 1.65  
+SCALE_FACTOR = 1.65
 
 class UPSMonitorUI:
     def __init__(self, root, num_boxes):
@@ -10,6 +10,13 @@ class UPSMonitorUI:
         self.box_frame.grid(row=0, column=0)
         self.row_frames = []
         self.box_frames = []
+
+        # 초기 모드 설정 (상시 모드로 시작)
+        self.current_mode = "상시 모드"
+
+        # 모드 전환 버튼 추가
+        self.toggle_button = Button(self.root, text="모드 전환", command=self.toggle_mode)
+        self.toggle_button.grid(row=1, column=0)
 
         for i in range(num_boxes):
             self.create_ups_box(i)
@@ -42,7 +49,7 @@ class UPSMonitorUI:
 
         # 상시 모드 / 배터리 모드 표시
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
-        self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(60 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")  # 상시 모드 기본
+        self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(60 * SCALE_FACTOR), text=self.current_mode, font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")  # 상시 모드 기본
 
         # 배터리 잔량 바
         box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(100 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(150 * SCALE_FACTOR), fill='white', outline='black')
@@ -57,8 +64,8 @@ class UPSMonitorUI:
 
         self.box_frames.append((box_frame, box_canvas))
 
-        # 예시로 배터리 상태를 업데이트하는 함수 호출 (실제 구현에서는 실제 배터리 상태를 받아서 업데이트)
-        self.update_battery_status(box_canvas, battery_level=75, mode="배터리 모드")  # 예시로 75% 잔량, 배터리 모드로 설정
+        # 초기 상태 업데이트 (상시 모드로 설정)
+        self.update_battery_status(box_canvas, battery_level=75, mode=self.current_mode)  # 예시로 75% 잔량, 상시 모드로 설정
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
@@ -79,3 +86,23 @@ class UPSMonitorUI:
             canvas.itemconfig(self.mode_text_id, text="상시 모드", fill="#00AA00")
         else:
             canvas.itemconfig(self.mode_text_id, text="배터리 모드", fill="#AA0000")
+
+    def toggle_mode(self):
+        """
+        모드를 전환하는 함수 (상시 모드 <-> 배터리 모드)
+        """
+        # 모드를 전환
+        if self.current_mode == "상시 모드":
+            self.current_mode = "배터리 모드"
+        else:
+            self.current_mode = "상시 모드"
+
+        # 모든 박스의 상태 업데이트
+        for _, canvas in self.box_frames:
+            self.update_battery_status(canvas, battery_level=75, mode=self.current_mode)  # 배터리 잔량은 예시로 75% 유지
+
+
+if __name__ == "__main__":
+    root = Tk()
+    app = UPSMonitorUI(root, num_boxes=8)  # 예시로 8개의 박스 생성
+    root.mainloop()
