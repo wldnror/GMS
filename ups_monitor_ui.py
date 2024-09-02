@@ -36,9 +36,9 @@ class UPSMonitorUI:
         box_canvas.pack()
 
         # 상단 영역 (진한 회색)
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(180 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(250 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
         # 하단 영역 (검정색)
-        box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
+        box_canvas.create_rectangle(0, int(230 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
 
         # 상시 모드 / 배터리 모드 표시
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
