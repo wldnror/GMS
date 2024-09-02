@@ -44,7 +44,8 @@ class ModbusUI:
         self.clients = {}
         self.connected_clients = {}
         self.stop_flags = {}
-        self.data_queue = queue.Queue()
+        self.data_queue = queue.Queue()  # 데이터 처리 큐
+        self.ui_update_queue = queue.Queue()  # UI 업데이트 큐
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
@@ -76,7 +77,9 @@ class ModbusUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.root.after(100, self.process_queue)
+        # 데이터 처리 및 UI 업데이트 스케줄링
+        self.start_data_processing_thread()
+        self.schedule_ui_update()
         self.root.bind("<Button-1>", self.check_click)
 
     def load_image(self, path, size):
@@ -557,13 +560,31 @@ class ModbusUI:
                 time.sleep(5)
         return False
 
-    def process_queue(self):
-        while not self.data_queue.empty():
-            box_index, value, blink = self.data_queue.get()
-            box_canvas = self.box_frames[box_index][1]
-            # 비동기적으로 세그먼트 디스플레이 업데이트
-            threading.Thread(target=self.update_segment_display, args=(value, box_canvas, blink, box_index)).start()
-        self.root.after(100, self.process_queue)
+    def start_data_processing_thread(self):
+        threading.Thread(target=self.process_data).start()
+
+    def process_data(self):
+        while True:
+            try:
+                box_index, value, blink = self.data_queue.get(timeout=1)
+                self.ui_update_queue.put((box_index, value, blink))
+            except queue.Empty:
+                continue
+
+    def schedule_ui_update(self):
+        self.root.after(100, self.update_ui_from_queue)
+
+    def update_ui_from_queue(self):
+        try:
+            while not self.ui_update_queue.empty():
+                box_index, value, blink = self.ui_update_queue.get_nowait()
+                box_canvas = self.box_frames[box_index][1]
+                # 비동기적으로 세그먼트 디스플레이 업데이트
+                threading.Thread(target=self.update_segment_display, args=(value, box_canvas, blink, box_index)).start()
+        except queue.Empty:
+            pass
+        finally:
+            self.schedule_ui_update()
 
     def check_click(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
