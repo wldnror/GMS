@@ -50,8 +50,7 @@ class UPSMonitorUI:
         self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(125 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#000000", anchor="center")
 
         # UPS 및 제조사 정보
-        # 같은 위치에 텍스트 배치
-        text_y_position = int(180 * SCALE_FACTOR)
+        text_y_position = int(295 * SCALE_FACTOR)  # 동일한 y 좌표 사용
         box_canvas.create_text(int(80 * SCALE_FACTOR), text_y_position, text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#333333", anchor="center")
         box_canvas.create_text(int(80 * SCALE_FACTOR), text_y_position + int(15 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#666666", anchor="center")
 
