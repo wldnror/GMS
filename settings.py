@@ -284,11 +284,13 @@ def show_box_settings():
     # 배터리 박스 활성화 체크박스 추가
     battery_box_var = IntVar(value=settings.get("battery_box_enabled", 0))
     battery_box_check = Checkbutton(box_settings_window, text="배터리 박스 활성화", variable=battery_box_var, font=("Arial", 12))
-    battery_box_check.grid(row=0, column=0, sticky="w", padx=10, pady=10)  # 왼쪽 상단에 배치
 
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=2, pady=2)
     modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
+
+    # 배터리 박스 체크박스를 오른쪽 끝에 배치
+    battery_box_check.grid(row=0, column=2, padx=10, pady=2, sticky='e') 
 
     try:
         modbus_box_count = int(modbus_boxes_var.get())
