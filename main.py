@@ -293,15 +293,15 @@ if __name__ == "__main__":
 
     all_boxes = []
 
+    # UPS 박스를 가장 앞에 추가
+    if ups_ui:
+        all_boxes.append((ups_ui, 0))
+
     for i in range(len(modbus_boxes)):
         all_boxes.append((modbus_ui, i))
 
     for i in range(len(analog_boxes)):
         all_boxes.append((analog_ui, i))
-
-    # UPS 박스 추가
-    if ups_ui:
-        all_boxes.append((ups_ui, 0))
 
     row_index = 0
     column_index = 0
