@@ -131,11 +131,12 @@ class AnalogUI:
 
         # 수정된 코드: AL1과 AL2의 텍스트와 원 위치를 교체
 
-        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
-        
+        # AL1과 AL2의 텍스트와 원 위치를 조정하여 AL1이 위로 가도록 수정
+        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(52 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(52 * SCALE_FACTOR)))
+        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(192 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+
         circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
 
         circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
         box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
@@ -209,8 +210,6 @@ class AnalogUI:
         # 사각형 LED 상태 업데이트
         box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
-
-    
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)  # 네 자리로 맞추기
@@ -498,19 +497,18 @@ class AnalogUI:
         def toggle_color():
             with self.box_states[box_index]["blink_lock"]:
                 if is_second_alarm:
-                    # AL2 조건: AL1은 멈추고 AL2가 깜빡여야 함
+                    # 2차 알람 조건
                     self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
                 else:
-                    # AL1 조건: AL1이 깜빡여야 함
+                    # 1차 알람 조건
                     self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
 
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
-                # 세그먼트 디스플레이는 깜빡임 없이 유지
+                # 세그먼트 디스플레이를 깜빡이지 않고 그대로 유지
                 if self.box_states[box_index]["current_value"] is not None:
                     self.update_segment_display(str(self.box_states[box_index]["current_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
-                # 다음 깜빡임 스케줄링
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
 
