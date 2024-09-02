@@ -223,41 +223,35 @@ class AnalogUI:
 
         # 깜빡임 시작
         self.box_states[box_index]["stop_blinking"].clear()
-        blink_thread = threading.Thread(target=self.blink_alarm, args=(box_index, is_second_alarm))
-        blink_thread.daemon = True
-        blink_thread.start()
-        self.box_states[box_index]["blink_thread"] = blink_thread
+        self.box_states[box_index]["blink_state"] = True  # 깜빡임 상태 초기화
+
+        # 메인 스레드에서 깜빡임을 제어하도록 after() 호출
+        self.toggle_blink(box_index, is_second_alarm)
 
     def stop_blinking(self, box_index):
         # 깜빡임을 멈추는 이벤트 설정
-        blink_thread = self.box_states[box_index]["blink_thread"]
-        if blink_thread is not None and blink_thread != threading.current_thread():
-            self.box_states[box_index]["stop_blinking"].set()
-            blink_thread.join()
-        self.box_states[box_index]["blink_thread"] = None
+        self.box_states[box_index]["stop_blinking"].set()
+    
+    def toggle_blink(self, box_index, is_second_alarm):
+        # 스톱 이벤트가 설정된 경우 깜빡임 중지
+        if self.box_states[box_index]["stop_blinking"].is_set():
+            self.update_circle_state([True, False, True, False], box_index=box_index)  # 최종 상태 설정 (AL1 또는 AL2만 켜짐)
+            return
 
+        # AL1 또는 AL2의 깜빡임 상태 토글
+        blink_state = self.box_states[box_index]["blink_state"]
+        if is_second_alarm:
+            self.update_circle_state([True, blink_state, True, False], box_index=box_index)  # AL2 깜빡임
+        else:
+            self.update_circle_state([blink_state, False, True, False], box_index=box_index)  # AL1 깜빡임
 
-    def blink_alarm(self, box_index, is_second_alarm):
-        def toggle_color():
-            with self.box_states[box_index]["blink_lock"]:
-                if is_second_alarm:
-                    # AL2가 깜빡이는 조건
-                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
-                else:
-                    # AL1이 깜빡이는 조건
-                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
+        # 다음 깜빡임 상태 설정
+        self.box_states[box_index]["blink_state"] = not blink_state
 
-                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+        # 일정 시간 후에 다시 호출하여 깜빡임 지속
+        interval = 1000 if is_second_alarm else 600  # AL2는 1000ms, AL1은 600ms 간격으로 깜빡임
+        self.root.after(interval, self.toggle_blink, box_index, is_second_alarm)
 
-                # 세그먼트 디스플레이는 깜빡임 없이 유지
-                if self.box_states[box_index]["current_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["current_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-
-                # 깜빡임 지속 여부 확인 및 주기 설정
-                if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
-
-        toggle_color()
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)  # 네 자리로 맞추기
