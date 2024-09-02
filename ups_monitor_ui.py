@@ -26,6 +26,9 @@ class UPSMonitorUI:
         else:
             row_frame = self.row_frames[-1]
 
+        # highlightthickness 값을 줄여서 테두리 두께를 조정
+        highlight_thickness = int(1.5 * SCALE_FACTOR)  # 예시로 두께를 줄임
+
         box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR), bg='black')
         box_frame.grid(row=0, column=col)
 
@@ -36,7 +39,7 @@ class UPSMonitorUI:
         box_canvas.pack()
 
         # 외곽 상자 디자인 - 배경색을 회색으로 설정
-        box_canvas.create_rectangle(0, 0, int(16 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
 
         # 상시 모드 / 배터리 모드 표시 - 텍스트 색상 조정
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
