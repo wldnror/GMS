@@ -1,4 +1,4 @@
-from tkinter import Frame, Canvas
+from tkinter import Frame, Canvas, Tk
 
 # 스케일 팩터로 20% 확대
 SCALE_FACTOR = 1.40  
@@ -26,10 +26,11 @@ class UPSMonitorUI:
         else:
             row_frame = self.row_frames[-1]
 
-        box_frame = Frame(row_frame, bg='black')
+        box_frame = Frame(row_frame, bg='black', width=int(155 * SCALE_FACTOR), height=int(120 * SCALE_FACTOR))  # Frame 크기 명시적으로 설정
         box_frame.grid(row=0, column=col)
 
         inner_frame = Frame(box_frame, bg='black')
+        inner_frame.pack_propagate(False)  # Frame이 자식 위젯의 크기에 따라 크기를 변경하지 않도록 설정
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
         # Canvas 크기를 줄이면서 내부 요소 배치도 조정
@@ -72,3 +73,9 @@ class UPSMonitorUI:
             canvas.itemconfig(self.mode_text_id, text="상시 모드", fill="#00AA00")
         else:
             canvas.itemconfig(self.mode_text_id, text="배터리 모드", fill="#AA0000")
+
+# 테스트 실행 코드
+if __name__ == "__main__":
+    root = Tk()
+    app = UPSMonitorUI(root, num_boxes=1)
+    root.mainloop()
