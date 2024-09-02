@@ -281,16 +281,16 @@ def show_box_settings():
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
 
+    # 상자 수와 배터리 박스를 동일 줄에 배치
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2, sticky="w")
+    modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
+
     # 배터리 박스 활성화 체크박스 추가
     battery_box_var = IntVar(value=settings.get("battery_box_enabled", 0))
     battery_box_check = Checkbutton(box_settings_window, text="배터리 박스 활성화", variable=battery_box_var, font=("Arial", 12))
+    battery_box_check.grid(row=0, column=2, padx=2, pady=2, sticky="e")  # 같은 줄 오른쪽 끝에 배치
 
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=2, pady=2)
-    modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
-
-    # 배터리 박스 체크박스를 오른쪽 끝에 배치
-    battery_box_check.grid(row=0, column=2, padx=10, pady=2, sticky='e') 
 
     try:
         modbus_box_count = int(modbus_boxes_var.get())
@@ -309,14 +309,14 @@ def show_box_settings():
             var.set(str(new_value))
 
     frame_modbus = Frame(box_settings_window)
-    frame_modbus.grid(row=1, column=1, padx=2, pady=2)
+    frame_modbus.grid(row=0, column=1, padx=2, pady=2)
     Button(frame_modbus, text="-", command=lambda: modify_box_count(modbus_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
     Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=2, pady=2)
     Button(frame_modbus, text="+", command=lambda: modify_box_count(modbus_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=2, pady=2)
 
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=2, column=0, padx=2, pady=2)
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=2, pady=2)
     frame_analog = Frame(box_settings_window)
-    frame_analog.grid(row=2, column=1, padx=2, pady=2)
+    frame_analog.grid(row=1, column=1, padx=2, pady=2)
     Button(frame_analog, text="-", command=lambda: modify_box_count(analog_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
     Label(frame_analog, textvariable=analog_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=2, pady=2)
     Button(frame_analog, text="+", command=lambda: modify_box_count(analog_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=2, pady=2)
