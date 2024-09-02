@@ -224,7 +224,7 @@ class AnalogUI:
 
         # 기존 깜빡임 중지 이벤트가 있으면 초기화
         self.stop_blinking(box_index)
-    
+
         # 깜빡임 시작
         self.box_states[box_index]["stop_blinking"].clear()
         self.box_states[box_index]["blink_state"] = True  # 깜빡임 상태 초기화
@@ -247,19 +247,16 @@ class AnalogUI:
         # AL1 또는 AL2의 깜빡임 상태 토글
         blink_state = self.box_states[box_index]["blink_state"]
         if is_second_alarm:
-            # AL2 깜빡임 상태만 업데이트
-            self.update_circle_state([True, blink_state, True, False], box_index=box_index)
+            self.update_circle_state([True, blink_state, True, False], box_index=box_index)  # AL2 깜빡임
         else:
-            # AL1 깜빡임 상태만 업데이트
-            self.update_circle_state([blink_state, False, True, False], box_index=box_index)
+            self.update_circle_state([blink_state, False, True, False], box_index=box_index)  # AL1 깜빡임
 
         # 다음 깜빡임 상태 설정
         self.box_states[box_index]["blink_state"] = not blink_state
-    
+
         # 일정 시간 후에 다시 호출하여 깜빡임 지속
         interval = 1000 if is_second_alarm else 600  # AL2는 1000ms, AL1은 600ms 간격으로 깜빡임
         self.root.after(interval, self.toggle_blink, box_index, is_second_alarm)
-
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)  # 네 자리로 맞추기
