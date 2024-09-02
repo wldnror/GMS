@@ -35,11 +35,11 @@ class UPSMonitorUI:
         inner_frame = Frame(box_frame, bg='black')
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
-        box_canvas = Canvas(inner_frame, width=int(140 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000", bg='black')
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000", bg='black')
         box_canvas.pack()
 
         # 외곽 상자 디자인 - 배경색을 회색으로 설정
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(150 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
 
         # 상시 모드 / 배터리 모드 표시 - 텍스트 색상 조정
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(30 * SCALE_FACTOR), text="UPS 모드", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
