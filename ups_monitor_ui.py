@@ -52,8 +52,8 @@ class UPSMonitorUI:
         self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(125 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
         # UPS 및 제조사 정보
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(210 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(280 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(250 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(300 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas))
 
