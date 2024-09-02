@@ -36,9 +36,9 @@ class ModbusUI:
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
-        self.alarm_callback = alarm_callback  # 알람 콜백 추가
+        self.alarm_callback = alarm_callback
         self.virtual_keyboard = VirtualKeyboard(root)
-        self.ip_vars = [StringVar() for _ in range(num_boxes)]  # IP 변수 초기화
+        self.ip_vars = [StringVar() for _ in range(num_boxes)]
         self.entries = []
         self.action_buttons = []
         self.clients = {}
@@ -48,10 +48,10 @@ class ModbusUI:
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
-        self.history_window = None  # 히스토리 창을 저장할 변수
-        self.history_lock = threading.Lock()  # 히스토리 창 중복 방지를 위한 락
+        self.history_window = None
+        self.history_lock = threading.Lock()
         self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0)  # 간격 제거
+        self.box_frame.grid(row=0, column=0)
         self.row_frames = []
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
@@ -121,26 +121,22 @@ class ModbusUI:
         self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        # 한 행에 몇 개의 박스를 배치할지 결정하는 변수
-        max_boxes_per_row = 6  # 여기를 6으로 설정
-
-        # 행과 열을 계산하는 부분
+        max_boxes_per_row = 6
         row = index // max_boxes_per_row
         col = index % max_boxes_per_row
 
-        # 각 row_frame을 한 줄에 하나씩 생성하도록 함
         if col == 0:
             row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0, sticky="w")  # sticky="w"로 왼쪽 정렬
+            row_frame.grid(row=row, column=0, sticky="w")
             self.row_frames.append(row_frame)
         else:
             row_frame = self.row_frames[-1]
 
-        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))  # 투명 테두리 추가
-        box_frame.grid(row=0, column=col)  # 간격 제거
+        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))
+        box_frame.grid(row=0, column=col)
 
-        inner_frame = Frame(box_frame)  # 실제 내부 Frame
-        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))  # 투명 테두리만큼 패딩 추가
+        inner_frame = Frame(box_frame)
+        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
@@ -156,7 +152,7 @@ class ModbusUI:
             "previous_segment_display": None,
             "last_history_time": None,
             "last_history_value": None,
-            "pwr_blink_state": False,  # PWR 깜빡임 상태 초기화
+            "pwr_blink_state": False,
             "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
             "gas_type_text_id": None,
             "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
@@ -168,7 +164,6 @@ class ModbusUI:
         control_frame.place(x=int(10 * SCALE_FACTOR), y=int(205 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
-
         self.add_ip_row(control_frame, ip_var, index)
 
         circle_items = []
@@ -231,7 +226,7 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         alarm_active = states[0] or states[1]
-        self.alarm_callback(alarm_active, box_index)  # box_index를 전달하여 콜백 호출
+        self.alarm_callback(alarm_active, box_index)
 
         if states[0]:
             outline_color = outline_colors[0]
@@ -245,30 +240,45 @@ class ModbusUI:
         box_canvas.config(highlightbackground=outline_color)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)
-        leading_zero = True
-        blink_state = self.box_states[box_index]["blink_state"]
+        value = value.zfill(4)  # 네 자리로 맞추기
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        for i, digit in enumerate(value):
-            if leading_zero and digit == '0' and i < 3:
+        # 각 자리의 숫자를 순차적으로 업데이트하는 애니메이션
+        def update_digit(index, leading_zero=True):
+            if index >= len(value):
+                return  # 모든 자릿수 업데이트가 완료된 경우
+    
+            digit = value[index]
+
+            if leading_zero and digit == '0' and index < 3:
                 segments = SEGMENTS[' ']
             else:
                 segments = SEGMENTS[digit]
                 leading_zero = False
 
-            if blink and blink_state:
+            if blink and self.box_states[box_index]["blink_state"]:
                 segments = SEGMENTS[' ']
 
             for j, state in enumerate(segments):
                 color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{i}_{chr(97 + j)}', fill=color)
+                segment_tag = f'segment_{index}_{chr(97 + j)}'
+            
+                # 세그먼트가 존재하는지 확인하고 색상 업데이트
+                if box_canvas.segment_canvas.find_withtag(segment_tag):
+                    box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
-        self.box_states[box_index]["blink_state"] = not blink_state
+            # 다음 자릿수를 일정 시간 후에 업데이트
+            self.root.after(10, lambda: update_digit(index + 1, leading_zero))
+
+        # 애니메이션 시작: 일의 자리부터 업데이트
+        update_digit(0)
+
+        # 블링크 상태 업데이트
+        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
         if value.strip():
@@ -277,7 +287,6 @@ class ModbusUI:
             log_file_index = self.get_log_file_index(box_index)
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
 
-            # 비동기적으로 로그 파일에 기록
             threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
 
     def async_write_log(self, log_file, log_line):
@@ -285,7 +294,6 @@ class ModbusUI:
             file.write(log_line)
 
     def get_log_file_index(self, box_index):
-        """현재 로그 파일 인덱스를 반환하고, 로그 파일이 가득 차면 새로운 인덱스를 반환"""
         index = 0
         while True:
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
@@ -298,7 +306,6 @@ class ModbusUI:
             index += 1
 
     def load_log_files(self, box_index, file_index):
-        """특정 로그 파일을 로드하여 로그 목록을 반환"""
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
@@ -326,7 +333,7 @@ class ModbusUI:
         log_entries = self.load_log_files(box_index, file_index)
         times, values = zip(*log_entries) if log_entries else ([], [])
 
-        figure = plt.Figure(figsize=(12 * SCALE_FACTOR, 8 * SCALE_FACTOR), dpi=100)
+        figure = plt.Figure(figsize=(12 * SCALE_FACTOR), dpi=100)
         ax = figure.add_subplot(111)
 
         ax.plot(times, values, marker='o')
@@ -383,12 +390,12 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[i].config(state="disabled"))  # 필드값 입력 막기
+                self.root.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
-                self.virtual_keyboard.hide()  # 연결 후 가상 키보드 숨기기
-                self.blink_pwr(i)  # PWR 깜빡이기 시작
-                self.save_ip_settings()  # 연결된 IP 저장
+                self.virtual_keyboard.hide()
+                self.blink_pwr(i)
+                self.save_ip_settings()
             else:
                 self.console.print(f"Failed to connect to {ip}")
 
@@ -399,21 +406,21 @@ class ModbusUI:
 
     def disconnect_client(self, ip, i):
         self.stop_flags[ip].set()
-        self.connected_clients[ip].join()  # 스레드가 종료될 때까지 기다림
+        self.connected_clients[ip].join()
         self.clients[ip].close()
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
-        self.root.after(0, lambda: self.reset_ui_elements(i))  # UI 요소 초기화
+        self.root.after(0, lambda: self.reset_ui_elements(i))
         self.root.after(0, lambda: self.ip_vars[i].set(''))
         self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.root.after(0, lambda: self.entries[i].config(state="normal"))  # 필드값 입력 가능하게 하기
-        self.save_ip_settings()  # 연결이 끊어진 경우에도 IP 저장
+        self.root.after(0, lambda: self.entries[i].config(state="normal"))
+        self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
-        self.console.print(f"Reset UI elements for box {box_index}")  # 디버그 메시지 추가
+        self.console.print(f"Reset UI elements for box {box_index}")
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -435,10 +442,10 @@ class ModbusUI:
                 address_40007 = 40008 - 1
                 address_40011 = 40011 - 1
                 count = 1
-                result_40001 = client.read_holding_registers(address_40001, count, unit=1)
-                result_40005 = client.read_holding_registers(address_40005, count, unit=1)
-                result_40007 = client.read_holding_registers(address_40007, count, unit=1)
-                result_40011 = client.read_holding_registers(address_40011, count, unit=1)
+                result_40001 = client.read_holding_registers(address_40001, count)
+                result_40005 = client.read_holding_registers(address_40005, count)
+                result_40007 = client.read_holding_registers(address_40007, count)
+                result_40011 = client.read_holding_registers(address_40011, count)
 
                 if not result_40001.isError():
                     value_40001 = result_40001.registers[0]
@@ -554,7 +561,8 @@ class ModbusUI:
         while not self.data_queue.empty():
             box_index, value, blink = self.data_queue.get()
             box_canvas = self.box_frames[box_index][1]
-            self.update_segment_display(value, box_canvas, blink=blink, box_index=box_index)
+            # 비동기적으로 세그먼트 디스플레이 업데이트
+            threading.Thread(target=self.update_segment_display, args=(value, box_canvas, blink, box_index)).start()
         self.root.after(100, self.process_queue)
 
     def check_click(self, event):
@@ -568,8 +576,8 @@ class ModbusUI:
         self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.root.after(0, lambda: self.entries[box_index].config(state="normal"))  # 필드값 입력 가능하게 하기
-        self.root.after(0, lambda: self.reset_ui_elements(box_index))  # UI 요소 초기화
+        self.root.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.root.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
@@ -578,9 +586,9 @@ class ModbusUI:
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))  # 필드값 입력 막기
+                self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=box_index)
-                self.blink_pwr(box_index)  # PWR 깜빡이기 시작
+                self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
                 break
             else:
