@@ -35,7 +35,7 @@ class UPSMonitorUI:
         inner_frame = Frame(box_frame, bg='black')
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000", bg='black')
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(2 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000", bg='black')
         box_canvas.pack()
 
         # 외곽 상자 디자인 - 배경색을 회색으로 설정
