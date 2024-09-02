@@ -11,9 +11,6 @@ class UPSMonitorUI:
         self.row_frames = []
         self.box_frames = []
 
-        # 초기 모드 설정 (상시 모드로 시작)
-        self.current_mode = "상시 모드"
-
         for i in range(num_boxes):
             self.create_ups_box(i)
 
@@ -49,19 +46,20 @@ class UPSMonitorUI:
         self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(45 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
         # UPS 모드 표시 (배터리 모드와 상시 모드 텍스트를 배터리 퍼센트 아래로 이동)
-        self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text=self.current_mode, font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")
+        self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(12 * SCALE_FACTOR)), fill="#00AA00", anchor="center")
+
+        # 모드 전환 버튼을 상자 내부에 배치
+        toggle_button = Button(inner_frame, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
+        toggle_button.pack(pady=int(5 * SCALE_FACTOR))
 
         # UPS 및 제조사 정보
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
-
-        # 모드 전환 버튼 추가 (UPS Monitor 텍스트의 10포인트 위, 우측 정렬)
-        self.toggle_button = Button(inner_frame, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
-        self.toggle_button.pack(pady=(0, int(60 * SCALE_FACTOR)), anchor="e")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
 
         self.box_frames.append((box_frame, box_canvas))
 
         # 초기 상태 업데이트 (상시 모드로 설정)
-        self.update_battery_status(box_canvas, battery_level=75, mode=self.current_mode)  # 예시로 75% 잔량, 상시 모드로 설정
+        self.update_battery_status(box_canvas, battery_level=75, mode="상시 모드")  # 예시로 75% 잔량, 상시 모드로 설정
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
@@ -87,15 +85,12 @@ class UPSMonitorUI:
         """
         모드를 전환하는 함수 (상시 모드 <-> 배터리 모드)
         """
-        # 모드를 전환
-        if self.current_mode == "상시 모드":
-            self.current_mode = "배터리 모드"
-        else:
-            self.current_mode = "상시 모드"
+        # 현재 모드 텍스트를 읽어와서 모드 전환
+        current_mode = canvas.itemcget(self.mode_text_id, "text")
+        new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
 
-        # 현재 캔버스의 상태 업데이트
-        self.update_battery_status(canvas, battery_level=75, mode=self.current_mode)  # 배터리 잔량은 예시로 75% 유지
-
+        # 상태 업데이트
+        self.update_battery_status(canvas, battery_level=75, mode=new_mode)  # 예시로 75% 잔량 유지
 
 if __name__ == "__main__":
     root = Tk()
