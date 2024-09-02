@@ -5,6 +5,7 @@ from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Topl
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
+from ups_monitor_ui import UPSMonitorUI  # UPSMonitorUI 클래스 임포트 추가
 import threading
 import psutil
 import signal
@@ -12,20 +13,17 @@ import sys
 import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils  # utils 모듈 임포트 추가
+import utils
 import tkinter as tk
-import pygame  # 오디오 재생을 위한 pygame 모듈 추가
-import queue  # 큐 사용을 위해 추가
-import datetime  # 날짜와 시간을 가져오기 위해 추가
+import pygame
+import queue
+import datetime
 import locale
 
-# 라즈베리 파이에서 한글 로케일 설정
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
-# 설정 값을 저장할 파일 경로
 SETTINGS_FILE = "settings.json"
 
-# 암호화 키 생성 및 로드
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
 
@@ -35,33 +33,30 @@ def encrypt_data(data):
 def decrypt_data(data):
     return utils.decrypt_data(data)
 
-settings = load_settings()  # 여기서 settings를 불러옵니다
-admin_password = settings.get("admin_password")  # settings를 불러온 후에 admin_password를 설정합니다
+settings = load_settings()
+admin_password = settings.get("admin_password")
 
-ignore_commit = None  # ignore_commit 변수를 전역 변수로 선언하고 초기화
-update_notification_frame = None  # update_notification_frame 변수를 전역 변수로 선언하고 초기화
-checking_updates = True  # 전역 변수로 선언 및 초기화
-branch_window = None  # branch_window 변수를 전역 변수로 선언 및 초기화
-alarm_active = False  # 알람 상태를 저장하는 전역 변수
-alarm_blinking = False  # 알람 깜빡임 상태를 저장하는 전역 변수
-selected_audio_file = settings.get("audio_file")  # 오디오 파일 경로를 settings에서 불러옴
-audio_playing = False  # 오디오 재생 상태를 저장하는 변수
+ignore_commit = None
+update_notification_frame = None
+checking_updates = True
+branch_window = None
+alarm_active = False
+alarm_blinking = False
+selected_audio_file = settings.get("audio_file")
+audio_playing = False
 
-# 오디오 재생 큐와 락 초기화
 audio_queue = queue.Queue()
 audio_lock = threading.Lock()
 
-# 현재 알람을 제어하는 상자 ID (None일 경우 알람을 제어하는 상자가 없음)
 current_alarm_box_id = None
 
-# 오디오 재생 초기화
 pygame.mixer.init()
 
 def play_alarm_sound(box_id):
     global selected_audio_file, audio_playing, current_alarm_box_id
     if selected_audio_file is None:
-        print("No audio file selected. Skipping alarm sound.")  # 경고 메시지 출력
-        return  # 오디오 파일이 없을 경우 함수를 종료
+        print("No audio file selected. Skipping alarm sound.")
+        return
 
     with audio_lock:
         if current_alarm_box_id is None or current_alarm_box_id == box_id:
@@ -75,33 +70,32 @@ def play_next_in_queue():
     global audio_playing, current_alarm_box_id
     if not audio_queue.empty():
         next_audio_file = audio_queue.get()
-        print(f"Trying to play: {next_audio_file}")  # 파일 경로를 출력하여 확인
+        print(f"Trying to play: {next_audio_file}")
 
         if next_audio_file is None:
-            print("Error: No audio file to play. Skipping.")  # 파일이 None인 경우 무시
+            print("Error: No audio file to play. Skipping.")
             current_alarm_box_id = None
             return
 
-        if os.path.isfile(next_audio_file):  # 파일이 존재하는지 확인
+        if os.path.isfile(next_audio_file):
             try:
                 pygame.mixer.music.load(next_audio_file)
                 pygame.mixer.music.play()
                 audio_playing = True
             except pygame.error as e:
-                print(f"Pygame error: {e}")  # pygame 관련 오류 출력
+                print(f"Pygame error: {e}")
                 current_alarm_box_id = None
         else:
-            print(f"File not found: {next_audio_file}")  # 파일이 없을 때 오류 메시지 출력
+            print(f"File not found: {next_audio_file}")
             current_alarm_box_id = None
     else:
         current_alarm_box_id = None
-
 
 def check_music_end():
     global audio_playing
     if not pygame.mixer.music.get_busy():
         audio_playing = False
-        play_next_in_queue()  # 큐에 남은 소리가 있으면 재생
+        play_next_in_queue()
     root.after(100, check_music_end)
 
 def stop_alarm_sound(box_id):
@@ -110,7 +104,7 @@ def stop_alarm_sound(box_id):
         if current_alarm_box_id == box_id:
             pygame.mixer.music.stop()
             audio_playing = False
-            while not audio_queue.empty():  # 큐를 비움
+            while not audio_queue.empty():
                 audio_queue.get()
             current_alarm_box_id = None
 
@@ -120,11 +114,11 @@ def set_alarm_status(active, box_id):
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
-        play_alarm_sound(box_id)  # 알람 소리 재생
+        play_alarm_sound(box_id)
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
         root.config(background=default_background)
-        stop_alarm_sound(box_id)  # 알람 소리 정지
+        stop_alarm_sound(box_id)
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -222,8 +216,8 @@ def change_branch():
         branch_window.destroy()
 
 def alarm_blink():
-    red_duration = 200  # 빨간색 상태에서 머무는 시간 (밀리초)
-    off_duration = 200  # 기본 배경색 상태에서 머무는 시간 (밀리초)
+    red_duration = 200
+    off_duration = 200
 
     def toggle_color():
         if alarm_active:
@@ -259,7 +253,7 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    initialize_globals(root, change_branch)  # change_branch 함수 전달
+    initialize_globals(root, change_branch)
 
     if not admin_password:
         prompt_new_password()
@@ -272,16 +266,14 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
-    # main.py 내의 코드를 수정하여 정수 값을 리스트로 변환
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
-        modbus_boxes = [None] * modbus_boxes  # 정수 값을 리스트로 변환
+        modbus_boxes = [None] * modbus_boxes
 
     analog_boxes = settings.get("analog_boxes", [])
     if isinstance(analog_boxes, int):
-        analog_boxes = [None] * analog_boxes  # 정수 값을 리스트로 변환
+        analog_boxes = [None] * analog_boxes
 
-    # modbus_boxes와 analog_boxes가 리스트인지 확인
     if not isinstance(modbus_boxes, list):
         raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
 
@@ -291,11 +283,14 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # 모든 상자를 함께 묶어서 한 줄에 최대 6개씩 배치
+    # UPS 박스 초기화 (토글에 따라 추가)
+    ups_ui = None
+    if settings.get("battery_box_enabled", 0):
+        ups_ui = UPSMonitorUI(main_frame, 1)  # UPSMonitorUI 인스턴스 생성
+
     all_boxes = []
 
     for i in range(len(modbus_boxes)):
@@ -304,26 +299,28 @@ if __name__ == "__main__":
     for i in range(len(analog_boxes)):
         all_boxes.append((analog_ui, i))
 
+    # UPS 박스 추가
+    if ups_ui:
+        all_boxes.append((ups_ui, 0))
+
     row_index = 0
     column_index = 0
-    max_columns = 6  # 한 줄에 최대 6개 상자 배치
+    max_columns = 6
 
     for ui, idx in all_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
 
-        if isinstance(ui, ModbusUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
-        elif isinstance(ui, AnalogUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
+        if isinstance(ui, (ModbusUI, AnalogUI, UPSMonitorUI)):
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
 
         column_index += 1
-    # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
+
     for i in range(max_columns):
         main_frame.grid_columnconfigure(i, weight=1)
 
-    for i in range((len(all_boxes) + max_columns - 1) // max_columns):  # 총 행 수 계산
+    for i in range((len(all_boxes) + max_columns - 1) // max_columns):
         main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
@@ -342,10 +339,8 @@ if __name__ == "__main__":
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    # 상자의 개수를 계산
-    total_boxes = len(modbus_boxes) + len(analog_boxes)
+    total_boxes = len(modbus_boxes) + len(analog_boxes) + (1 if ups_ui else 0)
 
-    # 만약 상자가 0~4개일 경우 시계와 날짜를 표시
     if 0 <= total_boxes <= 4:
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
@@ -370,7 +365,6 @@ if __name__ == "__main__":
             update_status_label()
             time.sleep(1)
 
-    # 기록된 ignore_commit을 로드
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
         with open(utils.IGNORE_COMMIT_FILE, "r") as file:
             ignore_commit = file.read().strip().encode()
@@ -380,10 +374,9 @@ if __name__ == "__main__":
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
-    check_music_end()  # 음악 재생 상태 확인 함수 호출
+    check_music_end()
 
     root.mainloop()
 
     for _, client in modbus_ui.clients.items():
         client.close()
-    
