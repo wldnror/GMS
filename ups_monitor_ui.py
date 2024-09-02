@@ -30,7 +30,7 @@ class UPSMonitorUI:
         box_frame.grid(row=0, column=col)
 
         inner_frame = Frame(box_frame, bg='black')
-        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
+        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2 * SCALE_FACTOR))
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(130 * SCALE_FACTOR), bg='grey', highlightthickness=0)
         box_canvas.pack()
