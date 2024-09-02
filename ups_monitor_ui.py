@@ -34,7 +34,7 @@ class UPSMonitorUI:
 
         box_canvas = Canvas(
             inner_frame,
-            width=int(200 * SCALE_FACTOR),
+            width=int(50 * SCALE_FACTOR),
             height=int(300 * SCALE_FACTOR),
             highlightthickness=0,
         )
