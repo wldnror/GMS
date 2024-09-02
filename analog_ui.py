@@ -130,6 +130,7 @@ class AnalogUI:
         circle_items = []
 
         # 수정된 코드: AL1과 AL2의 텍스트와 원 위치를 교체
+
         circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
         box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
         
@@ -209,54 +210,7 @@ class AnalogUI:
         box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
-        # 깜빡임 상태 업데이트
-        if states[0] and not states[1]:
-            self.start_blinking(box_index, is_second_alarm=False)
-        elif states[1]:
-            self.start_blinking(box_index, is_second_alarm=True)
-        else:
-            self.stop_blinking(box_index)
-
-    def start_blinking(self, box_index, is_second_alarm):
-        # 이미 깜빡임이 시작된 경우 다시 시작하지 않음
-        if self.box_states[box_index]["blink_thread"] is not None:
-            return
-
-        # 기존 깜빡임 중지 이벤트가 있으면 초기화
-        self.stop_blinking(box_index)
-
-        # 깜빡임 시작
-        self.box_states[box_index]["stop_blinking"].clear()
-        self.box_states[box_index]["blink_state"] = True  # 깜빡임 상태 초기화
-
-        # 메인 스레드에서 깜빡임을 제어하도록 after() 호출
-        self.toggle_blink(box_index, is_second_alarm)
-
-    def stop_blinking(self, box_index):
-        # 깜빡임을 멈추는 이벤트 설정
-        if self.box_states[box_index]["blink_thread"] is not None:
-            self.box_states[box_index]["stop_blinking"].set()
-            self.box_states[box_index]["blink_thread"] = None
-
-    def toggle_blink(self, box_index, is_second_alarm):
-        # 스톱 이벤트가 설정된 경우 깜빡임 중지
-        if self.box_states[box_index]["stop_blinking"].is_set():
-            self.box_states[box_index]["blink_thread"] = None
-            return
-
-        # AL1 또는 AL2의 깜빡임 상태 토글
-        blink_state = self.box_states[box_index]["blink_state"]
-        if is_second_alarm:
-            self.update_circle_state([True, blink_state, True, False], box_index=box_index)  # AL2 깜빡임
-        else:
-            self.update_circle_state([blink_state, False, True, False], box_index=box_index)  # AL1 깜빡임
-
-        # 다음 깜빡임 상태 설정
-        self.box_states[box_index]["blink_state"] = not blink_state
-
-        # 일정 시간 후에 다시 호출하여 깜빡임 지속
-        interval = 1000 if is_second_alarm else 600  # AL2는 1000ms, AL1은 600ms 간격으로 깜빡임
-        self.root.after(interval, self.toggle_blink, box_index, is_second_alarm)
+    
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)  # 네 자리로 맞추기
@@ -539,6 +493,28 @@ class AnalogUI:
 
         # 비동기적으로 다음 단계 호출
         self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def blink_alarm(self, box_index, is_second_alarm):
+        def toggle_color():
+            with self.box_states[box_index]["blink_lock"]:
+                if is_second_alarm:
+                    # AL2 조건: AL1은 멈추고 AL2가 깜빡여야 함
+                    self.update_circle_state([True, self.box_states[box_index]["blink_state"], True, False], box_index=box_index)
+                else:
+                    # AL1 조건: AL1이 깜빡여야 함
+                    self.update_circle_state([self.box_states[box_index]["blink_state"], False, True, False], box_index=box_index)
+
+                self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+
+                # 세그먼트 디스플레이는 깜빡임 없이 유지
+                if self.box_states[box_index]["current_value"] is not None:
+                    self.update_segment_display(str(self.box_states[box_index]["current_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+
+                # 다음 깜빡임 스케줄링
+                if not self.box_states[box_index]["stop_blinking"].is_set():
+                    self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
+
+        toggle_color()
 
 if __name__ == "__main__":
     from tkinter import Tk
