@@ -289,7 +289,7 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0, sticky='w')
+    main_frame.grid(row=0, column=0)
 
     # main.py 내에서 modbus_ui 초기화 부분 수정
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
@@ -314,9 +314,9 @@ if __name__ == "__main__":
             row_index += 1
 
         if isinstance(ui, ModbusUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="w")  # padx와 pady 값을 조정
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
         elif isinstance(ui, AnalogUI):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="w")  # padx와 pady 값을 조정
+            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")  # padx와 pady 값을 조정
 
         column_index += 1
     # 각 열과 행이 동일한 비율로 공간을 차지하도록 설정
@@ -386,3 +386,4 @@ if __name__ == "__main__":
 
     for _, client in modbus_ui.clients.items():
         client.close()
+    
