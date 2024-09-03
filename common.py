@@ -65,7 +65,7 @@ def create_gradient_bar(width, height):
 
 def create_segment_display(box_canvas):
     segment_canvas = Canvas(box_canvas, width=(131 + x_shift) * SCALE, height=(60 + y_shift) * SCALE, bg='#000000', highlightthickness=0)
-    segment_canvas.place(x=(23 + x_shift) * SCALE, y=(24 + y_shift) * SCALE)  # 전체 위치 이동 적용
+    segment_canvas.place(x=(20 + x_shift) * SCALE, y=(24 + y_shift) * SCALE)  # 전체 위치 이동 적용
 
     segment_items = []
     for i in range(4):

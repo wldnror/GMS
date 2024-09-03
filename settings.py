@@ -1,4 +1,4 @@
-from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar
+from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar, Checkbutton, IntVar
 from tkinter import ttk
 import json
 import os
@@ -54,7 +54,8 @@ def load_settings():
             "admin_password": None,
             "modbus_gas_types": {},
             "analog_gas_types": {},
-            "audio_file": None  # 오디오 파일 설정 추가
+            "audio_file": None,  # 오디오 파일 설정 추가
+            "battery_box_enabled": 0  # 배터리 박스 활성화 설정 추가
         }
 
 def save_settings(settings):
@@ -280,13 +281,19 @@ def show_box_settings():
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
 
-    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
+    # 상자 수와 배터리 박스를 동일 줄에 배치
+    Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2, sticky="w")
     modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
 
     # 상자 수 변경 시 자동으로 update_gas_type_options 호출
     modbus_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
     analog_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
+
+    # 배터리 박스 활성화 체크박스 추가
+    battery_box_var = IntVar(value=settings.get("battery_box_enabled", 0))
+    battery_box_check = Checkbutton(box_settings_window, text="배터리 박스 활성화", variable=battery_box_var, font=("Arial", 12))
+    battery_box_check.grid(row=0, column=2, padx=2, pady=2, sticky="e")  # 같은 줄 오른쪽 끝에 배치
 
     try:
         modbus_box_count = int(modbus_boxes_var.get())
@@ -379,6 +386,7 @@ def show_box_settings():
                 return
             settings["modbus_boxes"] = modbus_boxes
             settings["analog_boxes"] = analog_boxes
+            settings["battery_box_enabled"] = battery_box_var.get()  # 배터리 박스 활성화 설정 저장
             for i, var in enumerate(modbus_gas_type_vars):
                 settings["modbus_gas_types"][f"modbus_box_{i}"] = var.get()
             for i, var in enumerate(analog_gas_type_vars):
@@ -391,3 +399,4 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
+
