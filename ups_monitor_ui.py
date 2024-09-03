@@ -41,14 +41,14 @@ class UPSMonitorUI:
         box_canvas.create_rectangle(0, int(310 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
 
         # 배터리 모양으로 잔량 표시
-        # 배터리 외곽
-        box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(60 * SCALE_FACTOR), fill='#4B4B4B', outline='black')
+        # 배터리 외곽 (왼쪽으로 이동 및 두께 조정)
+        box_canvas.create_rectangle(int(10 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='#4B4B4B', outline='black')
         # 배터리 양극 단자
-        box_canvas.create_rectangle(int(140 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(150 * SCALE_FACTOR), int(50 * SCALE_FACTOR), fill='#4B4B4B', outline='black')
+        box_canvas.create_rectangle(int(140 * SCALE_FACTOR), int(35 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(55 * SCALE_FACTOR), fill='#4B4B4B', outline='black')
         # 배터리 잔량 바
-        self.battery_level_bar = box_canvas.create_rectangle(int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(55 * SCALE_FACTOR), fill='#00AA00', outline='')
+        self.battery_level_bar = box_canvas.create_rectangle(int(15 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(15 * SCALE_FACTOR), int(60 * SCALE_FACTOR), fill='#00AA00', outline='')
         # 배터리 퍼센트 텍스트
-        self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(40 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
+        self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(15 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
         # UPS 모드 표시
         self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00", anchor="center")
@@ -74,8 +74,8 @@ class UPSMonitorUI:
         :param mode: 현재 UPS 모드 ("상시 모드" 또는 "배터리 모드")
         """
         # 배터리 잔량 바 업데이트
-        battery_width = int(110 * SCALE_FACTOR * (battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
-        canvas.coords(self.battery_level_bar, int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR))
+        battery_width = int(115 * SCALE_FACTOR * (battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
+        canvas.coords(self.battery_level_bar, int(15 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(15 * SCALE_FACTOR) + battery_width, int(60 * SCALE_FACTOR))
 
         # 배터리 퍼센트 텍스트 업데이트
         canvas.itemconfig(self.battery_percentage_text, text=f"{battery_level}%")
