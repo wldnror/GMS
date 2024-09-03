@@ -38,19 +38,14 @@ class UPSMonitorUI:
         # 상단 영역 (진한 회색)
         box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(250 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
         # 하단 영역 (검정색)
-        box_canvas.create_rectangle(0, int(250 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='black', outline='black', tags='border')
+        box_canvas.create_rectangle(0, int(310 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
 
-        # 배터리 모양 추가 (외곽선과 돌출부 포함)
-        self.battery_icon = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='white', outline='black')
-        self.battery_top = box_canvas.create_rectangle(int(65 * SCALE_FACTOR), int(10 * SCALE_FACTOR), int(95 * SCALE_FACTOR), int(20 * SCALE_FACTOR), fill='black', outline='black')
-
-        # 배터리 잔량 바 (배터리 모양 안에 잔량을 표시)
-        self.battery_level_bar = box_canvas.create_rectangle(int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(135 * SCALE_FACTOR), int(65 * SCALE_FACTOR), fill='#00AA00', outline='')
-
-        # 배터리 퍼센트 텍스트 상단에 표시
+        # 배터리 잔량 바와 퍼센트 텍스트 상단으로 이동
+        box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='white', outline='black')
+        self.battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='#00AA00', outline='')  # 잔량 초기값 0%
         self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(45 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
-        # UPS 모드 표시 (배터리 퍼센트 아래)
+        # UPS 모드 표시 (배터리 모드와 상시 모드 텍스트를 배터리 퍼센트 아래로 이동)
         self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00", anchor="center")
 
         # 모드 전환 버튼을 상자 내부에 배치
@@ -64,7 +59,7 @@ class UPSMonitorUI:
         self.box_frames.append((box_frame, box_canvas))
 
         # 초기 상태 업데이트 (상시 모드로 설정)
-        self.update_battery_status(box_canvas, battery_level=self.calculate_battery_percentage(21.37), mode="상시 모드")  # 예시로 21.37V 잔량
+        self.update_battery_status(box_canvas, battery_level=self.calculate_battery_percentage(21.37), mode="상시 모드")  # 측정된 전압 예시 21.37V
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
@@ -74,12 +69,8 @@ class UPSMonitorUI:
         :param mode: 현재 UPS 모드 ("상시 모드" 또는 "배터리 모드")
         """
         # 배터리 잔량 바 업데이트
-        level_width = int((battery_level / 100) * 110 * SCALE_FACTOR)  # 배터리 바의 길이를 잔량에 맞게 조정
-        canvas.coords(self.battery_level_bar, int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(25 * SCALE_FACTOR) + level_width, int(65 * SCALE_FACTOR))
-
-        # 잔량에 따라 색상 변화
-        fill_color = self.calculate_battery_color(battery_level)
-        canvas.itemconfig(self.battery_level_bar, fill=fill_color)
+        battery_width = int(120 * SCALE_FACTOR * (battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
+        canvas.coords(self.battery_level_bar, int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR) + battery_width, int(70 * SCALE_FACTOR))
 
         # 배터리 퍼센트 텍스트 업데이트
         canvas.itemconfig(self.battery_percentage_text, text=f"{battery_level}%")
@@ -99,7 +90,7 @@ class UPSMonitorUI:
         new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
 
         # 상태 업데이트
-        self.update_battery_status(canvas, battery_level=self.calculate_battery_percentage(21.37), mode=new_mode)  # 예시로 21.37V 전압
+        self.update_battery_status(canvas, battery_level=self.calculate_battery_percentage(21.37), mode=new_mode)  # 전압 예시로 21.37V
 
     def calculate_battery_percentage(self, voltage):
         """
@@ -117,22 +108,6 @@ class UPSMonitorUI:
             return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
         else:
             return 0
-
-    def calculate_battery_color(self, battery_level):
-        """
-        배터리 잔량에 따라 색상을 결정하는 함수
-        :param battery_level: 배터리 잔량 (0 ~ 100)
-        :return: 색상 값 (RGB)
-        """
-        if battery_level > 50:
-            # 녹색에서 노란색으로 변환
-            red = int(255 * (1 - (battery_level - 50) / 50))
-            green = 255
-        else:
-            # 노란색에서 빨간색으로 변환
-            red = 255
-            green = int(255 * (battery_level / 50))
-        return f'#{red:02x}{green:02x}00'
 
 if __name__ == "__main__":
     root = Tk()
