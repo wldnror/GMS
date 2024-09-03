@@ -35,6 +35,11 @@ class UPSMonitorUI:
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
+        # 상단 영역 (진한 회색)
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(250 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
+        # 하단 영역 (검정색)
+        box_canvas.create_rectangle(0, int(250 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='black', outline='black', tags='border')
+
         # 배터리 모양 추가 (외곽선과 돌출부 포함)
         self.battery_icon = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='white', outline='black')
         self.battery_top = box_canvas.create_rectangle(int(65 * SCALE_FACTOR), int(10 * SCALE_FACTOR), int(95 * SCALE_FACTOR), int(20 * SCALE_FACTOR), fill='black', outline='black')
