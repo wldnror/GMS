@@ -59,7 +59,7 @@ class UPSMonitorUI:
         self.box_frames.append((box_frame, box_canvas))
 
         # 초기 상태 업데이트 (상시 모드로 설정)
-        self.update_battery_status(box_canvas, battery_level=75, mode="상시 모드")  # 예시로 75% 잔량, 상시 모드로 설정
+        self.update_battery_status(box_canvas, battery_level=self.calculate_battery_percentage(21.37), mode="상시 모드")  # 측정된 전압 예시 21.37V
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
@@ -90,7 +90,24 @@ class UPSMonitorUI:
         new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
 
         # 상태 업데이트
-        self.update_battery_status(canvas, battery_level=75, mode=new_mode)  # 예시로 75% 잔량 유지
+        self.update_battery_status(canvas, battery_level=self.calculate_battery_percentage(21.37), mode=new_mode)  # 전압 예시로 21.37V
+
+    def calculate_battery_percentage(self, voltage):
+        """
+        배터리 전압을 잔량 퍼센트로 변환하는 함수
+        :param voltage: 측정된 전체 전압
+        :return: 잔량 퍼센트 (0 ~ 100)
+        """
+        cell_voltage = voltage / 6  # 6셀 배터리로 가정
+        # 리튬 배터리 전압에 따른 대략적인 잔량 계산
+        if cell_voltage >= 4.2:
+            return 100
+        elif cell_voltage > 3.7:
+            return int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
+        elif cell_voltage > 3.0:
+            return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
+        else:
+            return 0
 
 if __name__ == "__main__":
     root = Tk()
