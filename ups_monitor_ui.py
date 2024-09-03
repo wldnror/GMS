@@ -1,3 +1,4 @@
+import time
 from tkinter import Frame, Canvas, Button, Tk
 
 # 스케일 팩터로 20% 확대
@@ -10,9 +11,13 @@ class UPSMonitorUI:
         self.box_frame.grid(row=0, column=0)
         self.row_frames = []
         self.box_frames = []
+        self.battery_level = 100  # 초기 잔량 설정
 
         for i in range(num_boxes):
             self.create_ups_box(i)
+
+        # 실시간으로 잔량 업데이트 (테스트를 위해 잔량 감소 시뮬레이션)
+        self.update_battery_status_periodically()
 
     def create_ups_box(self, index):
         max_boxes_per_row = 6
@@ -64,7 +69,7 @@ class UPSMonitorUI:
         self.box_frames.append((box_frame, box_canvas))
 
         # 초기 상태 업데이트 (상시 모드로 설정)
-        self.update_battery_status(box_canvas, battery_level=self.calculate_battery_percentage(21.37), mode="상시 모드")  # 측정된 전압 예시 21.37V
+        self.update_battery_status(box_canvas, battery_level=self.battery_level, mode="상시 모드")  # 초기 잔량 설정
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
@@ -95,26 +100,22 @@ class UPSMonitorUI:
         new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
 
         # 상태 업데이트
-        self.update_battery_status(canvas, battery_level=self.calculate_battery_percentage(21.37), mode=new_mode)  # 전압 예시로 21.37V
+        self.update_battery_status(canvas, battery_level=self.battery_level, mode=new_mode)
 
-    def calculate_battery_percentage(self, voltage):
+    def update_battery_status_periodically(self):
         """
-        배터리 전압을 잔량 퍼센트로 변환하는 함수
-        :param voltage: 측정된 전체 전압
-        :return: 잔량 퍼센트 (0 ~ 100)
+        배터리 잔량을 주기적으로 업데이트하여 실시간 반영
         """
-        cell_voltage = voltage / 6  # 6셀 배터리로 가정
-        # 리튬 배터리 전압에 따른 대략적인 잔량 계산
-        if cell_voltage >= 4.2:
-            return 100
-        elif cell_voltage > 3.7:
-            return int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
-        elif cell_voltage > 3.0:
-            return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
-        else:
-            return 0
+        # 배터리 잔량 감소 테스트 (0 이상일 때만 감소)
+        if self.battery_level > 0:
+            self.battery_level -= 1
+        # 각 캔버스에 잔량 업데이트 반영
+        for _, canvas in self.box_frames:
+            self.update_battery_status(canvas, self.battery_level, mode="상시 모드")
+        # 1초마다 업데이트 호출
+        self.root.after(1000, self.update_battery_status_periodically)
 
 if __name__ == "__main__":
     root = Tk()
-    app = UPSMonitorUI(root, num_boxes=8)  # 예시로 8개의 박스 생성
+    app = UPSMonitorUI(root, num_boxes=1)  # 예시로 1개의 박스 생성
     root.mainloop()
