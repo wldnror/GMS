@@ -40,12 +40,17 @@ class UPSMonitorUI:
         # 하단 영역 (검정색)
         box_canvas.create_rectangle(0, int(310 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
 
-        # 배터리 잔량 바와 퍼센트 텍스트 상단으로 이동
-        box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(140 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='white', outline='black')
-        self.battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(70 * SCALE_FACTOR), fill='#00AA00', outline='')  # 잔량 초기값 0%
-        self.battery_percentage_text = box_canvas.create_text(int(80 * SCALE_FACTOR), int(45 * SCALE_FACTOR), text="0%", font=("Helvetica", int(14 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
+        # 배터리 모양으로 잔량 표시
+        # 배터리 외곽 (두께를 두껍게 하고 왼쪽으로 이동)
+        box_canvas.create_rectangle(int(15 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(135 * SCALE_FACTOR), int(60 * SCALE_FACTOR), fill='#4B4B4B', outline='black', width=int(3 * SCALE_FACTOR))
+        # 배터리 양극 단자
+        box_canvas.create_rectangle(int(135 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(145 * SCALE_FACTOR), int(50 * SCALE_FACTOR), fill='#4B4B4B', outline='black', width=int(2 * SCALE_FACTOR))
+        # 배터리 잔량 바
+        self.battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR), fill='#00AA00', outline='')
+        # 배터리 퍼센트 텍스트 (아이콘 내부 중앙에 배치)
+        self.battery_percentage_text = box_canvas.create_text(int(75 * SCALE_FACTOR), int(40 * SCALE_FACTOR), text="0%", font=("Helvetica", int(12 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
-        # UPS 모드 표시 (배터리 모드와 상시 모드 텍스트를 배터리 퍼센트 아래로 이동)
+        # UPS 모드 표시
         self.mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00", anchor="center")
 
         # 모드 전환 버튼을 상자 내부에 배치
@@ -59,7 +64,7 @@ class UPSMonitorUI:
         self.box_frames.append((box_frame, box_canvas))
 
         # 초기 상태 업데이트 (상시 모드로 설정)
-        self.update_battery_status(box_canvas, battery_level=75, mode="상시 모드")  # 예시로 75% 잔량, 상시 모드로 설정
+        self.update_battery_status(box_canvas, battery_level=self.calculate_battery_percentage(21.37), mode="상시 모드")  # 측정된 전압 예시 21.37V
 
     def update_battery_status(self, canvas, battery_level, mode):
         """
@@ -69,8 +74,8 @@ class UPSMonitorUI:
         :param mode: 현재 UPS 모드 ("상시 모드" 또는 "배터리 모드")
         """
         # 배터리 잔량 바 업데이트
-        battery_width = int(120 * SCALE_FACTOR * (battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
-        canvas.coords(self.battery_level_bar, int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(20 * SCALE_FACTOR) + battery_width, int(70 * SCALE_FACTOR))
+        battery_width = int(110 * SCALE_FACTOR * (battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
+        canvas.coords(self.battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR))
 
         # 배터리 퍼센트 텍스트 업데이트
         canvas.itemconfig(self.battery_percentage_text, text=f"{battery_level}%")
@@ -90,7 +95,24 @@ class UPSMonitorUI:
         new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
 
         # 상태 업데이트
-        self.update_battery_status(canvas, battery_level=75, mode=new_mode)  # 예시로 75% 잔량 유지
+        self.update_battery_status(canvas, battery_level=self.calculate_battery_percentage(21.37), mode=new_mode)  # 전압 예시로 21.37V
+
+    def calculate_battery_percentage(self, voltage):
+        """
+        배터리 전압을 잔량 퍼센트로 변환하는 함수
+        :param voltage: 측정된 전체 전압
+        :return: 잔량 퍼센트 (0 ~ 100)
+        """
+        cell_voltage = voltage / 6  # 6셀 배터리로 가정
+        # 리튬 배터리 전압에 따른 대략적인 잔량 계산
+        if cell_voltage >= 4.2:
+            return 100
+        elif cell_voltage > 3.7:
+            return int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
+        elif cell_voltage > 3.0:
+            return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
+        else:
+            return 0
 
 if __name__ == "__main__":
     root = Tk()

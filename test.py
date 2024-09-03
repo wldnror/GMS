@@ -1,67 +1,43 @@
+import smbus2
 import time
-import Adafruit_ADS1x15
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
-# 각 ADS1115 모듈에 대한 인스턴스 생성
-adc1 = Adafruit_ADS1x15.ADS1115(address=0x48)
-adc2 = Adafruit_ADS1x15.ADS1115(address=0x49)
-adc3 = Adafruit_ADS1x15.ADS1115(address=0x4A)
-adc4 = Adafruit_ADS1x15.ADS1115(address=0x4B)
+# I2C 버스 설정 (라즈베리 파이에서는 보통 1번 버스 사용)
+I2C_BUS = 1
+INA219_ADDRESS = 0x40  # INA219 기본 주소
 
-# ADS1115의 게인 설정 (2/3 -> +/-6.144V 범위)
-GAIN = 2/3
+# 레지스터 주소
+INA219_REG_BUS_VOLTAGE = 0x02  # 전압 측정 레지스터
+INA219_REG_SHUNT_VOLTAGE = 0x01  # 션트 전압 측정 레지스터
 
-# 각 모듈에서 아날로그 입력 읽기 (여기서는 단일 엔드 모드로 읽음)
-def read_adc(adc):
-    values = []
-    for i in range(4):
-        value = adc.read_adc(i, gain=GAIN)
-        voltage = value * 6.144 / 32767  # 2/3 게인 사용시 전압 범위
-        current = voltage / 250  # 저항 250Ω 사용
-        values.append(current * 1000)  # mA로 변환
-    return values
+# I2C 버스 초기화
+bus = smbus2.SMBus(I2C_BUS)
 
-# 초기화
-fig, axs = plt.subplots(4, 1, figsize=(10, 8))
-lines = []
-for i in range(4):
-    line, = axs[i].plot([], [], lw=2)
-    lines.append(line)
-    axs[i].set_ylim(0, 18000)  # ppm 범위 설정
-    axs[i].set_xlim(0, 300)  # 300초 범위 설정
-    axs[i].set_xticks(range(0, 301, 3))
-    axs[i].grid()
-    axs[i].set_title(f"Module {i+1} Currents (ppm)")
+def read_voltage():
+    # 버스 전압 읽기
+    raw_voltage = bus.read_word_data(INA219_ADDRESS, INA219_REG_BUS_VOLTAGE)
+    # 데이터 순서 조정 (리틀 엔디안 -> 빅 엔디안)
+    raw_voltage = ((raw_voltage & 0xFF) << 8) | (raw_voltage >> 8)
+    # 비트 쉬프트 후 전압 변환 (LSB 당 4mV)
+    voltage = (raw_voltage >> 3) * 4 * 0.001
+    return voltage
 
-xdata = list(range(0, 300, 3))  # 0부터 300까지 3초 간격
-ydata = [[0]*100 for _ in range(4)]
-prev_values = [[0]*4 for _ in range(4)]
+def read_current():
+    # 션트 전압 읽기
+    raw_shunt_voltage = bus.read_word_data(INA219_ADDRESS, INA219_REG_SHUNT_VOLTAGE)
+    # 데이터 순서 조정 (리틀 엔디안 -> 빅 엔디안)
+    raw_shunt_voltage = ((raw_shunt_voltage & 0xFF) << 8) | (raw_shunt_voltage >> 8)
+    # 션트 전압 변환 (LSB 당 10uV, 저항값에 따라 조정 필요)
+    current = raw_shunt_voltage * 0.01  # mA 단위로 출력 (저항값 0.1옴 기준)
+    return current
 
-# 업데이트 함수
-def update(frame):
-    global ydata, prev_values
-    updated = False
+try:
+    while True:
+        voltage = read_voltage()
+        current = read_current()
+        print(f"Bus Voltage: {voltage:.2f} V")
+        print(f"Current: {current:.2f} mA")
+        time.sleep(1)
 
-    values1 = read_adc(adc1)
-    values2 = read_adc(adc2)
-    values3 = read_adc(adc3)
-    values4 = read_adc(adc4)
-    
-    new_values = [values1, values2, values3, values4]
-    
-    for i in range(4):
-        if new_values[i] != prev_values[i]:
-            updated = True
-            prev_values[i] = new_values[i]
-            ydata[i] = ydata[i][1:] + [new_values[i][0]]  # 새 데이터 추가 (채널 0 데이터만 사용)
-            lines[i].set_ydata(ydata[i])
-            lines[i].set_xdata(xdata)
-
-    return lines if updated else []
-
-# 애니메이션 설정
-ani = animation.FuncAnimation(fig, update, frames=range(100), blit=True, interval=3000)
-
-plt.tight_layout()
-plt.show()
+except KeyboardInterrupt:
+    print("종료")
+    bus.close()
