@@ -9,6 +9,7 @@ import mplcursors
 from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
+import time
 
 # 전역 변수로 설정
 GAIN = 2 / 3  
@@ -37,6 +38,8 @@ class AnalogUI:
         "HMDS": {"AL1": 2640, "AL2": 3000},
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
+
+    ERROR_HOLD_TIME = 0.5  # 에러 상태를 유지해야 하는 시간 (초 단위)
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
@@ -139,6 +142,7 @@ class AnalogUI:
             "alarm1_on": False,
             "alarm2_on": False,
             "last_fault_display": "",  # 마지막 표시된 폴트 상태 기억
+            "fault_start_time": None,  # 에러 상태가 시작된 시간을 기록
         })
 
         create_segment_display(box_canvas)
@@ -488,6 +492,22 @@ class AnalogUI:
         ensuring that all segment displays reflect the correct status.
         """
         last_fault_display = self.box_states[box_index]["last_fault_display"]
+        fault_start_time = self.box_states[box_index]["fault_start_time"]
+        current_time = time.time()
+
+        def check_fault_duration():
+            """
+            Check if the fault has been sustained long enough to update the display.
+            """
+            if fault_start_time and (current_time - fault_start_time >= self.ERROR_HOLD_TIME):
+                return True
+            return False
+
+        def start_fault_timer():
+            """
+            Start or reset the fault timer for a new error condition.
+            """
+            self.box_states[box_index]["fault_start_time"] = current_time
 
         # 에러 상태가 업데이트될 때만 세그먼트 디스플레이 갱신
         if interpolated_value < 1.3:
@@ -495,21 +515,28 @@ class AnalogUI:
                 self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                 self.update_circle_state([False, False, False, False], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "    "
+                self.box_states[box_index]["fault_start_time"] = None
 
         elif 1.3 <= interpolated_value <= 1.7:
             if last_fault_display != "E-23":
+                start_fault_timer()
+            if check_fault_duration():
                 self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
                 self.update_circle_state([False, False, False, True], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "E-23"
 
         elif 1.8 <= interpolated_value <= 2.2:
             if last_fault_display != "E-10":
+                start_fault_timer()
+            if check_fault_duration():
                 self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
                 self.update_circle_state([False, False, False, True], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "E-10"
 
         elif 2.3 <= interpolated_value <= 2.7:
             if last_fault_display != "E-22":
+                start_fault_timer()
+            if check_fault_duration():
                 self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
                 self.update_circle_state([False, False, False, True], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "E-22"
@@ -521,6 +548,7 @@ class AnalogUI:
                 self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = str(int(formatted_value)).zfill(4)
+                self.box_states[box_index]["fault_start_time"] = None
 
 
 if __name__ == "__main__":
