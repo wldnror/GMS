@@ -203,7 +203,7 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.ljust(4)  
+        value = value.ljust(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
@@ -245,12 +245,13 @@ class AnalogUI:
                 segments = SEGMENTS[' ']
 
             for j, state in enumerate(segments):
-                color = '#fc0c0c' if state == '1' and digit != '0' else '#424242'
+                color = '#fc0c0c' if state == '1' else '#424242'
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
             self.root.after(10, lambda: update_digit(index + 1, leading_zero))
 
         update_digit(0)
+
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
