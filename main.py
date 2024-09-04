@@ -42,6 +42,7 @@ checking_updates = True
 branch_window = None
 alarm_active = False
 alarm_blinking = False
+fut_active = False  # FUT 신호 상태 변수 추가
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
@@ -108,9 +109,11 @@ def stop_alarm_sound(box_id):
                 audio_queue.get()
             current_alarm_box_id = None
 
-def set_alarm_status(active, box_id):
-    global alarm_active, alarm_blinking
+def set_alarm_status(active, box_id, fut=False):
+    global alarm_active, alarm_blinking, fut_active
     alarm_active = active
+    fut_active = fut  # FUT 신호 상태 저장
+
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
@@ -119,6 +122,43 @@ def set_alarm_status(active, box_id):
         alarm_blinking = False
         root.config(background=default_background)
         stop_alarm_sound(box_id)
+
+    if fut_active and not alarm_blinking:  # FUT 신호가 활성화되면
+        fut_blink()  # FUT 신호에 대한 깜빡임을 시작합니다.
+    elif not fut_active and not alarm_active:  # FUT 신호가 비활성화되면
+        root.config(background=default_background)
+
+def alarm_blink():
+    red_duration = 200
+    off_duration = 200
+
+    def toggle_color():
+        if alarm_active:
+            current_color = root.cget("background")
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            root.after_cancel(toggle_color)
+
+    toggle_color()
+
+def fut_blink():
+    yellow_duration = 200
+    off_duration = 200
+
+    def toggle_color():
+        if fut_active:  # FUT 신호 상태를 체크하는 변수 사용
+            current_color = root.cget("background")
+            new_color = "yellow" if current_color != "yellow" else default_background
+            root.config(background=new_color)
+            root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            root.after_cancel(toggle_color)
+
+    toggle_color()
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -214,22 +254,6 @@ def change_branch():
     except Exception as e:
         messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
         branch_window.destroy()
-
-def alarm_blink():
-    red_duration = 200
-    off_duration = 200
-
-    def toggle_color():
-        if alarm_active:
-            current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else default_background
-            root.config(background=new_color)
-            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
-        else:
-            root.config(background=default_background)
-            root.after_cancel(toggle_color)
-
-    toggle_color()
 
 def update_clock_thread(clock_label, date_label, stop_event):
     while not stop_event.is_set():
