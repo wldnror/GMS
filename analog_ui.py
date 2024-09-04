@@ -10,9 +10,9 @@ from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
 
-# 전역 변수 설정
+# 전역 변수로 설정
 GAIN = 2 / 3  
-SCALE_FACTOR = 1.65  # 20% 확대
+SCALE_FACTOR = 1.65  # 20% 키우기
 
 class AnalogUI:
     LOGS_PER_FILE = 10
@@ -203,7 +203,7 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.ljust(4)
+        value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
@@ -239,7 +239,11 @@ class AnalogUI:
 
             digit = value[index]
 
-            segments = SEGMENTS[digit] if digit in SEGMENTS else SEGMENTS[' ']
+            if leading_zero and digit == '0' and index < 3:
+                segments = SEGMENTS[' ']
+            else:
+                segments = SEGMENTS[digit]
+                leading_zero = False
 
             if blink and self.box_states[box_index]["blink_state"]:
                 segments = SEGMENTS[' ']
