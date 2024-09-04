@@ -234,21 +234,34 @@ class AnalogUI:
 
     def perform_segment_update(box_canvas, value, blink, box_index):
         def update_all_digits():
+            # Log value to debug
+            print(f"Updating segments with value: {value}")
+
             leading_zero = True
             for index, digit in enumerate(value):
-                # 각 자리의 문자를 SEGMENTS에서 가져와 세그먼트 상태 설정
-                segments = SEGMENTS.get(digit, SEGMENTS[' '])  # SEGMENTS에서 값을 가져오지 못하면 공백 처리
+                # Try to fetch the segments for the digit; fallback to empty if not found
+                segments = SEGMENTS.get(digit, SEGMENTS[' '])  # Ensure SEGMENTS dict has the digit
+                if digit not in SEGMENTS:
+                    print(f"Warning: '{digit}' not found in SEGMENTS dictionary.")
+
+                # Check if blink state should hide the segments
                 if blink and box_states[box_index]["blink_state"]:
                     segments = SEGMENTS[' ']
-
+    
+                # Update each segment with its respective state
                 for j, state in enumerate(segments):
                     color = '#fc0c0c' if state == '1' else '#424242'
-                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
+                    segment_id = f'segment_{index}_{chr(97 + j)}'
+                    # Log which segments are being updated and with what color
+                    print(f"Updating {segment_id} to color {color}")
+                    box_canvas.segment_canvas.itemconfig(segment_id, fill=color)
 
-            # Toggle blink 상태
+            # Toggle the blink state for the next update
             box_states[box_index]["blink_state"] = not box_states[box_index]["blink_state"]
-    
+
+        # Call the digit update function
         update_all_digits()
+
 
         # Toggle the blink state
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
