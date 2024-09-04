@@ -120,7 +120,8 @@ class AnalogUI:
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
             "alarm2_on": False,
-            "error_code_active": False  # 에러 코드 상태 추가
+            "fut_on": False,  # FUT 신호 상태 추가
+            "error_code_active": False
         })
 
         create_segment_display(box_canvas)
@@ -186,8 +187,11 @@ class AnalogUI:
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
-        alarm_active = states[0] or states[1]
-        self.alarm_callback(alarm_active, box_index)
+        # FUT 신호에 대한 깜빡임 상태를 설정합니다.
+        self.box_states[box_index]["fut_on"] = states[3]
+
+        alarm_active = states[0] or states[1] or states[3]  # FUT 신호도 포함하여 알람 상태를 업데이트합니다.
+        self.alarm_callback(alarm_active, box_index, states[3])  # FUT 신호 상태를 main으로 전달합니다.
 
         if states[1]:
             outline_color = outline_colors[1]
@@ -204,9 +208,7 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        # 세그먼트 상태를 반영하기 전에 현재 값과 비교
         if self.box_states[box_index]["error_code_active"]:
-            # 에러 상태가 활성화된 경우, 값 업데이트를 제한
             return
 
         value = value.zfill(4)
@@ -456,7 +458,10 @@ class AnalogUI:
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+        # FUT 신호를 활성화하거나 비활성화합니다.
+        fut_on = interpolated_value >= 2.9  # FUT 신호 조건에 따라 설정
+
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, fut_on], box_index=box_index)
 
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
@@ -489,7 +494,7 @@ class AnalogUI:
                 self.update_circle_state([False, False, False, False], box_index=box_index)
             elif interpolated_value >= 2.9:
                 self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, fut_on], box_index=box_index)
 
         self.box_states[box_index]["milliamp_var"].set(milliamp_text)
         box_canvas = self.box_frames[box_index][1]
@@ -514,6 +519,6 @@ if __name__ == "__main__":
     main_frame.pack()
 
     analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id}"))
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id, fut: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id} {'(FUT)' if fut else ''}"))
 
     root.mainloop()
