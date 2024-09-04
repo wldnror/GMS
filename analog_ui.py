@@ -120,7 +120,10 @@ class AnalogUI:
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
             "alarm2_on": False,
-            "error_code_active": False  # 에러 코드 상태 추가
+            "error_code_active": False,  # 에러 코드 상태 추가
+            "blinking_active": False,    # 깜빡임 상태 추가
+            "fut_lamp": None,            # FUT 램프 참조 추가
+            "outline_color": None        # 테두리 색상 참조 추가
         })
 
         create_segment_display(box_canvas)
@@ -128,33 +131,18 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+        fut_lamp = box_canvas.create_oval(
+            int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+            int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+            fill="#fdc8c8", outline="yellow"
+        )
+        self.box_states[index]["fut_lamp"] = fut_lamp
+        self.box_states[index]["outline_color"] = "#fcf1bf"
 
-        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                               text="FUT", fill="#cccccc", anchor="n")
 
-        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
-
-        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
-
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
-
-        milliamp_var = StringVar(value="4-20 mA")
-        milliamp_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(240 * SCALE_FACTOR), text=milliamp_var.get(), font=("Helvetica", int(10 * SCALE_FACTOR), "bold"), fill="#00ff00", anchor="center")
-        self.box_states[index]["milliamp_var"] = milliamp_var
-        self.box_states[index]["milliamp_text_id"] = milliamp_text_id
-
-        led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
-        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
-        box_canvas.lift(led1)
-        box_canvas.lift(led2)
-
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
-
-        self.box_frames.append((box_frame, box_canvas, circle_items, led1, led2, None))
+        self.box_frames.append((box_frame, box_canvas, circle_items, None, None, None))
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
@@ -172,36 +160,23 @@ class AnalogUI:
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
-        _, box_canvas, circle_items, led1, led2, _ = self.box_frames[box_index]
-        
-        colors_on = ['red', 'red', 'green', 'yellow']
-        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
-        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
-        outline_color_off = '#000000'
+        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
 
-        if states[1]:
-            states[0] = True
+        fut_lamp = self.box_states[box_index]["fut_lamp"]
+        outline_color = self.box_states[box_index]["outline_color"]
 
-        for i, state in enumerate(states):
-            color = colors_on[i] if state else colors_off[i]
-            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+        # 깜빡임 상태 확인 및 설정
+        if self.box_states[box_index]["blinking_active"]:
+            self.blink(box_index, fut_lamp, outline_color)
 
+        # 경고 상태 업데이트
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active, box_index)
 
-        if states[1]:
-            outline_color = outline_colors[1]
-        elif states[0]:
-            outline_color = outline_colors[0]
-        elif states[3]:
-            outline_color = outline_colors[3]
-        else:
-            outline_color = outline_color_off
-
-        box_canvas.config(highlightbackground=outline_color)
-
-        box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
-        box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
+        # 깜빡임 상태가 아닐 때 테두리 및 FUT 램프 상태 유지
+        if not self.box_states[box_index]["blinking_active"]:
+            box_canvas.itemconfig(fut_lamp, fill='#fdc8c8')
+            box_canvas.config(highlightbackground=outline_color)
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         # 세그먼트 상태를 반영하기 전에 현재 값과 비교
@@ -221,7 +196,7 @@ class AnalogUI:
         if not segment_queue:
             segment_queue = queue.Queue(maxsize=10)
             self.box_states[box_index]["segment_queue"] = segment_queue
-        
+
         if not segment_queue.full():
             segment_queue.put((value, blink))
 
@@ -257,8 +232,22 @@ class AnalogUI:
                     box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
         update_all_digits()
-
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+
+    def blink(self, box_index, fut_lamp, outline_color):
+        # 1초 간격으로 깜빡이는 로직
+        self.root.after(1000, lambda: self.toggle_blink(box_index, fut_lamp, outline_color))
+
+    def toggle_blink(self, box_index, fut_lamp, outline_color):
+        box_canvas = self.box_frames[box_index][1]
+        current_state = self.box_states[box_index]["blink_state"]
+
+        # FUT 램프 및 테두리 깜빡임 전환
+        box_canvas.itemconfig(fut_lamp, fill='#ffff00' if current_state else '#fdc8c8')
+        box_canvas.config(highlightbackground='#ffff00' if current_state else outline_color)
+
+        self.box_states[box_index]["blink_state"] = not current_state
+        self.blink(box_index, fut_lamp, outline_color)
 
     def record_history(self, box_index, value):
         if value.strip():
@@ -445,6 +434,7 @@ class AnalogUI:
         if step >= total_steps:
             self.box_states[box_index]["interpolating"] = False
             self.box_states[box_index]["error_code_active"] = False  # 에러 상태 종료
+            self.box_states[box_index]["blinking_active"] = False    # 깜빡임 종료
             return
 
         interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
@@ -477,13 +467,13 @@ class AnalogUI:
                 self.update_circle_state([False, False, False, True], box_index=box_index)
 
                 # 에러 상태를 활성화하고 일정 시간 동안 유지
-                self.box_states[box_index]["current_error_code"] = code
                 self.box_states[box_index]["error_code_active"] = True
+                self.box_states[box_index]["blinking_active"] = True  # 깜빡임 상태 활성화
+                self.blink(box_index, self.box_states[box_index]["fut_lamp"], self.box_states[box_index]["outline_color"])
                 self.root.after(500, lambda: self.maintain_error_display(box_index, code))
-            break
+                break
 
         if not error_code_displayed:
-            self.box_states[box_index]["current_error_code"] = None  # 현재 에러 코드를 리셋
             if interpolated_value < 1.3:
                 milliamp_text = "PWR OFF"
                 milliamp_color = "#ff0000"
