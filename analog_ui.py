@@ -485,8 +485,9 @@ class AnalogUI:
             self.update_circle_state([False, False, False, True], box_index=box_index)
 
         elif interpolated_value >= 2.9:
-            # formatted_value를 정수형으로 변환하고, 필요에 따라 세그먼트를 업데이트
+            # 수정된 부분: zfill(4)를 제거하여 필요한 만큼의 숫자만 표시되도록 함
             self.update_segment_display(str(int(formatted_value)), self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
 
         self.box_states[box_index]["milliamp_var"].set(milliamp_text)
         box_canvas = self.box_frames[box_index][1]
