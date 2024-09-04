@@ -44,6 +44,7 @@ branch_window = None
 alarm_active = False
 fut_active = False  # FUT 신호 상태 변수 추가
 alarm_blinking = False
+fut_blinking = False  # FUT 깜빡임 상태 변수 추가
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
@@ -111,25 +112,27 @@ def stop_alarm_sound(box_id):
             current_alarm_box_id = None
 
 def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, fut_active, alarm_blinking
+    global alarm_active, fut_active, alarm_blinking, fut_blinking
     alarm_active = active
-    fut_active = fut  # FUT 신호 상태 저장
+    fut_active = fut
 
-    # AL1 또는 AL2가 활성화된 경우
+    # 일반 알람(AL1, AL2)이 활성화된 경우
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
         play_alarm_sound(box_id)
     elif not alarm_active and alarm_blinking:
         alarm_blinking = False
-        root.config(background=default_background)
         stop_alarm_sound(box_id)
 
     # FUT 신호가 활성화된 경우
-    if fut_active and not alarm_blinking:  
+    if fut_active and not fut_blinking:
+        fut_blinking = True
         fut_blink()
-    elif not fut_active and not alarm_active:
-        root.config(background=default_background)
+    elif not fut_active and fut_blinking:
+        fut_blinking = False
+        if not alarm_active:  # 일반 알람이 활성화되지 않았을 때만 기본 배경색으로 변경
+            root.config(background=default_background)
 
 def alarm_blink():
     red_duration = 200
@@ -151,7 +154,7 @@ def fut_blink():
     off_duration = 200
 
     def toggle_color():
-        if fut_active:  # FUT 신호 상태를 체크하는 변수 사용
+        if fut_active:
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
