@@ -119,7 +119,8 @@ class AnalogUI:
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
-            "alarm2_on": False
+            "alarm2_on": False,
+            "error_code_active": False  # 에러 코드 상태 추가
         })
 
         create_segment_display(box_canvas)
@@ -203,6 +204,11 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
+        # 세그먼트 상태를 반영하기 전에 현재 값과 비교
+        if self.box_states[box_index]["error_code_active"]:
+            # 에러 상태가 활성화된 경우, 값 업데이트를 제한
+            return
+
         value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
@@ -438,6 +444,7 @@ class AnalogUI:
     def animate_step(self, box_index, step, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval):
         if step >= total_steps:
             self.box_states[box_index]["interpolating"] = False
+            self.box_states[box_index]["error_code_active"] = False  # 에러 상태 종료
             return
 
         interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
@@ -469,7 +476,8 @@ class AnalogUI:
                 self.update_segment_display(code, self.box_frames[box_index][1], blink=True, box_index=box_index)
                 self.update_circle_state([False, False, False, True], box_index=box_index)
 
-                # 에러 상태 강제 유지 시간을 설정하여 사라지지 않도록 함
+                # 에러 상태를 활성화하고 일정 시간 동안 유지
+                self.box_states[box_index]["error_code_active"] = True
                 self.root.after(500, lambda: self.maintain_error_display(box_index, code))
                 break
 
