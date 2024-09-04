@@ -477,11 +477,13 @@ class AnalogUI:
                 self.update_circle_state([False, False, False, True], box_index=box_index)
 
                 # 에러 상태를 활성화하고 일정 시간 동안 유지
+                self.box_states[box_index]["current_error_code"] = code
                 self.box_states[box_index]["error_code_active"] = True
                 self.root.after(500, lambda: self.maintain_error_display(box_index, code))
-                break
+            break
 
         if not error_code_displayed:
+            self.box_states[box_index]["current_error_code"] = None  # 현재 에러 코드를 리셋
             if interpolated_value < 1.3:
                 milliamp_text = "PWR OFF"
                 milliamp_color = "#ff0000"
