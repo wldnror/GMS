@@ -509,9 +509,13 @@ class AnalogUI:
             """
             self.box_states[box_index]["fault_start_time"] = current_time
 
+        # 디버깅 메시지 추가
+        print(f"Interpolated Value: {interpolated_value:.1f}, Box Index: {box_index}")
+
         # E-23 우선 체크
         if 1.3 <= interpolated_value <= 1.7:
             if last_fault_display != "E-23":
+                print("Setting E-23 Error")
                 start_fault_timer()
             if check_fault_duration():
                 self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
@@ -520,6 +524,7 @@ class AnalogUI:
 
         elif interpolated_value < 1.3:
             if last_fault_display != "    ":
+                print("Clearing Error Display")
                 self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
                 self.update_circle_state([False, False, False, False], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "    "
@@ -527,6 +532,7 @@ class AnalogUI:
 
         elif 1.8 <= interpolated_value <= 2.2:
             if last_fault_display != "E-10":
+                print("Setting E-10 Error")
                 start_fault_timer()
             if check_fault_duration():
                 self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
@@ -535,6 +541,7 @@ class AnalogUI:
 
         elif 2.3 <= interpolated_value <= 2.7:
             if last_fault_display != "E-22":
+                print("Setting E-22 Error")
                 start_fault_timer()
             if check_fault_duration():
                 self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
@@ -545,6 +552,7 @@ class AnalogUI:
             formatted_value = int((interpolated_value - 4) / (20 - 4) * self.box_states[box_index]["full_scale"])
             formatted_value = max(0, min(formatted_value, self.box_states[box_index]["full_scale"]))
             if last_fault_display != str(int(formatted_value)).zfill(4):
+                print(f"Updating Display Value: {formatted_value}")
                 self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
                 self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = str(int(formatted_value)).zfill(4)
