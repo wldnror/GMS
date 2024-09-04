@@ -523,7 +523,7 @@ class AnalogUI:
                 start_fault_timer()
             if check_fault_duration():
                 self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([True, False, False, True], box_index=box_index)
+                self.update_circle_state([[False, False, True, True], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "E-10"
 
         elif 2.3 <= interpolated_value <= 2.7:
@@ -539,7 +539,7 @@ class AnalogUI:
                 start_fault_timer()
             if check_fault_duration():
                 self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([True, False, False, True], box_index=box_index)
+                self.update_circle_state([False, False, True, True], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "E-23"
 
         elif interpolated_value >= 2.9:
