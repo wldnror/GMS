@@ -459,7 +459,7 @@ class AnalogUI:
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
         # FUT 신호를 활성화하거나 비활성화합니다.
-        fut_on = interpolated_value >= 2.9  # FUT 신호 조건에 따라 설정
+        fut_on = any(min_value <= interpolated_value <= max_value for min_value, max_value in [(1.3, 1.7), (1.8, 2.2), (2.3, 2.7)])
 
         self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, fut_on], box_index=box_index)
 
