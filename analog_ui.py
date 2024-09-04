@@ -71,6 +71,24 @@ class AnalogUI:
         self.start_adc_thread()
         self.schedule_ui_update()
 
+        # 주기적인 디스플레이 업데이트를 위한 타이머 설정
+        self.update_fault_display_timer()
+
+    def update_fault_display_timer(self):
+        """
+        Set a timer to update the fault display every second to ensure the correct fault status is shown.
+        """
+        self.update_all_fault_displays()
+        self.root.after(1000, self.update_fault_display_timer)  # 1초마다 update_all_fault_displays 호출
+
+    def update_all_fault_displays(self):
+        """
+        Update all displays with current fault statuses every second to ensure correct segment blinking.
+        """
+        for box_index in range(self.num_boxes):
+            interpolated_value = self.box_states[box_index]["current_value"]
+            self.force_display_update(box_index, interpolated_value)
+
     def create_analog_box(self, index):
         max_boxes_per_row = 6
 
