@@ -38,14 +38,6 @@ class AnalogUI:
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
-    ERROR_RANGES = [
-        (0, 1.3, "PWR OFF", "    ", False, [False, False, False, False]),  # 전원 꺼짐
-        (1.3, 1.7, "E-23", "E-23", True, [False, False, False, True]),  # 흡입 불량
-        (1.8, 2.2, "E-10", "E-10", True, [False, False, False, True]),  # 센서 불량
-        (2.3, 2.7, "E-22", "E-22", True, [False, False, False, True]),  # 통신 불량
-        (2.9, float('inf'), "NORMAL", "", False, [True, False, True, False]),  # 정상
-    ]
-
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
         self.alarm_callback = alarm_callback
@@ -127,8 +119,7 @@ class AnalogUI:
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
-            "alarm2_on": False,
-            "current_error": None  # 현재 에러 상태를 저장하는 변수
+            "alarm2_on": False
         })
 
         create_segment_display(box_canvas)
@@ -462,20 +453,30 @@ class AnalogUI:
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
-        for low, high, text, segment, blink, states in self.ERROR_RANGES:
-            if low <= interpolated_value <= high:
-                if self.box_states[box_index]["current_error"] != text:
-                    self.update_segment_display(segment, self.box_frames[box_index][1], blink=blink, box_index=box_index)
-                    self.update_circle_state(states, box_index=box_index)
-                    self.box_states[box_index]["current_error"] = text
-                if text == "PWR OFF":
-                    milliamp_color = "#ff0000"
-                break
-        else:
-            self.box_states[box_index]["current_error"] = None
+        if interpolated_value < 1.3:
+            milliamp_text = "PWR OFF"
+            milliamp_color = "#ff0000"
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([False, False, False, False], box_index=box_index)
+
+        elif 1.3 <= interpolated_value <= 1.7:
+            self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif 1.8 <= interpolated_value <= 2.2:
+            self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif 2.3 <= interpolated_value <= 2.7:
+            self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif interpolated_value >= 2.9:
             self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
             self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
 
