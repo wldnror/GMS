@@ -86,7 +86,7 @@ class AnalogUI:
         Update all displays with current fault statuses every second to ensure correct segment blinking.
         """
         for box_index in range(self.num_boxes):
-            interpolated_value = self.box_states[box_index]["current_value"]
+            interpolated_value = round(self.box_states[box_index]["current_value"], 1)  # 소수점 첫째 자리까지만 반영
             self.force_display_update(box_index, interpolated_value)
 
     def create_analog_box(self, index):
@@ -390,7 +390,7 @@ class AnalogUI:
                 value = adc.read_adc(channel, gain=GAIN)
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
-                milliamp = current * 1000
+                milliamp = round(current * 1000, 1)  # 소수점 첫째 자리까지만 읽기
                 values.append(milliamp)
 
             for channel, milliamp in enumerate(values):
@@ -403,7 +403,7 @@ class AnalogUI:
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
 
                 if len(self.adc_values[box_index]) == 5:
-                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
+                    print(f"Channel {box_index} Current: {filtered_value:.1f} mA")
                     previous_value = self.box_states[box_index]["current_value"]
                     current_value = filtered_value
 
