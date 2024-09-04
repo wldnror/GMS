@@ -9,7 +9,6 @@ import mplcursors
 from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
-import time
 
 # 전역 변수로 설정
 GAIN = 2 / 3  
@@ -449,6 +448,7 @@ class AnalogUI:
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
+        # mA 값에 따른 에러 코드 표시
         if interpolated_value < 1.3:
             milliamp_text = "PWR OFF"
             milliamp_color = "#ff0000"
