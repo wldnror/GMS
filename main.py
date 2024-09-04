@@ -116,23 +116,24 @@ def set_alarm_status(active, box_id, fut=False):
     alarm_active = active
     fut_active = fut
 
-    # 일반 알람(AL1, AL2)이 활성화된 경우
-    if alarm_active and not alarm_blinking:
-        alarm_blinking = True
-        alarm_blink()
-        play_alarm_sound(box_id)
-    elif not alarm_active and alarm_blinking:
-        alarm_blinking = False
-        stop_alarm_sound(box_id)
-
-    # FUT 신호가 활성화된 경우
-    if fut_active and not fut_blinking:
+     # FUT 신호가 발생한 경우
+    if fut_active:
+        stop_alarm_sound(box_id)  # FUT가 발생하면 알람 사운드 중지
+        alarm_blinking = False  # 일반 알람 깜빡임 중지
         fut_blinking = True
-        fut_blink()
-    elif not fut_active and fut_blinking:
+        fut_blink()  # FUT 신호로 노란색 깜빡임 시작
+    # 일반 알람이 발생한 경우
+    elif alarm_active:
+        fut_blinking = False  # FUT 깜빡임 중지
+        alarm_blinking = True
+        alarm_blink()  # 일반 알람으로 빨간색 깜빡임 시작
+        play_alarm_sound(box_id)
+    # 둘 다 비활성화된 경우 기본 배경색으로 복구
+    else:
         fut_blinking = False
-        if not alarm_active:  # 일반 알람이 활성화되지 않았을 때만 기본 배경색으로 변경
-            root.config(background=default_background)
+        alarm_blinking = False
+        root.config(background=default_background)
+        stop_alarm_sound(box_id)
 
 def alarm_blink():
     red_duration = 200
