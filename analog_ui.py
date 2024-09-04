@@ -232,7 +232,7 @@ class AnalogUI:
         else:
             self.box_states[box_index]["segment_updating"] = False
 
-    def perform_segment_update(box_canvas, value, blink, box_index):
+    def perform_segment_update(self, box_canvas, value, blink, box_index):
         def update_all_digits():
             # Log the incoming value to ensure it's correct
             print(f"Performing update for value: {value}")
@@ -246,7 +246,7 @@ class AnalogUI:
                 print(f"Updating segments for digit '{digit}': {segments}")
 
                 # Check for blinking state
-                if blink and box_states[box_index]["blink_state"]:
+                if blink and self.box_states[box_index]["blink_state"]:
                     segments = SEGMENTS[' ']
             
                 # Apply segment updates
@@ -261,15 +261,10 @@ class AnalogUI:
                     box_canvas.segment_canvas.itemconfig(segment_id, fill=color)
 
             # Toggle blink state for future updates
-            box_states[box_index]["blink_state"] = not box_states[box_index]["blink_state"]
+            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
         # Call the function to update all digits
         update_all_digits()
-
-
-
-        # Toggle the blink state
-        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
         if value.strip():
