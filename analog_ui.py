@@ -250,10 +250,8 @@ class AnalogUI:
                     color = '#fc0c0c' if state == '1' else '#424242'
                     box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-        # Perform the update in one go
         update_all_digits()
 
-        # Toggle the blink state
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
@@ -456,33 +454,54 @@ class AnalogUI:
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
-        if interpolated_value < 1.3:
-            milliamp_text = "PWR OFF"
-            milliamp_color = "#ff0000"
-            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([False, False, False, False], box_index=box_index)
+        error_code_displayed = False
+        # 에러 코드 매핑
+        error_codes = {
+            "E-23": (1.3, 1.7),
+            "E-10": (1.8, 2.2),
+            "E-22": (2.3, 2.7)
+        }
 
-        elif 1.3 <= interpolated_value <= 1.7:
-            self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+        for code, (min_value, max_value) in error_codes.items():
+            if min_value <= interpolated_value <= max_value:
+                error_code_displayed = True
+                milliamp_text = code
+                self.update_segment_display(code, self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
+                
+                # 500ms 동안 에러 코드가 유지되는지 확인
+                self.root.after(500, self.verify_error_condition, box_index, code, interpolated_value)
+                break
 
-        elif 1.8 <= interpolated_value <= 2.2:
-            self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
-
-        elif 2.3 <= interpolated_value <= 2.7:
-            self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
-
-        elif interpolated_value >= 2.9:
-            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
+        if not error_code_displayed:
+            if interpolated_value < 1.3:
+                milliamp_text = "PWR OFF"
+                milliamp_color = "#ff0000"
+                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                self.update_circle_state([False, False, False, False], box_index=box_index)
+            elif interpolated_value >= 2.9:
+                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
 
         self.box_states[box_index]["milliamp_var"].set(milliamp_text)
         box_canvas = self.box_frames[box_index][1]
         box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
 
         self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def verify_error_condition(self, box_index, expected_code, expected_value):
+        current_value = self.box_states[box_index]["current_value"]
+        error_codes = {
+            "E-23": (1.3, 1.7),
+            "E-10": (1.8, 2.2),
+            "E-22": (2.3, 2.7)
+        }
+
+        min_value, max_value = error_codes[expected_code]
+        if not (min_value <= current_value <= max_value):
+            # 값이 일치하지 않으면 업데이트 중단
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([False, False, False, False], box_index=box_index)
 
 if __name__ == "__main__":
     from tkinter import Tk
