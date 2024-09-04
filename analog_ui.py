@@ -250,10 +250,8 @@ class AnalogUI:
                     color = '#fc0c0c' if state == '1' else '#424242'
                     box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-        # Perform the update in one go
         update_all_digits()
 
-        # Toggle the blink state
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
@@ -463,16 +461,19 @@ class AnalogUI:
             self.update_circle_state([False, False, False, False], box_index=box_index)
 
         elif 1.3 <= interpolated_value <= 1.7:
-            self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+            if self.box_states[box_index]["previous_segment_display"] != "E-23":
+                self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
 
         elif 1.8 <= interpolated_value <= 2.2:
-            self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+            if self.box_states[box_index]["previous_segment_display"] != "E-10":
+                self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
 
         elif 2.3 <= interpolated_value <= 2.7:
-            self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+            if self.box_states[box_index]["previous_segment_display"] != "E-22":
+                self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
 
         elif interpolated_value >= 2.9:
             self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
