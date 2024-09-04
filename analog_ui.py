@@ -517,14 +517,7 @@ class AnalogUI:
                 self.box_states[box_index]["last_fault_display"] = "    "
                 self.box_states[box_index]["fault_start_time"] = None
 
-        elif 1.3 <= interpolated_value <= 1.7:
-            if last_fault_display != "E-23":
-                start_fault_timer()
-            if check_fault_duration():
-                self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-                self.box_states[box_index]["last_fault_display"] = "E-23"
-
+        # 에러 상태의 우선순위를 명확하게 설정하여 범위 중첩 방지
         elif 1.8 <= interpolated_value <= 2.2:
             if last_fault_display != "E-10":
                 start_fault_timer()
@@ -540,6 +533,14 @@ class AnalogUI:
                 self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
                 self.update_circle_state([False, False, False, True], box_index=box_index)
                 self.box_states[box_index]["last_fault_display"] = "E-22"
+
+        elif 1.3 <= interpolated_value <= 1.7:
+            if last_fault_display != "E-23":
+                start_fault_timer()
+            if check_fault_duration():
+                self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
+                self.box_states[box_index]["last_fault_display"] = "E-23"
 
         elif interpolated_value >= 2.9:
             formatted_value = int((interpolated_value - 4) / (20 - 4) * self.box_states[box_index]["full_scale"])
