@@ -1,3 +1,4 @@
+# main.py
 import json
 import os
 import time
@@ -5,7 +6,7 @@ from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Topl
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
-from ups_monitor_ui import UPSMonitorUI  # UPSMonitorUI 클래스 임포트 추가
+from ups_monitor_ui import UPSMonitorUI
 import threading
 import psutil
 import signal
@@ -41,8 +42,8 @@ update_notification_frame = None
 checking_updates = True
 branch_window = None
 alarm_active = False
-alarm_blinking = False
 fut_active = False  # FUT 신호 상태 변수 추가
+alarm_blinking = False
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
@@ -110,10 +111,11 @@ def stop_alarm_sound(box_id):
             current_alarm_box_id = None
 
 def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, alarm_blinking, fut_active
+    global alarm_active, fut_active, alarm_blinking
     alarm_active = active
     fut_active = fut  # FUT 신호 상태 저장
 
+    # AL1 또는 AL2가 활성화된 경우
     if alarm_active and not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
@@ -123,9 +125,10 @@ def set_alarm_status(active, box_id, fut=False):
         root.config(background=default_background)
         stop_alarm_sound(box_id)
 
-    if fut_active and not alarm_blinking:  # FUT 신호가 활성화되면
-        fut_blink()  # FUT 신호에 대한 깜빡임을 시작합니다.
-    elif not fut_active and not alarm_active:  # FUT 신호가 비활성화되면
+    # FUT 신호가 활성화된 경우
+    if fut_active and not alarm_blinking:  
+        fut_blink()
+    elif not fut_active and not alarm_active:
         root.config(background=default_background)
 
 def alarm_blink():
@@ -140,7 +143,6 @@ def alarm_blink():
             root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            root.after_cancel(toggle_color)
 
     toggle_color()
 
@@ -156,7 +158,6 @@ def fut_blink():
             root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            root.after_cancel(toggle_color)
 
     toggle_color()
 
@@ -313,7 +314,7 @@ if __name__ == "__main__":
     # UPS 박스 초기화 (토글에 따라 추가)
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
-        ups_ui = UPSMonitorUI(main_frame, 1)  # UPSMonitorUI 인스턴스 생성
+        ups_ui = UPSMonitorUI(main_frame, 1)
 
     all_boxes = []
 
