@@ -233,29 +233,27 @@ class AnalogUI:
             self.box_states[box_index]["segment_updating"] = False
 
     def perform_segment_update(self, box_canvas, value, blink, box_index):
-        def update_digit(index, leading_zero=True):
-            if index >= len(value):
-                return
+        def update_all_digits():
+            leading_zero = True
+            for index in range(len(value)):
+                digit = value[index]
+                if leading_zero and digit == '0' and index < 3:
+                    segments = SEGMENTS[' ']
+                else:
+                    segments = SEGMENTS[digit]
+                    leading_zero = False
 
-            digit = value[index]
+                if blink and self.box_states[box_index]["blink_state"]:
+                    segments = SEGMENTS[' ']
 
-            if leading_zero and digit == '0' and index < 3:
-                segments = SEGMENTS[' ']
-            else:
-                segments = SEGMENTS[digit]
-                leading_zero = False
+                for j, state in enumerate(segments):
+                    color = '#fc0c0c' if state == '1' else '#424242'
+                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-            if blink and self.box_states[box_index]["blink_state"]:
-                segments = SEGMENTS[' ']
+        # Perform the update in one go
+        update_all_digits()
 
-            for j, state in enumerate(segments):
-                color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
-
-            self.root.after(10, lambda: update_digit(index + 1, leading_zero))
-
-        update_digit(0)
-
+        # Toggle the blink state
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
