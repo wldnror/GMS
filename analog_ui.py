@@ -9,7 +9,6 @@ import mplcursors
 from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
-import time
 
 # 전역 변수로 설정
 GAIN = 2 / 3  
@@ -38,8 +37,6 @@ class AnalogUI:
         "HMDS": {"AL1": 2640, "AL2": 3000},
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
-
-    ERROR_HOLD_TIME = 0.5  # 에러 상태를 유지해야 하는 시간 (초 단위)
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
         self.root = root
@@ -73,24 +70,6 @@ class AnalogUI:
         self.adc_queue = queue.Queue()
         self.start_adc_thread()
         self.schedule_ui_update()
-
-        # 주기적인 디스플레이 업데이트를 위한 타이머 설정
-        self.update_fault_display_timer()
-
-    def update_fault_display_timer(self):
-        """
-        Set a timer to update the fault display every second to ensure the correct fault status is shown.
-        """
-        self.update_all_fault_displays()
-        self.root.after(1000, self.update_fault_display_timer)  # 1초마다 update_all_fault_displays 호출
-
-    def update_all_fault_displays(self):
-        """
-        Update all displays with current fault statuses every second to ensure correct segment blinking.
-        """
-        for box_index in range(self.num_boxes):
-            interpolated_value = round(self.box_states[box_index]["current_value"], 1)  # 소수점 첫째 자리까지만 반영
-            self.force_display_update(box_index, interpolated_value)
 
     def create_analog_box(self, index):
         max_boxes_per_row = 6
@@ -140,9 +119,7 @@ class AnalogUI:
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
-            "alarm2_on": False,
-            "last_fault_display": "",  # 마지막 표시된 폴트 상태 기억
-            "fault_start_time": None,  # 에러 상태가 시작된 시간을 기록
+            "alarm2_on": False
         })
 
         create_segment_display(box_canvas)
@@ -273,8 +250,10 @@ class AnalogUI:
                     color = '#fc0c0c' if state == '1' else '#424242'
                     box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
+        # Perform the update in one go
         update_all_digits()
 
+        # Toggle the blink state
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
@@ -395,7 +374,7 @@ class AnalogUI:
                 value = adc.read_adc(channel, gain=GAIN)
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
-                milliamp = round(current * 1000, 1)  # 소수점 첫째 자리까지만 읽기
+                milliamp = current * 1000
                 values.append(milliamp)
 
             for channel, milliamp in enumerate(values):
@@ -408,7 +387,7 @@ class AnalogUI:
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
 
                 if len(self.adc_values[box_index]) == 5:
-                    print(f"Channel {box_index} Current: {filtered_value:.1f} mA")
+                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
                     previous_value = self.box_states[box_index]["current_value"]
                     current_value = filtered_value
 
@@ -477,80 +456,33 @@ class AnalogUI:
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
-        # 디스플레이 강제 갱신 및 상태 기억
-        self.force_display_update(box_index, interpolated_value)
+        if interpolated_value < 1.3:
+            milliamp_text = "PWR OFF"
+            milliamp_color = "#ff0000"
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([False, False, False, False], box_index=box_index)
+
+        elif 1.3 <= interpolated_value <= 1.7:
+            self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif 1.8 <= interpolated_value <= 2.2:
+            self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif 2.3 <= interpolated_value <= 2.7:
+            self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif interpolated_value >= 2.9:
+            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
 
         self.box_states[box_index]["milliamp_var"].set(milliamp_text)
         box_canvas = self.box_frames[box_index][1]
         box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
 
         self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
-
-    def force_display_update(self, box_index, interpolated_value):
-        """
-        Force the display to update based on the current interpolated value, 
-        ensuring that all segment displays reflect the correct status.
-        """
-        last_fault_display = self.box_states[box_index]["last_fault_display"]
-        fault_start_time = self.box_states[box_index]["fault_start_time"]
-        current_time = time.time()
-
-        def check_fault_duration():
-            """
-            Check if the fault has been sustained long enough to update the display.
-            """
-            if fault_start_time and (current_time - fault_start_time >= self.ERROR_HOLD_TIME):
-                return True
-            return False
-
-        def start_fault_timer():
-            """
-            Start or reset the fault timer for a new error condition.
-            """
-            self.box_states[box_index]["fault_start_time"] = current_time
-
-        # 에러 상태가 업데이트될 때만 세그먼트 디스플레이 갱신
-        if interpolated_value < 1.3:
-            if last_fault_display != "    ":
-                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-                self.update_circle_state([False, False, False, False], box_index=box_index)
-                self.box_states[box_index]["last_fault_display"] = "    "
-                self.box_states[box_index]["fault_start_time"] = None
-
-        # 에러 상태의 우선순위를 명확하게 설정하여 범위 중첩 방지
-        elif 1.8 <= interpolated_value <= 2.2:
-            if last_fault_display != "E-10":
-                start_fault_timer()
-            if check_fault_duration():
-                self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-                self.box_states[box_index]["last_fault_display"] = "E-10"
-
-        elif 2.3 <= interpolated_value <= 2.7:
-            if last_fault_display != "E-22":
-                start_fault_timer()
-            if check_fault_duration():
-                self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-                self.box_states[box_index]["last_fault_display"] = "E-22"
-
-        elif 1.3 <= interpolated_value <= 1.7:
-            if last_fault_display != "E-23":
-                start_fault_timer()
-            if check_fault_duration():
-                self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-                self.box_states[box_index]["last_fault_display"] = "E-23"
-
-        elif interpolated_value >= 2.9:
-            formatted_value = int((interpolated_value - 4) / (20 - 4) * self.box_states[box_index]["full_scale"])
-            formatted_value = max(0, min(formatted_value, self.box_states[box_index]["full_scale"]))
-            if last_fault_display != str(int(formatted_value)).zfill(4):
-                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
-                self.box_states[box_index]["last_fault_display"] = str(int(formatted_value)).zfill(4)
-                self.box_states[box_index]["fault_start_time"] = None
-
 
 if __name__ == "__main__":
     from tkinter import Tk
