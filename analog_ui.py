@@ -232,41 +232,26 @@ class AnalogUI:
         else:
             self.box_states[box_index]["segment_updating"] = False
 
-    def perform_segment_update(box_canvas, value, blink, box_index):
+    def perform_segment_update(self, box_canvas, value, blink, box_index):
         def update_all_digits():
-            # Log the incoming value to ensure it's correct
-            print(f"Performing update for value: {value}")
-
-            # Iterate through each character in the value
-            for index, digit in enumerate(value):
-                # Attempt to fetch the corresponding segment pattern
-                segments = SEGMENTS.get(digit, SEGMENTS[' '])
-            
-                # Log the segment pattern
-                print(f"Updating segments for digit '{digit}': {segments}")
-
-                # Check for blinking state
-                if blink and box_states[box_index]["blink_state"]:
+            leading_zero = True
+            for index in range(len(value)):
+                digit = value[index]
+                if leading_zero and digit == '0' and index < 3:
                     segments = SEGMENTS[' ']
-            
-                # Apply segment updates
+                else:
+                    segments = SEGMENTS[digit]
+                    leading_zero = False
+
+                if blink and self.box_states[box_index]["blink_state"]:
+                    segments = SEGMENTS[' ']
+
                 for j, state in enumerate(segments):
                     color = '#fc0c0c' if state == '1' else '#424242'
-                    segment_id = f'segment_{index}_{chr(97 + j)}'
+                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-                    # Log the segment being updated
-                    print(f"Updating segment {segment_id} to color {color}")
-
-                    # Update the segment color
-                    box_canvas.segment_canvas.itemconfig(segment_id, fill=color)
-
-            # Toggle blink state for future updates
-            box_states[box_index]["blink_state"] = not box_states[box_index]["blink_state"]
-
-        # Call the function to update all digits
+        # Perform the update in one go
         update_all_digits()
-
-
 
         # Toggle the blink state
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
