@@ -470,7 +470,7 @@ class AnalogUI:
                 self.update_circle_state([False, False, False, True], box_index=box_index)
                 
                 # 500ms 동안 에러 코드가 유지되는지 확인
-                self.root.after(1000, self.verify_error_condition, box_index, code, interpolated_value)
+                self.root.after(10, self.verify_error_condition, box_index, code, interpolated_value)
                 break
 
         if not error_code_displayed:
