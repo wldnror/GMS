@@ -232,25 +232,22 @@ class AnalogUI:
         else:
             self.box_states[box_index]["segment_updating"] = False
 
-    def perform_segment_update(self, box_canvas, value, blink, box_index):
+    def perform_segment_update(box_canvas, value, blink, box_index):
         def update_all_digits():
             leading_zero = True
-            for index in range(len(value)):
-                digit = value[index]
-                if leading_zero and digit == '0' and index < 3:
-                    segments = SEGMENTS[' ']
-                else:
-                    segments = SEGMENTS[digit]
-                    leading_zero = False
-
-                if blink and self.box_states[box_index]["blink_state"]:
+            for index, digit in enumerate(value):
+                # 각 자리의 문자를 SEGMENTS에서 가져와 세그먼트 상태 설정
+                segments = SEGMENTS.get(digit, SEGMENTS[' '])  # SEGMENTS에서 값을 가져오지 못하면 공백 처리
+                if blink and box_states[box_index]["blink_state"]:
                     segments = SEGMENTS[' ']
 
                 for j, state in enumerate(segments):
                     color = '#fc0c0c' if state == '1' else '#424242'
                     box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-        # Perform the update in one go
+            # Toggle blink 상태
+            box_states[box_index]["blink_state"] = not box_states[box_index]["blink_state"]
+    
         update_all_digits()
 
         # Toggle the blink state
