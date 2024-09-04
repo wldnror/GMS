@@ -454,8 +454,8 @@ class AnalogUI:
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
-        error_code_displayed = False
         # 에러 코드 매핑
+        error_code_displayed = False
         error_codes = {
             "E-23": (1.3, 1.7),
             "E-10": (1.8, 2.2),
@@ -468,9 +468,9 @@ class AnalogUI:
                 milliamp_text = code
                 self.update_segment_display(code, self.box_frames[box_index][1], blink=True, box_index=box_index)
                 self.update_circle_state([False, False, False, True], box_index=box_index)
-                
-                # 500ms 동안 에러 코드가 유지되는지 확인
-                self.root.after(1, self.verify_error_condition, box_index, code, interpolated_value)
+
+                # 에러 상태 강제 유지 시간을 설정하여 사라지지 않도록 함
+                self.root.after(500, lambda: self.maintain_error_display(box_index, code))
                 break
 
         if not error_code_displayed:
@@ -489,19 +489,10 @@ class AnalogUI:
 
         self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
-    def verify_error_condition(self, box_index, expected_code, expected_value):
-        current_value = self.box_states[box_index]["current_value"]
-        error_codes = {
-            "E-23": (1.3, 1.7),
-            "E-10": (1.8, 2.2),
-            "E-22": (2.3, 2.7)
-        }
-
-        min_value, max_value = error_codes[expected_code]
-        if not (min_value <= current_value <= max_value):
-            # 값이 일치하지 않으면 업데이트 중단
-            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([False, False, False, False], box_index=box_index)
+    def maintain_error_display(self, box_index, expected_code):
+        # 에러 상태를 유지하도록 보장
+        if self.box_states[box_index]["previous_segment_display"] == expected_code:
+            self.update_segment_display(expected_code, self.box_frames[box_index][1], blink=True, box_index=box_index)
 
 if __name__ == "__main__":
     from tkinter import Tk
