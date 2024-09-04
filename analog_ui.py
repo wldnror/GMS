@@ -137,7 +137,8 @@ class AnalogUI:
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
-            "alarm2_on": False
+            "alarm2_on": False,
+            "last_fault_display": "",  # 마지막 표시된 폴트 상태 기억
         })
 
         create_segment_display(box_canvas)
@@ -486,27 +487,40 @@ class AnalogUI:
         Force the display to update based on the current interpolated value, 
         ensuring that all segment displays reflect the correct status.
         """
+        last_fault_display = self.box_states[box_index]["last_fault_display"]
+
+        # 에러 상태가 업데이트될 때만 세그먼트 디스플레이 갱신
         if interpolated_value < 1.3:
-            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([False, False, False, False], box_index=box_index)
+            if last_fault_display != "    ":
+                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                self.update_circle_state([False, False, False, False], box_index=box_index)
+                self.box_states[box_index]["last_fault_display"] = "    "
 
         elif 1.3 <= interpolated_value <= 1.7:
-            self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+            if last_fault_display != "E-23":
+                self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
+                self.box_states[box_index]["last_fault_display"] = "E-23"
 
         elif 1.8 <= interpolated_value <= 2.2:
-            self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+            if last_fault_display != "E-10":
+                self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
+                self.box_states[box_index]["last_fault_display"] = "E-10"
 
         elif 2.3 <= interpolated_value <= 2.7:
-            self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
-            self.update_circle_state([False, False, False, True], box_index=box_index)
+            if last_fault_display != "E-22":
+                self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
+                self.box_states[box_index]["last_fault_display"] = "E-22"
 
         elif interpolated_value >= 2.9:
             formatted_value = int((interpolated_value - 4) / (20 - 4) * self.box_states[box_index]["full_scale"])
             formatted_value = max(0, min(formatted_value, self.box_states[box_index]["full_scale"]))
-            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
+            if last_fault_display != str(int(formatted_value)).zfill(4):
+                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
+                self.box_states[box_index]["last_fault_display"] = str(int(formatted_value)).zfill(4)
 
 
 if __name__ == "__main__":
