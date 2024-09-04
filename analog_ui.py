@@ -454,36 +454,42 @@ class AnalogUI:
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
-        if interpolated_value < 1.3:
-            milliamp_text = "PWR OFF"
-            milliamp_color = "#ff0000"
-            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([False, False, False, False], box_index=box_index)
-
-        elif 1.3 <= interpolated_value <= 1.7:
-            if self.box_states[box_index]["previous_segment_display"] != "E-23":
-                self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-
-        elif 1.8 <= interpolated_value <= 2.2:
-            if self.box_states[box_index]["previous_segment_display"] != "E-10":
-                self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-
-        elif 2.3 <= interpolated_value <= 2.7:
-            if self.box_states[box_index]["previous_segment_display"] != "E-22":
-                self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
-                self.update_circle_state([False, False, False, True], box_index=box_index)
-
-        elif interpolated_value >= 2.9:
-            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
-            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
+        # 디스플레이 강제 갱신 및 상태 기억
+        self.force_display_update(box_index, interpolated_value)
 
         self.box_states[box_index]["milliamp_var"].set(milliamp_text)
         box_canvas = self.box_frames[box_index][1]
         box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
 
         self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def force_display_update(self, box_index, interpolated_value):
+        """
+        Force the display to update based on the current interpolated value, 
+        ensuring that all segment displays reflect the correct status.
+        """
+        if interpolated_value < 1.3:
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([False, False, False, False], box_index=box_index)
+
+        elif 1.3 <= interpolated_value <= 1.7:
+            self.update_segment_display("E-23", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif 1.8 <= interpolated_value <= 2.2:
+            self.update_segment_display("E-10", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif 2.3 <= interpolated_value <= 2.7:
+            self.update_segment_display("E-22", self.box_frames[box_index][1], blink=True, box_index=box_index)
+            self.update_circle_state([False, False, False, True], box_index=box_index)
+
+        elif interpolated_value >= 2.9:
+            formatted_value = int((interpolated_value - 4) / (20 - 4) * self.box_states[box_index]["full_scale"])
+            formatted_value = max(0, min(formatted_value, self.box_states[box_index]["full_scale"]))
+            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
+
 
 if __name__ == "__main__":
     from tkinter import Tk
