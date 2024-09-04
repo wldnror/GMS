@@ -445,10 +445,19 @@ class AnalogUI:
             return
 
         interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
+        formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+        formatted_value = max(0, min(formatted_value, full_scale))
+
+        pwr_on = interpolated_value >= 1.5
+
+        self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+        self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+
         milliamp_text = f"{interpolated_value:.1f} mA"
         milliamp_color = "#00ff00"
 
-        # mA 값에 따른 에러 코드 표시
         if interpolated_value < 1.3:
             milliamp_text = "PWR OFF"
             milliamp_color = "#ff0000"
@@ -468,8 +477,6 @@ class AnalogUI:
             self.update_circle_state([False, False, False, True], box_index=box_index)
 
         elif interpolated_value >= 2.9:
-            formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-            formatted_value = max(0, min(formatted_value, full_scale))
             self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
             self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, False], box_index=box_index)
 
