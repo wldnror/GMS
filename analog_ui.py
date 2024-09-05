@@ -381,35 +381,29 @@ class AnalogUI:
                 current = voltage / 250
                 milliamp = current * 1000
                 values.append(milliamp)
-    
+
             for channel, milliamp in enumerate(values):
                 box_index = adc_index * 4 + channel
                 if box_index >= self.num_boxes:
                     continue
 
-                # 신호 안정화 - 최근 5개의 값을 평균
-                self.adc_values[box_index].append(milliamp)
+                # 소수점 두 자리까지만 반영하여 떨림 감소
+                rounded_value = round(milliamp, 2)
+            
+                self.adc_values[box_index].append(rounded_value)
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-    
+
                 previous_value = self.box_states[box_index]["current_value"]
 
-                # 변화량에 따라 필터 강도를 조절
                 change = abs(filtered_value - previous_value)
 
-                if change > 1:  # 변화가 큰 경우: 필터링 최소화, 빠르게 반응
+                # 변화량이 특정 임계값 이상일 때만 반영
+                if change > 0.02:  # 변화량이 미세할 경우 무시
                     self.box_states[box_index]["previous_value"] = previous_value
                     self.box_states[box_index]["current_value"] = filtered_value
                     self.box_states[box_index]["interpolating"] = True
                     self.adc_queue.put(box_index)
 
-                elif change > 0.2:  # 변화가 작고 안정적일 때만 필터 적용
-                    self.box_states[box_index]["previous_value"] = previous_value
-                    self.box_states[box_index]["current_value"] = filtered_value
-                    self.box_states[box_index]["interpolating"] = True
-                    self.adc_queue.put(box_index)
-                
-                # 변화가 매우 작을 때는 반영하지 않음
-                # 이는 떨림 방지를 위한 처리입니다.
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
