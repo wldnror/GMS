@@ -381,7 +381,7 @@ class AnalogUI:
                 current = voltage / 250
                 milliamp = current * 1000
                 values.append(milliamp)
-
+    
             for channel, milliamp in enumerate(values):
                 box_index = adc_index * 4 + channel
                 if box_index >= self.num_boxes:
@@ -391,17 +391,30 @@ class AnalogUI:
                 self.adc_values[box_index].append(milliamp)
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
     
-                # 신호 변화가 일정 범위 내에서만 업데이트되도록 필터링
                 previous_value = self.box_states[box_index]["current_value"]
-                if abs(filtered_value - previous_value) > 0.2:  # 값의 작은 변화 무시
+
+                # 변화량에 따라 필터 강도를 조절
+                change = abs(filtered_value - previous_value)
+
+                if change > 1:  # 변화가 큰 경우: 필터링 최소화, 빠르게 반응
                     self.box_states[box_index]["previous_value"] = previous_value
                     self.box_states[box_index]["current_value"] = filtered_value
                     self.box_states[box_index]["interpolating"] = True
                     self.adc_queue.put(box_index)
+
+                elif change > 0.2:  # 변화가 작고 안정적일 때만 필터 적용
+                    self.box_states[box_index]["previous_value"] = previous_value
+                    self.box_states[box_index]["current_value"] = filtered_value
+                    self.box_states[box_index]["interpolating"] = True
+                    self.adc_queue.put(box_index)
+                
+                # 변화가 매우 작을 때는 반영하지 않음
+                # 이는 떨림 방지를 위한 처리입니다.
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
             print(f"Unexpected error reading ADC data: {e}")
+
 
     def start_adc_thread(self):
         adc_thread = threading.Thread(target=self.run_async_adc)
