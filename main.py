@@ -42,9 +42,9 @@ update_notification_frame = None
 checking_updates = True
 branch_window = None
 alarm_active = False
-fut_active = False  # FUT 신호 상태 변수 추가
+fut_active = False
 alarm_blinking = False
-fut_blinking = False  # FUT 깜빡임 상태 변수 추가
+fut_blinking = False
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
@@ -138,8 +138,8 @@ def set_alarm_status(active, box_id, fut=False):
         root.config(background=default_background)
         stop_alarm_sound(box_id)
 
-    # 신호 처리가 완료되면 다음 신호를 받을 수 있도록 설정
-    root.after(500, reset_processing_signal)  # 500ms 후에 다음 신호를 받을 수 있도록 설정
+    # 신호 처리가 완료되면 일정 시간(500ms) 후 다음 신호를 받을 수 있도록 설정
+    root.after(500, reset_processing_signal)
 
 def reset_processing_signal():
     global processing_signal
