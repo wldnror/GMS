@@ -387,19 +387,16 @@ class AnalogUI:
                 if box_index >= self.num_boxes:
                     continue
 
+                # 신호 안정화 - 최근 5개의 값을 평균
                 self.adc_values[box_index].append(milliamp)
-
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
-
-                if len(self.adc_values[box_index]) == 5:
-                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
-                    previous_value = self.box_states[box_index]["current_value"]
-                    current_value = filtered_value
-
+    
+                # 신호 변화가 일정 범위 내에서만 업데이트되도록 필터링
+                previous_value = self.box_states[box_index]["current_value"]
+                if abs(filtered_value - previous_value) > 0.2:  # 값의 작은 변화 무시
                     self.box_states[box_index]["previous_value"] = previous_value
-                    self.box_states[box_index]["current_value"] = current_value
+                    self.box_states[box_index]["current_value"] = filtered_value
                     self.box_states[box_index]["interpolating"] = True
-
                     self.adc_queue.put(box_index)
         except OSError as e:
             print(f"Error reading ADC data: {e}")
