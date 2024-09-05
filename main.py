@@ -159,12 +159,46 @@ def set_alarm_status(active, box_id, fut=False):
             stop_alarm_sound(box_id)
 
 def alarm_blink():
-    # 알람 활성화 시 빨강 LED 켜기
-    GPIO.output(RED_PIN, GPIO.HIGH)
+    red_duration = 1000
+    off_duration = 1000
+    toggle_color_id = None
+
+    def toggle_color():
+        nonlocal toggle_color_id
+        if alarm_active:
+            current_color = root.cget("background")
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            GPIO.output(RED_PIN, GPIO.HIGH)  # 빨강 LED 켜기
+            toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            GPIO.output(RED_PIN, GPIO.LOW)  # LED 끄기
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
+
+    toggle_color()
 
 def fut_blink():
-    # FUT 활성화 시 노랑 LED 켜기
-    GPIO.output(YELLOW_PIN, GPIO.HIGH)
+    yellow_duration = 1000
+    off_duration = 1000
+    toggle_color_id = None
+
+    def toggle_color():
+        nonlocal toggle_color_id
+        if fut_active:
+            current_color = root.cget("background")
+            new_color = "yellow" if current_color != "yellow" else default_background
+            root.config(background=new_color)
+            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # 노랑 LED 켜기
+            toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            GPIO.output(YELLOW_PIN, GPIO.LOW)  # LED 끄기
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
+
+    toggle_color()
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
