@@ -139,7 +139,7 @@ def set_alarm_status(active, box_id, fut=False):
         stop_alarm_sound(box_id)
 
     # 신호 처리가 완료되면 다음 신호를 받을 수 있도록 설정
-    root.after(500, reset_processing_signal)
+    root.after(500, reset_processing_signal)  # 500ms 후에 다음 신호를 받을 수 있도록 설정
 
 def reset_processing_signal():
     global processing_signal
