@@ -52,6 +52,7 @@ audio_queue = queue.Queue()
 audio_lock = threading.Lock()
 
 current_alarm_box_id = None
+processing_signal = False  # 신호 처리 중 여부 확인 변수 추가
 
 pygame.mixer.init()
 
@@ -112,7 +113,12 @@ def stop_alarm_sound(box_id):
             current_alarm_box_id = None
 
 def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, fut_active, alarm_blinking, fut_blinking
+    global alarm_active, fut_active, alarm_blinking, fut_blinking, processing_signal
+    if processing_signal:
+        print("Ignoring signal: processing another signal.")
+        return  # 신호가 처리 중이면 무시합니다.
+
+    processing_signal = True
     alarm_active = active
     fut_active = fut
 
@@ -120,17 +126,24 @@ def set_alarm_status(active, box_id, fut=False):
         stop_alarm_sound(box_id)
         alarm_blinking = False
         fut_blinking = True
-        fut_blink()  # FUT 신호로 노란색 깜빡임 시작
+        fut_blink()
     elif alarm_active:
         fut_blinking = False
         alarm_blinking = True
-        alarm_blink()  # 일반 알람으로 빨간색 깜빡임 시작
+        alarm_blink()
         play_alarm_sound(box_id)
     else:
         fut_blinking = False
         alarm_blinking = False
         root.config(background=default_background)
         stop_alarm_sound(box_id)
+
+    # 신호 처리가 완료되면 다음 신호를 받을 수 있도록 설정
+    root.after(500, reset_processing_signal)
+
+def reset_processing_signal():
+    global processing_signal
+    processing_signal = False
 
 def alarm_blink():
     red_duration = 500
