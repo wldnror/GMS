@@ -52,7 +52,8 @@ audio_queue = queue.Queue()
 audio_lock = threading.Lock()
 
 current_alarm_box_id = None
-processing_signal = False  # 신호 처리 중 여부 확인 변수 추가
+last_signal_type = None  # 마지막으로 처리된 신호의 유형
+signal_received_time = 0  # 신호 수신 시각
 
 pygame.mixer.init()
 
@@ -113,41 +114,35 @@ def stop_alarm_sound(box_id):
             current_alarm_box_id = None
 
 def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, fut_active, alarm_blinking, fut_blinking, processing_signal
-    if processing_signal:
-        print("Ignoring signal: processing another signal.")
-        return  # 신호가 처리 중이면 무시합니다.
+    global alarm_active, fut_active, last_signal_type, signal_received_time
+    current_time = time.time()
 
-    processing_signal = True
-    alarm_active = active
-    fut_active = fut
+    # 신호가 기존 신호와 다르거나 1초 이상 경과했을 때만 처리
+    if (last_signal_type != (active, fut)) or (current_time - signal_received_time > 1):
+        alarm_active = active
+        fut_active = fut
+        last_signal_type = (active, fut)
+        signal_received_time = current_time
 
-    if fut_active:
-        stop_alarm_sound(box_id)
-        alarm_blinking = False
-        fut_blinking = True
-        fut_blink()
-    elif alarm_active:
-        fut_blinking = False
-        alarm_blinking = True
-        alarm_blink()
-        play_alarm_sound(box_id)
-    else:
-        fut_blinking = False
-        alarm_blinking = False
-        root.config(background=default_background)
-        stop_alarm_sound(box_id)
-
-    # 신호 처리가 완료되면 일정 시간(500ms) 후 다음 신호를 받을 수 있도록 설정
-    root.after(500, reset_processing_signal)
-
-def reset_processing_signal():
-    global processing_signal
-    processing_signal = False
+        if fut_active:
+            stop_alarm_sound(box_id)
+            alarm_blinking = False
+            fut_blinking = True
+            fut_blink()
+        elif alarm_active:
+            fut_blinking = False
+            alarm_blinking = True
+            alarm_blink()
+            play_alarm_sound(box_id)
+        else:
+            fut_blinking = False
+            alarm_blinking = False
+            root.config(background=default_background)
+            stop_alarm_sound(box_id)
 
 def alarm_blink():
-    red_duration = 500
-    off_duration = 500
+    red_duration = 1000
+    off_duration = 1000
     toggle_color_id = None
 
     def toggle_color():
@@ -165,8 +160,8 @@ def alarm_blink():
     toggle_color()
 
 def fut_blink():
-    yellow_duration = 500
-    off_duration = 500
+    yellow_duration = 1000
+    off_duration = 1000
     toggle_color_id = None
 
     def toggle_color():
