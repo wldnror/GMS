@@ -59,7 +59,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]
+        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -120,7 +120,7 @@ class AnalogUI:
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
             "alarm2_on": False,
-            "fut_on": False,
+            "fut_on": False,  # FUT 신호 상태 추가
             "error_code_active": False
         })
 
@@ -187,11 +187,10 @@ class AnalogUI:
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
-        # FUT 신호에 대한 깜빡임 상태를 설정합니다.
         self.box_states[box_index]["fut_on"] = states[3]
 
-        alarm_active = states[0] or states[1] or states[3]  # FUT 신호도 포함하여 알람 상태를 업데이트합니다.
-        self.alarm_callback(alarm_active, box_index, states[3])  # FUT 신호 상태를 main으로 전달합니다.
+        alarm_active = states[0] or states[1] or states[3]
+        self.alarm_callback(alarm_active, box_index, states[3])
 
         if states[1]:
             outline_color = outline_colors[1]
@@ -371,7 +370,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.5)  # 데이터 읽기 간격을 늘려 신호 빈도를 줄입니다.
+            await asyncio.sleep(0.1)
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -401,9 +400,7 @@ class AnalogUI:
                     self.box_states[box_index]["current_value"] = current_value
                     self.box_states[box_index]["interpolating"] = True
 
-                    # 신호 발생 빈도를 제한하여 큐가 너무 자주 갱신되지 않도록 합니다.
-                    if not self.adc_queue.full():
-                        self.adc_queue.put(box_index)
+                    self.adc_queue.put(box_index)
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
@@ -418,7 +415,7 @@ class AnalogUI:
         asyncio.run(self.read_adc_data())
 
     def schedule_ui_update(self):
-        self.root.after(50, self.update_ui_from_queue)  # UI 업데이트 주기를 조정하여 부하를 줄입니다.
+        self.root.after(10, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
@@ -441,7 +438,7 @@ class AnalogUI:
             curr_value = self.box_states[box_index]["current_value"]
 
             steps = 10
-            interval = 20  # 애니메이션 속도를 조정하여 부하를 줄입니다.
+            interval = 10
 
             self.animate_step(box_index, 0, steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
