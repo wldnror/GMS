@@ -1,3 +1,4 @@
+# main.py
 import json
 import os
 import time
@@ -41,9 +42,9 @@ update_notification_frame = None
 checking_updates = True
 branch_window = None
 alarm_active = False
-fut_active = False
+fut_active = False  # FUT 신호 상태 변수 추가
 alarm_blinking = False
-fut_blinking = False
+fut_blinking = False  # FUT 깜빡임 상태 변수 추가
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
@@ -119,11 +120,11 @@ def set_alarm_status(active, box_id, fut=False):
         stop_alarm_sound(box_id)
         alarm_blinking = False
         fut_blinking = True
-        fut_blink()
+        fut_blink()  # FUT 신호로 노란색 깜빡임 시작
     elif alarm_active:
         fut_blinking = False
         alarm_blinking = True
-        alarm_blink()
+        alarm_blink()  # 일반 알람으로 빨간색 깜빡임 시작
         play_alarm_sound(box_id)
     else:
         fut_blinking = False
@@ -132,32 +133,40 @@ def set_alarm_status(active, box_id, fut=False):
         stop_alarm_sound(box_id)
 
 def alarm_blink():
-    red_duration = 200
-    off_duration = 200
+    red_duration = 500
+    off_duration = 500
+    toggle_color_id = None
 
     def toggle_color():
-        if alarm_blinking:
+        nonlocal toggle_color_id
+        if alarm_active:
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+            toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
 
     toggle_color()
 
 def fut_blink():
-    yellow_duration = 200
-    off_duration = 200
+    yellow_duration = 500
+    off_duration = 500
+    toggle_color_id = None
 
     def toggle_color():
-        if fut_blinking:
+        nonlocal toggle_color_id
+        if fut_active:
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
-            root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
+            toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
 
     toggle_color()
 
