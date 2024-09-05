@@ -1,4 +1,3 @@
-# main.py
 import json
 import os
 import time
@@ -20,6 +19,7 @@ import pygame
 import queue
 import datetime
 import locale
+import RPi.GPIO as GPIO  # GPIO 제어를 위한 라이브러리 추가
 
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
@@ -27,6 +27,22 @@ SETTINGS_FILE = "settings.json"
 
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
+
+# GPIO 설정
+GPIO.setmode(GPIO.BCM)  # BCM 모드로 설정
+GPIO.setwarnings(False)
+
+# 사용할 핀 번호 설정
+RED_PIN = 20  # 빨강 LED에 대응하는 핀
+YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
+
+# 출력 핀으로 설정
+GPIO.setup(RED_PIN, GPIO.OUT)
+GPIO.setup(YELLOW_PIN, GPIO.OUT)
+
+# 초기값 설정
+GPIO.output(RED_PIN, GPIO.LOW)
+GPIO.output(YELLOW_PIN, GPIO.LOW)
 
 def encrypt_data(data):
     return utils.encrypt_data(data)
@@ -52,8 +68,8 @@ audio_queue = queue.Queue()
 audio_lock = threading.Lock()
 
 current_alarm_box_id = None
-last_signal_type = None  # 마지막으로 처리된 신호의 유형
-signal_received_time = 0  # 신호 수신 시각
+last_signal_type = None
+signal_received_time = 0
 
 pygame.mixer.init()
 
@@ -151,9 +167,11 @@ def alarm_blink():
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
+            GPIO.output(RED_PIN, GPIO.HIGH if new_color == "red" else GPIO.LOW)  # 빨강 LED 깜빡임
             toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
+            GPIO.output(RED_PIN, GPIO.LOW)  # LED 끄기
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -170,9 +188,11 @@ def fut_blink():
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
+            GPIO.output(YELLOW_PIN, GPIO.HIGH if new_color == "yellow" else GPIO.LOW)  # 노랑 LED 깜빡임
             toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
+            GPIO.output(YELLOW_PIN, GPIO.LOW)  # LED 끄기
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -290,6 +310,7 @@ if __name__ == "__main__":
 
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
+        GPIO.cleanup()  # GPIO 핀 초기화
         root.destroy()
         sys.exit(0)
 
@@ -396,6 +417,7 @@ if __name__ == "__main__":
         if 0 <= total_boxes <= 4:
             stop_event.set()
             clock_thread.join()
+        GPIO.cleanup()  # GPIO 핀 초기화
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
