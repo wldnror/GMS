@@ -1,4 +1,3 @@
-# main.py
 import json
 import os
 import time
@@ -42,9 +41,9 @@ update_notification_frame = None
 checking_updates = True
 branch_window = None
 alarm_active = False
-fut_active = False  # FUT 신호 상태 변수 추가
+fut_active = False
 alarm_blinking = False
-fut_blinking = False  # FUT 깜빡임 상태 변수 추가
+fut_blinking = False
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
@@ -116,19 +115,16 @@ def set_alarm_status(active, box_id, fut=False):
     alarm_active = active
     fut_active = fut
 
-     # FUT 신호가 발생한 경우
     if fut_active:
-        stop_alarm_sound(box_id)  # FUT가 발생하면 알람 사운드 중지
-        alarm_blinking = False  # 일반 알람 깜빡임 중지
+        stop_alarm_sound(box_id)
+        alarm_blinking = False
         fut_blinking = True
-        fut_blink()  # FUT 신호로 노란색 깜빡임 시작
-    # 일반 알람이 발생한 경우
+        fut_blink()
     elif alarm_active:
-        fut_blinking = False  # FUT 깜빡임 중지
+        fut_blinking = False
         alarm_blinking = True
-        alarm_blink()  # 일반 알람으로 빨간색 깜빡임 시작
+        alarm_blink()
         play_alarm_sound(box_id)
-    # 둘 다 비활성화된 경우 기본 배경색으로 복구
     else:
         fut_blinking = False
         alarm_blinking = False
@@ -140,7 +136,7 @@ def alarm_blink():
     off_duration = 200
 
     def toggle_color():
-        if alarm_active:
+        if alarm_blinking:
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
@@ -155,7 +151,7 @@ def fut_blink():
     off_duration = 200
 
     def toggle_color():
-        if fut_active:
+        if fut_blinking:
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
@@ -315,14 +311,12 @@ if __name__ == "__main__":
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
 
-    # UPS 박스 초기화 (토글에 따라 추가)
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
         ups_ui = UPSMonitorUI(main_frame, 1)
 
     all_boxes = []
 
-    # UPS 박스를 가장 앞에 추가
     if ups_ui:
         all_boxes.append((ups_ui, 0))
 
