@@ -1,405 +1,519 @@
-import json
 import os
-import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
-from tkinter import ttk
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
-from ups_monitor_ui import UPSMonitorUI
 import threading
-import psutil
-import signal
-import sys
-import subprocess
-import socket
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils
-import tkinter as tk
-import pygame
+from collections import deque
+from tkinter import Frame, Canvas, StringVar, Toplevel, Button
+import Adafruit_ADS1x15
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import mplcursors
+from common import SEGMENTS, create_segment_display
 import queue
-import datetime
-import locale
+import asyncio
 
-locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
+# 전역 변수로 설정
+GAIN = 2 / 3  
+SCALE_FACTOR = 1.65  # 20% 키우기
 
-SETTINGS_FILE = "settings.json"
+class AnalogUI:
+    LOGS_PER_FILE = 10
 
-key = utils.load_key()
-cipher_suite = utils.cipher_suite
+    GAS_FULL_SCALE = {
+        "ORG": 9999,
+        "ARF-T": 5000,
+        "HMDS": 3000,
+        "HC-100": 5000
+    }
 
-def encrypt_data(data):
-    return utils.encrypt_data(data)
+    GAS_TYPE_POSITIONS = {
+        "ORG": (115, 95),
+        "ARF-T": (107, 95),
+        "HMDS": (110, 95),
+        "HC-100": (104, 95)
+    }
 
-def decrypt_data(data):
-    return utils.decrypt_data(data)
+    ALARM_LEVELS = {
+        "ORG": {"AL1": 9500, "AL2": 9999},
+        "ARF-T": {"AL1": 2000, "AL2": 4000},
+        "HMDS": {"AL1": 2640, "AL2": 3000},
+        "HC-100": {"AL1": 1500, "AL2": 3000}
+    }
 
-settings = load_settings()
-admin_password = settings.get("admin_password")
+    def __init__(self, root, num_boxes, gas_types, alarm_callback):
+        self.root = root
+        self.alarm_callback = alarm_callback
+        self.gas_types = gas_types
+        self.num_boxes = num_boxes
+        self.box_states = []
+        self.histories = [[] for _ in range(num_boxes)]
+        self.graph_windows = [None for _ in range(num_boxes)]
+        self.history_window = None
+        self.history_lock = threading.Lock()
 
-ignore_commit = None
-update_notification_frame = None
-checking_updates = True
-branch_window = None
-alarm_active = False
-fut_active = False
-alarm_blinking = False
-fut_blinking = False
-selected_audio_file = settings.get("audio_file")
-audio_playing = False
+        self.box_frame = Frame(self.root)
+        self.box_frame.grid(row=0, column=0)
 
-audio_queue = queue.Queue()
-audio_lock = threading.Lock()
+        self.row_frames = []
+        self.box_frames = []
+        self.history_dir = "analog_history_logs"
 
-current_alarm_box_id = None
+        if not os.path.exists(self.history_dir):
+            os.makedirs(self.history_dir)
 
-pygame.mixer.init()
+        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
 
-def play_alarm_sound(box_id):
-    global selected_audio_file, audio_playing, current_alarm_box_id
-    if selected_audio_file is None:
-        print("No audio file selected. Skipping alarm sound.")
-        return
+        for i in range(num_boxes):
+            self.create_analog_box(i)
 
-    with audio_lock:
-        if current_alarm_box_id is None or current_alarm_box_id == box_id:
-            current_alarm_box_id = box_id
-            if not audio_playing:
-                audio_queue.put(selected_audio_file)
-                if not pygame.mixer.music.get_busy():
-                    play_next_in_queue()
+        for i in range(num_boxes):
+            self.update_circle_state([False, False, False, False], box_index=i)
 
-def play_next_in_queue():
-    global audio_playing, current_alarm_box_id
-    if not audio_queue.empty():
-        next_audio_file = audio_queue.get()
-        print(f"Trying to play: {next_audio_file}")
+        self.adc_queue = queue.Queue()
+        self.start_adc_thread()
+        self.schedule_ui_update()
 
-        if next_audio_file is None:
-            print("Error: No audio file to play. Skipping.")
-            current_alarm_box_id = None
+    def create_analog_box(self, index):
+        max_boxes_per_row = 6
+
+        row = index // max_boxes_per_row
+        col = index % max_boxes_per_row
+
+        if col == 0:
+            row_frame = Frame(self.box_frame)
+            row_frame.grid(row=row, column=0)
+            self.row_frames.append(row_frame)
+        else:
+            row_frame = self.row_frames[-1]
+
+        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))
+        box_frame.grid(row=0, column=col)
+
+        inner_frame = Frame(box_frame)
+        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
+
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), 
+                            highlightthickness=int(3 * SCALE_FACTOR),
+                            highlightbackground="#000000", highlightcolor="#000000", bg='white')
+        box_canvas.pack()
+
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='black', outline='grey', tags='border')
+
+        gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
+        gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
+        self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
+        gas_type_text_id = box_canvas.create_text(*[int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type_var.get()]],
+                                                  text=gas_type_var.get(), font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        self.box_states.append({
+            "previous_value": 0,
+            "current_value": 0,
+            "interpolating": False,
+            "blink_state": False,
+            "blinking_error": False,
+            "previous_segment_display": None,
+            "last_history_time": None,
+            "last_history_value": None,
+            "gas_type_text_id": gas_type_text_id,
+            "full_scale": self.GAS_FULL_SCALE[gas_type_var.get()],
+            "pwr_blink_state": False,
+            "blink_thread": None,
+            "stop_blinking": threading.Event(),
+            "blink_lock": threading.Lock(),
+            "alarm1_on": False,
+            "alarm2_on": False,
+            "fut_on": False,  # FUT 신호 상태 추가
+            "error_code_active": False
+        })
+
+        create_segment_display(box_canvas)
+        self.update_segment_display("    ", box_canvas, box_index=index)
+
+        circle_items = []
+
+        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+
+        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
+
+        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
+
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+
+        milliamp_var = StringVar(value="4-20 mA")
+        milliamp_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(240 * SCALE_FACTOR), text=milliamp_var.get(), font=("Helvetica", int(10 * SCALE_FACTOR), "bold"), fill="#00ff00", anchor="center")
+        self.box_states[index]["milliamp_var"] = milliamp_var
+        self.box_states[index]["milliamp_text_id"] = milliamp_text_id
+
+        led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
+        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
+        box_canvas.lift(led1)
+        box_canvas.lift(led2)
+
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+
+        self.box_frames.append((box_frame, box_canvas, circle_items, led1, led2, None))
+
+        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+
+    def update_full_scale(self, gas_type_var, box_index):
+        gas_type = gas_type_var.get()
+        full_scale = self.GAS_FULL_SCALE[gas_type]
+        self.box_states[box_index]["full_scale"] = full_scale
+
+        box_canvas = self.box_frames[box_index][1]
+        position = [int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type]]
+        box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
+        box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
+
+    def on_segment_click(self, box_index):
+        threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
+
+    def update_circle_state(self, states, box_index=0):
+        _, box_canvas, circle_items, led1, led2, _ = self.box_frames[box_index]
+        
+        colors_on = ['red', 'red', 'green', 'yellow']
+        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+        outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
+        outline_color_off = '#000000'
+
+        if states[1]:
+            states[0] = True
+
+        for i, state in enumerate(states):
+            color = colors_on[i] if state else colors_off[i]
+            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+
+        self.box_states[box_index]["fut_on"] = states[3]
+
+        alarm_active = states[0] or states[1] or states[3]
+        self.alarm_callback(alarm_active, box_index, states[3])
+
+        if states[1]:
+            outline_color = outline_colors[1]
+        elif states[0]:
+            outline_color = outline_colors[0]
+        elif states[3]:
+            outline_color = outline_colors[3]
+        else:
+            outline_color = outline_color_off
+
+        box_canvas.config(highlightbackground=outline_color)
+
+        box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
+        box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
+
+    def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
+        if self.box_states[box_index]["error_code_active"]:
             return
 
-        if os.path.isfile(next_audio_file):
+        value = value.zfill(4)
+        previous_segment_display = self.box_states[box_index]["previous_segment_display"]
+
+        if value != previous_segment_display:
+            self.box_states[box_index]["previous_segment_display"] = value
+            self.schedule_segment_update(box_canvas, value, box_index, blink)
+
+    def schedule_segment_update(self, box_canvas, value, box_index, blink):
+        segment_queue = self.box_states[box_index].get("segment_queue", None)
+        if not segment_queue:
+            segment_queue = queue.Queue(maxsize=10)
+            self.box_states[box_index]["segment_queue"] = segment_queue
+        
+        if not segment_queue.full():
+            segment_queue.put((value, blink))
+
+        if not self.box_states[box_index].get("segment_updating", False):
+            self.box_states[box_index]["segment_updating"] = True
+            self.root.after(10, self.process_segment_queue, box_canvas, box_index)
+
+    def process_segment_queue(self, box_canvas, box_index):
+        segment_queue = self.box_states[box_index]["segment_queue"]
+        if not segment_queue.empty():
+            value, blink = segment_queue.get()
+            self.perform_segment_update(box_canvas, value, blink, box_index)
+            self.root.after(10, self.process_segment_queue, box_canvas, box_index)
+        else:
+            self.box_states[box_index]["segment_updating"] = False
+
+    def perform_segment_update(self, box_canvas, value, blink, box_index):
+        def update_all_digits():
+            leading_zero = True
+            for index in range(len(value)):
+                digit = value[index]
+                if leading_zero and digit == '0' and index < 3:
+                    segments = SEGMENTS[' ']
+                else:
+                    segments = SEGMENTS[digit]
+                    leading_zero = False
+
+                if blink and self.box_states[box_index]["blink_state"]:
+                    segments = SEGMENTS[' ']
+
+                for j, state in enumerate(segments):
+                    color = '#fc0c0c' if state == '1' else '#424242'
+                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
+
+        update_all_digits()
+
+        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+
+    def record_history(self, box_index, value):
+        if value.strip():
+            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+            log_line = f"{timestamp},{value}\n"
+            log_file_index = self.get_log_file_index(box_index)
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
+
+            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
+
+    def get_log_file_index(self, box_index):
+        index = 0
+        while True:
+            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+            if not os.path.exists(log_file):
+                return index
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                if len(lines) < self.LOGS_PER_FILE:
+                    return index
+            index += 1
+
+    def load_log_files(self, box_index, file_index):
+        log_entries = []
+        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as file:
+                lines = file.readlines()
+                for line in lines:
+                    timestamp, value = line.strip().split(',')
+                    log_entries.append((timestamp, value))
+        return log_entries
+
+    def show_history_graph(self, box_index):
+        with self.history_lock:
+            if self.history_window and self.history_window.winfo_exists():
+                self.history_window.destroy()
+
+            self.history_window = Toplevel(self.root)
+            self.history_window.title(f"History - Box {box_index}")
+            self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
+            self.history_window.attributes("-topmost", True)
+
+            self.current_file_index = self.get_log_file_index(box_index) - 1
+            self.update_history_graph(box_index, self.current_file_index)
+
+    def update_history_graph(self, box_index, file_index):
+        log_entries = self.load_log_files(box_index, file_index)
+        times, values = zip(*log_entries) if log_entries else ([], [])
+
+        figure = plt.Figure(figsize=(12 * SCALE_FACTOR, 8 * SCALE_FACTOR), dpi=100)
+        ax = figure.add_subplot(111)
+
+        ax.plot(times, values, marker='o')
+        ax.set_title(f'History - Box {box_index} (File {file_index + 1})')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Value')
+        figure.autofmt_xdate()
+
+        if hasattr(self, 'canvas'):
+            self.canvas.get_tk_widget().destroy()
+
+        self.canvas = FigureCanvasTkAgg(figure, master=self.history_window)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
+
+        if not hasattr(self, 'nav_frame'):
+            self.nav_frame = Frame(self.history_window)
+            self.nav_frame.pack(side="bottom")
+
+            self.prev_button = Button(self.nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
+            self.prev_button.pack(side="left")
+
+            self.next_button = Button(self.nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
+            self.next_button.pack(side="right")
+
+        mplcursors.cursor(ax)
+
+    def navigate_logs(self, box_index, direction):
+        self.current_file_index += direction
+        if (self.current_file_index) < 0:
+            self.current_file_index = 0
+        elif self.current_file_index >= self.get_log_file_index(box_index):
+            self.current_file_index = self.get_log_file_index(box_index) - 1
+
+        self.update_history_graph(box_index, self.current_file_index)
+
+    async def read_adc_data(self):
+        adc_addresses = [0x48, 0x4A, 0x4B]
+        adcs = []
+
+        for addr in adc_addresses:
             try:
-                pygame.mixer.music.load(next_audio_file)
-                pygame.mixer.music.play()
-                audio_playing = True
-            except pygame.error as e:
-                print(f"Pygame error: {e}")
-                current_alarm_box_id = None
-        else:
-            print(f"File not found: {next_audio_file}")
-            current_alarm_box_id = None
-    else:
-        current_alarm_box_id = None
+                adc = Adafruit_ADS1x15.ADS1115(address=addr)
+                adc.read_adc(0, gain=GAIN)
+                adcs.append(adc)
+                print(f"ADC at address {hex(addr)} initialized successfully.")
+            except Exception as e:
+                print(f"ADC at address {hex(addr)} is not available: {e}")
 
-def check_music_end():
-    global audio_playing
-    if not pygame.mixer.music.get_busy():
-        audio_playing = False
-        play_next_in_queue()
-    root.after(100, check_music_end)
+        while True:
+            tasks = []
+            for adc_index, adc in enumerate(adcs):
+                task = self.read_adc_values(adc, adc_index)
+                tasks.append(task)
+            await asyncio.gather(*tasks)
+            await asyncio.sleep(0.1)
 
-def stop_alarm_sound(box_id):
-    global audio_playing, current_alarm_box_id
-    with audio_lock:
-        if current_alarm_box_id == box_id:
-            pygame.mixer.music.stop()
-            audio_playing = False
-            while not audio_queue.empty():
-                audio_queue.get()
-            current_alarm_box_id = None
+    async def read_adc_values(self, adc, adc_index):
+        try:
+            values = []
+            for channel in range(4):
+                value = adc.read_adc(channel, gain=GAIN)
+                voltage = value * 6.144 / 32767
+                current = voltage / 250
+                milliamp = current * 1000
+                values.append(milliamp)
 
-def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, fut_active, alarm_blinking, fut_blinking
-    alarm_active = active
-    fut_active = fut
+            for channel, milliamp in enumerate(values):
+                box_index = adc_index * 4 + channel
+                if box_index >= self.num_boxes:
+                    continue
 
-    if fut_active:
-        stop_alarm_sound(box_id)
-        alarm_blinking = False
-        fut_blinking = True
-        fut_blink()
-    elif alarm_active:
-        fut_blinking = False
-        alarm_blinking = True
-        alarm_blink()
-        play_alarm_sound(box_id)
-    else:
-        fut_blinking = False
-        alarm_blinking = False
-        root.config(background=default_background)
-        stop_alarm_sound(box_id)
+                self.adc_values[box_index].append(milliamp)
 
-def alarm_blink():
-    red_duration = 200
-    off_duration = 200
+                filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
 
-    def toggle_color():
-        if alarm_blinking:
-            current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else default_background
-            root.config(background=new_color)
-            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
-        else:
-            root.config(background=default_background)
+                if len(self.adc_values[box_index]) == 5:
+                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
+                    previous_value = self.box_states[box_index]["current_value"]
+                    current_value = filtered_value
 
-    toggle_color()
+                    self.box_states[box_index]["previous_value"] = previous_value
+                    self.box_states[box_index]["current_value"] = current_value
+                    self.box_states[box_index]["interpolating"] = True
 
-def fut_blink():
-    yellow_duration = 200
-    off_duration = 200
+                    self.adc_queue.put(box_index)
+        except OSError as e:
+            print(f"Error reading ADC data: {e}")
+        except Exception as e:
+            print(f"Unexpected error reading ADC data: {e}")
 
-    def toggle_color():
-        if fut_blinking:
-            current_color = root.cget("background")
-            new_color = "yellow" if current_color != "yellow" else default_background
-            root.config(background=new_color)
-            root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
-        else:
-            root.config(background=default_background)
+    def start_adc_thread(self):
+        adc_thread = threading.Thread(target=self.run_async_adc)
+        adc_thread.daemon = True
+        adc_thread.start()
 
-    toggle_color()
+    def run_async_adc(self):
+        asyncio.run(self.read_adc_data())
 
-def exit_fullscreen(event=None):
-    utils.exit_fullscreen(root, event)
+    def schedule_ui_update(self):
+        self.root.after(10, self.update_ui_from_queue)
 
-def enter_fullscreen(event=None):
-    utils.enter_fullscreen(root, event)
+    def update_ui_from_queue(self):
+        try:
+            while not self.adc_queue.empty():
+                box_index = self.adc_queue.get_nowait()
+                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+                full_scale = self.GAS_FULL_SCALE[gas_type]
+                alarm_levels = self.ALARM_LEVELS[gas_type]
 
-def exit_application():
-    utils.exit_application(root)
+                self.start_interpolation(box_index, full_scale, alarm_levels)
 
-def update_system():
-    utils.update_system(root)
+        except Exception as e:
+            print(f"Error updating UI from queue: {e}")
 
-def check_for_updates():
-    utils.check_for_updates(root)
+        self.schedule_ui_update()
 
-def show_update_notification(remote_commit):
-    utils.show_update_notification(root, remote_commit)
+    def start_interpolation(self, box_index, full_scale, alarm_levels):
+        if self.box_states[box_index]["interpolating"]:
+            prev_value = self.box_states[box_index]["previous_value"]
+            curr_value = self.box_states[box_index]["current_value"]
 
-def start_update(remote_commit):
-    utils.start_update(root, remote_commit)
+            steps = 10
+            interval = 10
 
-def ignore_update(remote_commit):
-    utils.ignore_update(root, remote_commit)
+            self.animate_step(box_index, 0, steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
-def restart_application():
-    utils.restart_application()
+    def animate_step(self, box_index, step, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval):
+        if step >= total_steps:
+            self.box_states[box_index]["interpolating"] = False
+            self.box_states[box_index]["error_code_active"] = False
+            return
 
-def get_system_info():
-    try:
-        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-    except subprocess.CalledProcessError:
-        current_branch = "N/A"
+        interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
+        formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
+        formatted_value = max(0, min(formatted_value, full_scale))
 
-    try:
-        cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
-        cpu_usage = psutil.cpu_percent(interval=1)
-        memory_usage = psutil.virtual_memory().percent
-        disk_usage = psutil.disk_usage('/').percent
-        net_io = psutil.net_io_counters()
-        network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
-        return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
-    except Exception as e:
-        return f"System info could not be retrieved: {str(e)}"
+        pwr_on = interpolated_value >= 1.5
 
-def get_ip_address():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.settimeout(0)
-    try:
-        s.connect(('10.254.254.254', 1))
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = 'N/A'
-    finally:
-        s.close()
-    return IP
+        self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+        self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
 
-def update_status_label():
-    status_label.config(text=get_system_info())
+        fut_on = any(min_value <= interpolated_value <= max_value for min_value, max_value in [(1.3, 1.7), (1.8, 2.2), (2.3, 2.7)])
 
-def change_branch():
-    global branch_window
-    if branch_window and branch_window.winfo_exists():
-        branch_window.focus()
-        return
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, fut_on], box_index=box_index)
 
-    branch_window = Toplevel(root)
-    branch_window.title("브랜치 변경")
-    branch_window.attributes("-topmost", True)
+        milliamp_text = f"{interpolated_value:.1f} mA"
+        milliamp_color = "#00ff00"
 
-    try:
-        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-        Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
+        error_code_displayed = False
+        error_codes = {
+            "E-23": (1.3, 1.7),
+            "E-10": (1.8, 2.2),
+            "E-22": (2.3, 2.7)
+        }
 
-        branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
-        branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
+        for code, (min_value, max_value) in error_codes.items():
+            if min_value <= interpolated_value <= max_value:
+                error_code_displayed = True
+                milliamp_text = code
+                self.update_segment_display(code, self.box_frames[box_index][1], blink=True, box_index=box_index)
+                self.update_circle_state([False, False, False, True], box_index=box_index)
 
-        selected_branch = StringVar(branch_window)
-        selected_branch.set(branches[0])
-        ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
+                self.box_states[box_index]["error_code_active"] = True
+                self.root.after(500, lambda: self.maintain_error_display(box_index, code))
+                break
 
-        def switch_branch():
-            new_branch = selected_branch.get()
-            try:
-                subprocess.check_output(['git', 'checkout', new_branch])
-                messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
-                branch_window.destroy()
-                restart_application()
-            except subprocess.CalledProcessError as e:
-                messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
+        if not error_code_displayed:
+            if interpolated_value < 1.3:
+                milliamp_text = "PWR OFF"
+                milliamp_color = "#ff0000"
+                self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+                self.update_circle_state([False, False, False, False], box_index=box_index)
+            elif interpolated_value >= 2.9:
+                self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], True, fut_on], box_index=box_index)
 
-        Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
-    except Exception as e:
-        messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
-        branch_window.destroy()
+        self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+        box_canvas = self.box_frames[box_index][1]
+        box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
 
-def update_clock_thread(clock_label, date_label, stop_event):
-    while not stop_event.is_set():
-        now = datetime.datetime.now()
-        current_time = now.strftime("%H:%M:%S")
-        current_date = now.strftime("%Y-%m-%d %A")
-        clock_label.config(text=current_time)
-        date_label.config(text=current_date)
-        time.sleep(1)
+        self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def maintain_error_display(self, box_index, expected_code):
+        if self.box_states[box_index]["previous_segment_display"] == expected_code:
+            self.update_segment_display(expected_code, self.box_frames[box_index][1], blink=True, box_index=box_index)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    root.title("GDSENG - 스마트 모니터링 시스템")
+    from tkinter import Tk
+    import json
 
-    default_background = root.cget("background")
+    with open('settings.json') as f:
+        settings = json.load(f)
 
-    def signal_handler(sig, frame):
-        print("Exiting gracefully...")
-        root.destroy()
-        sys.exit(0)
+    root = Tk()
+    main_frame = Frame(root)
+    main_frame.pack()
 
-    signal.signal(signal.SIGINT, signal_handler)
-
-    initialize_globals(root, change_branch)
-
-    if not admin_password:
-        prompt_new_password()
-
-    root.attributes("-fullscreen", True)
-    root.attributes("-topmost", True)
-
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-
-    root.bind("<Escape>", exit_fullscreen)
-
-    modbus_boxes = settings.get("modbus_boxes", [])
-    if isinstance(modbus_boxes, int):
-        modbus_boxes = [None] * modbus_boxes
-
-    analog_boxes = settings.get("analog_boxes", [])
-    if isinstance(analog_boxes, int):
-        analog_boxes = [None] * analog_boxes
-
-    if not isinstance(modbus_boxes, list):
-        raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
-
-    if not isinstance(analog_boxes, list):
-        raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
-
-    main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
-
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
-
-    ups_ui = None
-    if settings.get("battery_box_enabled", 0):
-        ups_ui = UPSMonitorUI(main_frame, 1)
-
-    all_boxes = []
-
-    if ups_ui:
-        all_boxes.append((ups_ui, 0))
-
-    for i in range(len(modbus_boxes)):
-        all_boxes.append((modbus_ui, i))
-
-    for i in range(len(analog_boxes)):
-        all_boxes.append((analog_ui, i))
-
-    row_index = 0
-    column_index = 0
-    max_columns = 6
-
-    for ui, idx in all_boxes:
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
-
-        if isinstance(ui, (ModbusUI, AnalogUI, UPSMonitorUI)):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
-
-        column_index += 1
-
-    for i in range(max_columns):
-        main_frame.grid_columnconfigure(i, weight=1)
-
-    for i in range((len(all_boxes) + max_columns - 1) // max_columns):
-        main_frame.grid_rowconfigure(i, weight=1)
-
-    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
-    
-    def on_enter(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
-    
-    def on_leave(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
-
-    settings_button.bind("<Enter>", on_enter)
-    settings_button.bind("<Leave>", on_leave)
-
-    settings_button.place(relx=1.0, rely=1.0, anchor='se')
-
-    status_label = tk.Label(root, text="", font=("Arial", 10))
-    status_label.place(relx=0.0, rely=1.0, anchor='sw')
-
-    total_boxes = len(modbus_boxes) + len(analog_boxes) + (1 if ups_ui else 0)
-
-    if 0 <= total_boxes <= 4:
-        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
-        clock_label.place(relx=0.5, rely=0.1, anchor='n')
-
-        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
-        date_label.place(relx=0.5, rely=0.20, anchor='n')
-
-        stop_event = threading.Event()
-        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
-        clock_thread.start()
-
-    def on_closing():
-        if 0 <= total_boxes <= 4:
-            stop_event.set()
-            clock_thread.join()
-        root.destroy()
-
-    root.protocol("WM_DELETE_WINDOW", on_closing)
-
-    def system_info_thread():
-        while True:
-            update_status_label()
-            time.sleep(1)
-
-    if os.path.exists(utils.IGNORE_COMMIT_FILE):
-        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
-            ignore_commit = file.read().strip().encode()
-        utils.ignore_commit = ignore_commit
-
-    utils.checking_updates = True
-    threading.Thread(target=system_info_thread, daemon=True).start()
-    threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
-
-    check_music_end()
+    analog_boxes = settings["analog_boxes"]
+    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id, fut: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id} {'(FUT)' if fut else ''}"))
 
     root.mainloop()
-
-    for _, client in modbus_ui.clients.items():
-        client.close()
