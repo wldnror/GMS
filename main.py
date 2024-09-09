@@ -127,10 +127,16 @@ def stop_alarm_sound(box_id):
             audio_playing = False
             while not audio_queue.empty():
                 audio_queue.get()
-            current_alarm_box_id = None
+            current_alarm_box_id = None  # 알람이 멈추면 현재 알람 ID 초기화
 
 def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, fut_active, last_signal_type, signal_received_time
+    global alarm_active, fut_active, last_signal_type, signal_received_time, current_alarm_box_id
+
+    # 기존 알람이 이미 활성화된 경우 새 요청 무시
+    if current_alarm_box_id is not None and current_alarm_box_id != box_id:
+        print(f"Alarm from box {box_id} ignored because box {current_alarm_box_id} is already active.")
+        return
+
     current_time = time.time()
 
     # 신호가 기존 신호와 다르거나 1초 이상 경과했을 때만 처리
@@ -139,6 +145,7 @@ def set_alarm_status(active, box_id, fut=False):
         fut_active = fut
         last_signal_type = (active, fut)
         signal_received_time = current_time
+        current_alarm_box_id = box_id
 
         if fut_active:
             stop_alarm_sound(box_id)
