@@ -73,6 +73,10 @@ signal_received_time = 0
 
 pygame.mixer.init()
 
+# 비동기 큐를 통해 작업 분배를 관리
+modbus_queue = queue.Queue()
+analog_queue = queue.Queue()
+
 def play_alarm_sound(box_id):
     global selected_audio_file, audio_playing, current_alarm_box_id
     if selected_audio_file is None:
@@ -317,6 +321,20 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
+def modbus_worker():
+    """Modbus 작업을 처리하는 스레드 함수."""
+    while True:
+        box_id, data = modbus_queue.get()
+        # Modbus 데이터 처리 로직 추가
+        time.sleep(0.1)  # Modbus 처리 지연 시뮬레이션
+
+def analog_worker():
+    """Analog 작업을 처리하는 스레드 함수."""
+    while True:
+        box_id, data = analog_queue.get()
+        # Analog 데이터 처리 로직 추가
+        time.sleep(0.1)  # Analog 처리 지연 시뮬레이션
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -450,6 +468,10 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
+
+    # Modbus 및 Analog 작업을 처리하는 별도 스레드 시작
+    threading.Thread(target=modbus_worker, daemon=True).start()
+    threading.Thread(target=analog_worker, daemon=True).start()
 
     check_music_end()
 
