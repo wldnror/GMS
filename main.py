@@ -147,23 +147,29 @@ def set_alarm_status(active, box_id, fut=False):
         signal_received_time = current_time
         current_alarm_box_id = box_id
 
-        if fut_active:
-            stop_alarm_sound(box_id)
-            alarm_blinking = False
-            fut_blinking = True
-            fut_blink()
-        elif alarm_active:
-            fut_blinking = False
-            alarm_blinking = True
-            alarm_blink()
-            play_alarm_sound(box_id)
-        else:
-            fut_blinking = False
-            alarm_blinking = False
-            GPIO.output(RED_PIN, GPIO.LOW)  # LED 끄기
-            GPIO.output(YELLOW_PIN, GPIO.LOW)  # LED 끄기
-            root.config(background=default_background)
-            stop_alarm_sound(box_id)
+        # 알람을 별도 스레드에서 처리하여 메인 스레드를 차단하지 않도록 함
+        threading.Thread(target=handle_alarm, args=(box_id,)).start()
+
+def handle_alarm(box_id):
+    global alarm_active, fut_active
+
+    if fut_active:
+        stop_alarm_sound(box_id)
+        alarm_blinking = False
+        fut_blinking = True
+        fut_blink()
+    elif alarm_active:
+        fut_blinking = False
+        alarm_blinking = True
+        alarm_blink()
+        play_alarm_sound(box_id)
+    else:
+        fut_blinking = False
+        alarm_blinking = False
+        GPIO.output(RED_PIN, GPIO.LOW)  # LED 끄기
+        GPIO.output(YELLOW_PIN, GPIO.LOW)  # LED 끄기
+        root.config(background=default_background)
+        stop_alarm_sound(box_id)
 
 def alarm_blink():
     red_duration = 1000
