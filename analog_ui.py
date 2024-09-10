@@ -271,8 +271,11 @@ class AnalogUI:
             threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
 
     def async_write_log(self, log_file, log_line):
-        with open(log_file, 'a') as file:
-            file.write(log_line)
+        try:
+            with open(log_file, 'a') as file:
+                file.write(log_line)
+        except Exception as e:
+            print(f"Error writing to log file: {e}")
 
     def get_log_file_index(self, box_index):
         index = 0
@@ -280,21 +283,28 @@ class AnalogUI:
             log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
             if not os.path.exists(log_file):
                 return index
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                if len(lines) < self.LOGS_PER_FILE:
-                    return index
+            try:
+                with open(log_file, 'r') as file:
+                    lines = file.readlines()
+                    if len(lines) < self.LOGS_PER_FILE:
+                        return index
+            except Exception as e:
+                print(f"Error reading log file: {e}")
+                return index
             index += 1
 
     def load_log_files(self, box_index, file_index):
         log_entries = []
         log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
         if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                for line in lines:
-                    timestamp, value = line.strip().split(',')
-                    log_entries.append((timestamp, value))
+            try:
+                with open(log_file, 'r') as file:
+                    lines = file.readlines()
+                    for line in lines:
+                        timestamp, value = line.strip().split(',')
+                        log_entries.append((timestamp, value))
+            except Exception as e:
+                print(f"Error loading log file: {e}")
         return log_entries
 
     def show_history_graph(self, box_index):
@@ -416,10 +426,15 @@ class AnalogUI:
         adc_thread.start()
 
     def run_async_adc(self):
-        asyncio.run(self.read_adc_data())
+        try:
+            asyncio.run(self.read_adc_data())
+        except RuntimeError as e:
+            print(f"Asyncio runtime error: {e}")
+        except Exception as e:
+            print(f"Unexpected error running ADC thread: {e}")
 
     def schedule_ui_update(self):
-        self.root.after(10, self.update_ui_from_queue)
+        self.root.after(100, self.update_ui_from_queue)  # 업데이트 간격을 100ms로 변경하여 부하 감소
 
     def update_ui_from_queue(self):
         try:
