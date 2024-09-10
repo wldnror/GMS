@@ -293,8 +293,11 @@ class ModbusUI:
             threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
 
     def async_write_log(self, log_file, log_line):
-        with open(log_file, 'a') as file:
-            file.write(log_line)
+        try:
+            with open(log_file, 'a') as file:
+                file.write(log_line)
+        except IOError as e:
+            self.console.print(f"Error writing log file: {e}")
 
     def get_log_file_index(self, box_index):
         index = 0
