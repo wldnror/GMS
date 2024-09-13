@@ -5,6 +5,7 @@ import json
 import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
+from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 import threading
 # from pymodbus.client.asynchronous.async_io import AsyncModbusTCPClient
 # from pymodbus.client.asynchronous.schedulers import AsyncIOScheduler
