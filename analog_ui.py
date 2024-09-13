@@ -2,6 +2,7 @@
 
 import os
 import threading
+import time
 from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
@@ -13,7 +14,7 @@ import queue
 import asyncio
 
 # 전역 변수로 설정
-GAIN = 2 / 3  
+GAIN = 2 / 3
 SCALE_FACTOR = 1.65  # 20% 키우기
 
 class AnalogUI:
@@ -61,7 +62,8 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
+        # 필터 크기 축소 및 가중치 필터 적용
+        self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -92,7 +94,7 @@ class AnalogUI:
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), 
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR),
                             highlightthickness=int(3 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
         box_canvas.pack()
@@ -175,7 +177,7 @@ class AnalogUI:
 
     def update_circle_state(self, states, box_index=0):
         _, box_canvas, circle_items, led1, led2, _ = self.box_frames[box_index]
-        
+
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
@@ -218,7 +220,7 @@ class AnalogUI:
         if not segment_queue:
             segment_queue = queue.Queue(maxsize=10)
             self.box_states[box_index]["segment_queue"] = segment_queue
-        
+
         if not segment_queue.full():
             segment_queue.put((value, blink))
 
@@ -380,7 +382,7 @@ class AnalogUI:
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
                 milliamp = current * 1000
-                
+
                 values.append(milliamp)
 
             for channel, milliamp in enumerate(values):
@@ -388,20 +390,23 @@ class AnalogUI:
                 if box_index >= self.num_boxes:
                     continue
 
-                self.adc_values[box_index].append(milliamp)
+                # 가중치 필터 적용
+                if len(self.adc_values[box_index]) == 0:
+                    filtered_value = milliamp
+                else:
+                    filtered_value = (0.7 * milliamp) + (0.3 * self.adc_values[box_index][-1])
 
-                filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
+                self.adc_values[box_index].append(filtered_value)
 
-                if len(self.adc_values[box_index]) == 5:
-                    print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
-                    previous_value = self.box_states[box_index]["current_value"]
-                    current_value = filtered_value
+                print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
+                previous_value = self.box_states[box_index]["current_value"]
+                current_value = filtered_value
 
-                    self.box_states[box_index]["previous_value"] = previous_value
-                    self.box_states[box_index]["current_value"] = current_value
-                    self.box_states[box_index]["interpolating"] = True
+                self.box_states[box_index]["previous_value"] = previous_value
+                self.box_states[box_index]["current_value"] = current_value
+                self.box_states[box_index]["interpolating"] = True
 
-                    self.adc_queue.put(box_index)
+                self.adc_queue.put(box_index)
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
@@ -438,10 +443,17 @@ class AnalogUI:
             prev_value = self.box_states[box_index]["previous_value"]
             curr_value = self.box_states[box_index]["current_value"]
 
-            steps = 10
-            interval = 10
+            change = abs(curr_value - prev_value)
+            SOME_THRESHOLD = 5.0  # 예시로 5mA 이상의 변화 시
 
-            self.animate_step(box_index, 0, steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+            if change > SOME_THRESHOLD:
+                # 큰 변화 시 인터폴레이션 생략하고 즉시 업데이트
+                self.box_states[box_index]["interpolating"] = False
+                self.update_display_immediately(box_index, curr_value, full_scale, alarm_levels)
+            else:
+                steps = 10
+                interval = 10
+                self.animate_step(box_index, 0, steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
     def animate_step(self, box_index, step, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval):
         if step >= total_steps:
@@ -471,6 +483,28 @@ class AnalogUI:
         box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
 
         self.root.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
+
+    def update_display_immediately(self, box_index, current_value, full_scale, alarm_levels):
+        formatted_value = int((current_value - 4) / (20 - 4) * full_scale)
+        formatted_value = max(0, min(formatted_value, full_scale))
+
+        pwr_on = current_value >= 1.5
+
+        self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
+        self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
+
+        self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
+
+        if pwr_on:
+            self.update_segment_display(str(int(formatted_value)), self.box_frames[box_index][1], blink=False, box_index=box_index)
+        else:
+            self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
+
+        milliamp_text = f"{current_value:.1f} mA" if pwr_on else "PWR OFF"
+        milliamp_color = "#00ff00" if pwr_on else "#ff0000"
+        self.box_states[box_index]["milliamp_var"].set(milliamp_text)
+        box_canvas = self.box_frames[box_index][1]
+        box_canvas.itemconfig(self.box_states[box_index]["milliamp_text_id"], text=milliamp_text, fill=milliamp_color)
 
     def blink_alarm(self, box_index, is_second_alarm):
         def toggle_color():
