@@ -18,7 +18,7 @@ import tkinter as tk
 import pygame
 import datetime
 import locale
-import RPi.GPIO as GPIO  # GPIO 제어를 위한 라이브러리 추가
+import RPi.GPIO as GPIO
 
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
@@ -28,7 +28,7 @@ key = utils.load_key()
 cipher_suite = utils.cipher_suite
 
 # GPIO 설정
-GPIO.setmode(GPIO.BCM)  # BCM 모드로 설정
+GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
 # 사용할 핀 번호 설정
@@ -81,7 +81,7 @@ def play_alarm_sound():
         if os.path.isfile(selected_audio_file):
             try:
                 pygame.mixer.music.load(selected_audio_file)
-                pygame.mixer.music.play(loops=-1)  # 사운드를 무한 반복 재생
+                pygame.mixer.music.play(loops=-1)
                 audio_playing = True
             except pygame.error as e:
                 print(f"Pygame error: {e}")
@@ -96,14 +96,21 @@ def stop_alarm_sound():
 
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
-    box_alarm_states[box_id] = {'active': active, 'fut': fut}
-
-    # 전체 알람 상태 업데이트
+    # 이전 상태 저장
+    prev_state = box_alarm_states.get(box_id, {'active': False, 'fut': False})
     prev_global_alarm_active = global_alarm_active
     prev_global_fut_active = global_fut_active
 
+    # 새로운 상태 저장
+    box_alarm_states[box_id] = {'active': active, 'fut': fut}
+
+    # 전체 알람 상태 업데이트
     global_alarm_active = any(state['active'] for state in box_alarm_states.values())
     global_fut_active = any(state['fut'] for state in box_alarm_states.values())
+
+    # 상태 변경 여부 확인
+    state_changed = (prev_state['active'] != active) or (prev_state['fut'] != fut)
+    global_state_changed = (prev_global_alarm_active != global_alarm_active) or (prev_global_fut_active != global_fut_active)
 
     if global_fut_active:
         if not prev_global_fut_active:
@@ -115,7 +122,8 @@ def set_alarm_status(active, box_id, fut=False):
             play_alarm_sound()
             start_alarm_blinking()
     else:
-        stop_all_alarms()
+        if prev_global_alarm_active or prev_global_fut_active:
+            stop_all_alarms()
 
 def start_alarm_blinking():
     global alarm_blinking
@@ -329,8 +337,9 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
+    # 각 상자의 고유 ID를 설정합니다.
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
@@ -339,13 +348,13 @@ if __name__ == "__main__":
     all_boxes = []
 
     if ups_ui:
-        all_boxes.append((ups_ui, 0))
+        all_boxes.append((ups_ui, "ups_0"))
 
     for i in range(len(modbus_boxes)):
-        all_boxes.append((modbus_ui, i))
+        all_boxes.append((modbus_ui, f"modbus_{i}"))
 
     for i in range(len(analog_boxes)):
-        all_boxes.append((analog_ui, i))
+        all_boxes.append((analog_ui, f"analog_{i}"))
 
     # 각 상자의 알람 상태 초기화
     for ui, idx in all_boxes:
@@ -372,10 +381,10 @@ if __name__ == "__main__":
         main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
-    
+
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
-    
+
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
@@ -404,7 +413,7 @@ if __name__ == "__main__":
         if 0 <= total_boxes <= 4:
             stop_event.set()
             clock_thread.join()
-        GPIO.cleanup()  # GPIO 핀 초기화
+        GPIO.cleanup()
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
