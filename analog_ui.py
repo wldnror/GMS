@@ -1,3 +1,5 @@
+# analog_ui.py
+
 import os
 import threading
 from collections import deque
@@ -458,7 +460,7 @@ class AnalogUI:
         self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
         if pwr_on:
-            self.update_segment_display(str(int(formatted_value)).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+            self.update_segment_display(str(int(formatted_value)), self.box_frames[box_index][1], blink=False, box_index=box_index)
         else:
             self.update_segment_display("    ", self.box_frames[box_index][1], blink=False, box_index=box_index)
 
@@ -481,25 +483,9 @@ class AnalogUI:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
                 if self.box_states[box_index]["current_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["current_value"]).zfill(4), self.box_frames[box_index][1], blink=False, box_index=box_index)
+                    self.update_segment_display(str(self.box_states[box_index]["current_value"]), self.box_frames[box_index][1], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.root.after(1000, toggle_color) if is_second_alarm else self.root.after(600, toggle_color)
 
         toggle_color()
-
-if __name__ == "__main__":
-    from tkinter import Tk
-    import json
-
-    with open('settings.json') as f:
-        settings = json.load(f)
-
-    root = Tk()
-    main_frame = Frame(root)
-    main_frame.pack()
-
-    analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id}"))
-
-    root.mainloop()
