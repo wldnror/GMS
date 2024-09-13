@@ -420,10 +420,10 @@ class ModbusUI:
                     address_40011 = 40011 - 1
                     count = 1
 
-                    result_40001 = await protocol.read_holding_registers(address_40001, count)
-                    result_40005 = await protocol.read_holding_registers(address_40005, count)
-                    result_40007 = await protocol.read_holding_registers(address_40007, count)
-                    result_40011 = await protocol.read_holding_registers(address_40011, count)
+                    result_40001 = await client.read_holding_registers(address_40001, count)
+                    result_40005 = await client.read_holding_registers(address_40005, count)
+                    result_40007 = await client.read_holding_registers(address_40007, count)
+                    result_40011 = await client.read_holding_registers(address_40011, count)
 
                     if not result_40001.isError():
                         value_40001 = result_40001.registers[0]
