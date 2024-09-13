@@ -6,7 +6,7 @@ import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
 import threading
 from pymodbus.client import ModbusTcpClient
-from pymodbus.exceptions import ConnectionException
+from pymodbus.exceptions import ConnectionException, ModbusIOException
 from rich.console import Console
 from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
@@ -360,7 +360,7 @@ class ModbusUI:
     def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.connected_clients:
-            client = ModbusTcpClient(ip, port=502)
+            client = ModbusTcpClient(ip, port=502, timeout=3)  # 타임아웃 설정
             if self.connect_to_server(ip, client):
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
@@ -379,6 +379,7 @@ class ModbusUI:
                 self.save_ip_settings()
             else:
                 self.console.print(f"Failed to connect to {ip}")
+                self.root.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
@@ -387,7 +388,9 @@ class ModbusUI:
 
     def disconnect_client(self, ip, i):
         self.stop_flags[ip].set()
-        self.connected_clients[ip].join()
+        self.connected_clients[ip].join(timeout=5)
+        if self.connected_clients[ip].is_alive():
+            self.console.print(f"Thread for {ip} did not terminate in time.")
         self.clients[ip].close()
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
@@ -425,64 +428,73 @@ class ModbusUI:
                 result_40007 = client.read_holding_registers(address_40007, count)
                 result_40011 = client.read_holding_registers(address_40011, count)
 
-                if not result_40001.isError():
-                    value_40001 = result_40001.registers[0]
-                    bit_6_on = bool(value_40001 & (1 << 6))
-                    bit_7_on = bool(value_40001 & (1 << 7))
+                if result_40001.isError():
+                    raise ModbusIOException(f"Error reading from {ip} at address 40001")
 
-                    if bit_7_on:
-                        top_blink = True
-                        middle_blink = False
-                        middle_fixed = True
-                        self.record_history(box_index, 'A2')
-                    elif bit_6_on:
-                        top_blink = False
-                        middle_blink = True
-                        middle_fixed = True
-                        self.record_history(box_index, 'A1')
+                value_40001 = result_40001.registers[0]
+                bit_6_on = bool(value_40001 & (1 << 6))
+                bit_7_on = bool(value_40001 & (1 << 7))
+
+                if bit_7_on:
+                    top_blink = True
+                    middle_blink = False
+                    middle_fixed = True
+                    self.record_history(box_index, 'A2')
+                elif bit_6_on:
+                    top_blink = False
+                    middle_blink = True
+                    middle_fixed = True
+                    self.record_history(box_index, 'A1')
+                else:
+                    top_blink = False
+                    middle_blink = False
+                    middle_fixed = True
+
+                self.ui_update_queue.put(('circle_state', box_index, [top_blink, middle_blink, middle_fixed, False]))
+
+                if result_40005.isError():
+                    raise ModbusIOException(f"Error reading from {ip} at address 40005")
+
+                value_40005 = result_40005.registers[0]
+                self.box_states[box_index]["last_value_40005"] = value_40005
+
+                if result_40007.isError():
+                    raise ModbusIOException(f"Error reading from {ip} at address 40007")
+
+                value_40007 = result_40007.registers[0]
+                bits = [bool(value_40007 & (1 << n)) for n in range(4)]
+
+                if not any(bits):
+                    formatted_value = f"{value_40005}"
+                    self.data_queue.put((box_index, formatted_value, False))
+                else:
+                    error_display = ""
+                    for i, bit in enumerate(bits):
+                        if bit:
+                            error_display = BIT_TO_SEGMENT[i]
+                            self.record_history(box_index, error_display)
+                            break
+
+                    error_display = error_display.ljust(4)
+                    if 'E' in error_display:
+                        self.box_states[box_index]["blinking_error"] = True
+                        self.data_queue.put((box_index, error_display, True))
+                        self.ui_update_queue.put(('circle_state', box_index, [False, False, True, self.box_states[box_index]["blink_state"]]))
                     else:
-                        top_blink = False
-                        middle_blink = False
-                        middle_fixed = True
+                        self.box_states[box_index]["blinking_error"] = False
+                        self.data_queue.put((box_index, error_display, False))
+                        self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
 
-                    self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
+                if result_40011.isError():
+                    raise ModbusIOException(f"Error reading from {ip} at address 40011")
 
-                if not result_40005.isError():
-                    value_40005 = result_40005.registers[0]
-                    self.box_states[box_index]["last_value_40005"] = value_40005
-
-                    if not result_40007.isError():
-                        value_40007 = result_40007.registers[0]
-                        bits = [bool(value_40007 & (1 << n)) for n in range(4)]
-
-                        if not any(bits):
-                            formatted_value = f"{value_40005}"
-                            self.data_queue.put((box_index, formatted_value, False))
-                        else:
-                            error_display = ""
-                            for i, bit in enumerate(bits):
-                                if bit:
-                                    error_display = BIT_TO_SEGMENT[i]
-                                    self.record_history(box_index, error_display)
-                                    break
-
-                            error_display = error_display.ljust(4)
-                            if 'E' in error_display:
-                                self.box_states[box_index]["blinking_error"] = True
-                                self.data_queue.put((box_index, error_display, True))
-                                self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]], box_index=box_index)
-                            else:
-                                self.box_states[box_index]["blinking_error"] = False
-                                self.data_queue.put((box_index, error_display, False))
-                                self.update_circle_state([False, False, True, False], box_index=box_index)
-                if not result_40011.isError():
-                    value_40011 = result_40011.registers[0]
-                    self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
+                value_40011 = result_40011.registers[0]
+                self.ui_update_queue.put(('bar', box_index, value_40011))
 
                 time.sleep(interval)
 
-            except ConnectionException:
-                self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
+            except (ConnectionException, ModbusIOException) as e:
+                self.console.print(f"Connection to {ip} lost: {e}")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
@@ -520,13 +532,13 @@ class ModbusUI:
         return False
 
     def start_data_processing_thread(self):
-        threading.Thread(target=self.process_data).start()
+        threading.Thread(target=self.process_data, daemon=True).start()
 
     def process_data(self):
         while True:
             try:
                 box_index, value, blink = self.data_queue.get(timeout=1)
-                self.ui_update_queue.put((box_index, value, blink))
+                self.ui_update_queue.put(('segment_display', box_index, value, blink))
             except queue.Empty:
                 continue
 
@@ -536,10 +548,17 @@ class ModbusUI:
     def update_ui_from_queue(self):
         try:
             while not self.ui_update_queue.empty():
-                box_index, value, blink = self.ui_update_queue.get_nowait()
-                box_canvas = self.box_frames[box_index][1]
-                # 비동기적으로 세그먼트 디스플레이 업데이트
-                threading.Thread(target=self.update_segment_display, args=(value, box_canvas, blink, box_index)).start()
+                item = self.ui_update_queue.get_nowait()
+                if item[0] == 'circle_state':
+                    _, box_index, states = item
+                    self.update_circle_state(states, box_index=box_index)
+                elif item[0] == 'bar':
+                    _, box_index, value = item
+                    self.update_bar(value, self.box_frames[box_index][3], self.box_frames[box_index][5])
+                elif item[0] == 'segment_display':
+                    _, box_index, value, blink = item
+                    box_canvas = self.box_frames[box_index][1]
+                    self.update_segment_display(value, box_canvas, blink, box_index)
         except queue.Empty:
             pass
         finally:
@@ -552,28 +571,36 @@ class ModbusUI:
                 self.hide_history(event)
 
     def handle_disconnection(self, box_index):
-        self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
-        self.show_bar(box_index, show=False)
+        self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
+        self.ui_update_queue.put(('segment_display', box_index, "    ", False))
+        self.ui_update_queue.put(('bar', box_index, 0))
         self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.root.after(0, lambda: self.entries[box_index].config(state="normal"))
         self.root.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
-        while not stop_flag.is_set():
+        retries = 0
+        max_retries = 5
+        while not stop_flag.is_set() and retries < max_retries:
+            time.sleep(5)
+            self.console.print(f"Attempting to reconnect to {ip} (Attempt {retries + 1}/{max_retries})")
             if client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))
-                self.update_circle_state([False, False, True, False], box_index=box_index)
+                self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
                 break
             else:
-                self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
-                time.sleep(1)
+                retries += 1
+                self.console.print(f"Reconnect attempt to {ip} failed.")
+
+        if retries >= max_retries:
+            self.console.print(f"Failed to reconnect to {ip} after {max_retries} attempts.")
+            self.disconnect_client(ip, box_index)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
