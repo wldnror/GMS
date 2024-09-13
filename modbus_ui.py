@@ -57,6 +57,9 @@ class ModbusUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
+        # IP 설정 로드
+        self.load_ip_settings(num_boxes)
+
         script_dir = os.path.dirname(os.path.abspath(__file__))
         connect_image_path = os.path.join(script_dir, "img/on.png")
         disconnect_image_path = os.path.join(script_dir, "img/off.png")
@@ -77,6 +80,15 @@ class ModbusUI:
 
         self.root.bind("<Button-1>", self.check_click)
 
+    def load_ip_settings(self, num_boxes):
+        if os.path.exists(self.SETTINGS_FILE):
+            with open(self.SETTINGS_FILE, 'r') as file:
+                ip_settings = json.load(file)
+                for i in range(min(num_boxes, len(ip_settings))):
+                    self.ip_vars[i].set(ip_settings[i])
+        else:
+            self.ip_vars = [StringVar() for _ in range(num_boxes)]
+
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")
         img.thumbnail(size, Image.LANCZOS)
@@ -88,6 +100,8 @@ class ModbusUI:
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
             entry.config(fg="grey")
+        else:
+            entry.config(fg="black")
 
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
