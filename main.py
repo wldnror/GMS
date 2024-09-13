@@ -16,7 +16,6 @@ from settings import show_settings, prompt_new_password, show_password_prompt, l
 import utils
 import tkinter as tk
 import pygame
-import queue
 import datetime
 import locale
 import RPi.GPIO as GPIO  # GPIO 제어를 위한 라이브러리 추가
@@ -67,9 +66,6 @@ fut_blinking = False
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
-audio_queue = queue.Queue()
-audio_lock = threading.Lock()
-
 # 각 상자의 알람 상태를 저장하는 딕셔너리
 box_alarm_states = {}
 
@@ -81,63 +77,43 @@ def play_alarm_sound():
         print("No audio file selected. Skipping alarm sound.")
         return
 
-    with audio_lock:
-        if not audio_playing:
-            audio_queue.put(selected_audio_file)
-            if not pygame.mixer.music.get_busy():
-                play_next_in_queue()
-
-def play_next_in_queue():
-    global audio_playing
-    if not audio_queue.empty():
-        next_audio_file = audio_queue.get()
-        print(f"Trying to play: {next_audio_file}")
-
-        if next_audio_file is None:
-            print("Error: No audio file to play. Skipping.")
-            return
-
-        if os.path.isfile(next_audio_file):
+    if not audio_playing:
+        if os.path.isfile(selected_audio_file):
             try:
-                pygame.mixer.music.load(next_audio_file)
-                pygame.mixer.music.play()
+                pygame.mixer.music.load(selected_audio_file)
+                pygame.mixer.music.play(loops=-1)  # 사운드를 무한 반복 재생
                 audio_playing = True
             except pygame.error as e:
                 print(f"Pygame error: {e}")
         else:
-            print(f"File not found: {next_audio_file}")
-    else:
-        audio_playing = False
-
-def check_music_end():
-    global audio_playing
-    if not pygame.mixer.music.get_busy():
-        audio_playing = False
-        play_next_in_queue()
-    root.after(100, check_music_end)
+            print(f"File not found: {selected_audio_file}")
 
 def stop_alarm_sound():
     global audio_playing
-    with audio_lock:
+    if audio_playing:
         pygame.mixer.music.stop()
         audio_playing = False
-        while not audio_queue.empty():
-            audio_queue.get()
 
 def set_alarm_status(active, box_id, fut=False):
-    global global_alarm_active, global_fut_active
+    global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
     box_alarm_states[box_id] = {'active': active, 'fut': fut}
 
     # 전체 알람 상태 업데이트
+    prev_global_alarm_active = global_alarm_active
+    prev_global_fut_active = global_fut_active
+
     global_alarm_active = any(state['active'] for state in box_alarm_states.values())
     global_fut_active = any(state['fut'] for state in box_alarm_states.values())
 
     if global_fut_active:
-        stop_alarm_sound()
-        start_fut_blinking()
+        if not prev_global_fut_active:
+            stop_alarm_sound()
+            alarm_blinking = False
+            start_fut_blinking()
     elif global_alarm_active:
-        start_alarm_blinking()
-        play_alarm_sound()
+        if not prev_global_alarm_active:
+            play_alarm_sound()
+            start_alarm_blinking()
     else:
         stop_all_alarms()
 
@@ -173,7 +149,7 @@ def alarm_blink():
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            GPIO.output(RED_PIN, GPIO.HIGH if new_color == "red" else GPIO.LOW)
+            GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
             toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
@@ -194,7 +170,7 @@ def fut_blink():
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
-            GPIO.output(YELLOW_PIN, GPIO.HIGH if new_color == "yellow" else GPIO.LOW)
+            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
             toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
@@ -335,6 +311,7 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
+    settings = load_settings()
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
         modbus_boxes = [None] * modbus_boxes
@@ -445,8 +422,6 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
-
-    check_music_end()
 
     root.mainloop()
 
