@@ -5,7 +5,7 @@ from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Topl
 from tkinter import ttk
 from modbus_ui import ModbusUI
 from analog_ui import AnalogUI
-from ups_monitor_ui import UPSMonitorUI  # UPSMonitorUI 클래스 임포트 추가
+from ups_monitor_ui import UPSMonitorUI
 import threading
 import psutil
 import signal
@@ -16,9 +16,9 @@ from settings import show_settings, prompt_new_password, show_password_prompt, l
 import utils
 import tkinter as tk
 import pygame
-import queue
 import datetime
 import locale
+import RPi.GPIO as GPIO
 
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
@@ -26,6 +26,22 @@ SETTINGS_FILE = "settings.json"
 
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
+
+# GPIO 설정
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+# 사용할 핀 번호 설정
+RED_PIN = 20  # 빨강 LED에 대응하는 핀
+YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
+
+# 출력 핀으로 설정
+GPIO.setup(RED_PIN, GPIO.OUT)
+GPIO.setup(YELLOW_PIN, GPIO.OUT)
+
+# 초기값 설정
+GPIO.output(RED_PIN, GPIO.LOW)
+GPIO.output(YELLOW_PIN, GPIO.LOW)
 
 def encrypt_data(data):
     return utils.encrypt_data(data)
@@ -40,85 +56,137 @@ ignore_commit = None
 update_notification_frame = None
 checking_updates = True
 branch_window = None
-alarm_active = False
+
+# 전역 알람 상태 변수
+global_alarm_active = False
+global_fut_active = False
 alarm_blinking = False
+fut_blinking = False
+
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
-audio_queue = queue.Queue()
-audio_lock = threading.Lock()
-
-current_alarm_box_id = None
+# 각 상자의 알람 상태를 저장하는 딕셔너리
+box_alarm_states = {}
 
 pygame.mixer.init()
 
-def play_alarm_sound(box_id):
-    global selected_audio_file, audio_playing, current_alarm_box_id
+def play_alarm_sound():
+    global selected_audio_file, audio_playing
     if selected_audio_file is None:
         print("No audio file selected. Skipping alarm sound.")
         return
 
-    with audio_lock:
-        if current_alarm_box_id is None or current_alarm_box_id == box_id:
-            current_alarm_box_id = box_id
-            if not audio_playing:
-                audio_queue.put(selected_audio_file)
-                if not pygame.mixer.music.get_busy():
-                    play_next_in_queue()
-
-def play_next_in_queue():
-    global audio_playing, current_alarm_box_id
-    if not audio_queue.empty():
-        next_audio_file = audio_queue.get()
-        print(f"Trying to play: {next_audio_file}")
-
-        if next_audio_file is None:
-            print("Error: No audio file to play. Skipping.")
-            current_alarm_box_id = None
-            return
-
-        if os.path.isfile(next_audio_file):
+    if not audio_playing:
+        if os.path.isfile(selected_audio_file):
             try:
-                pygame.mixer.music.load(next_audio_file)
-                pygame.mixer.music.play()
+                pygame.mixer.music.load(selected_audio_file)
+                pygame.mixer.music.play(loops=-1)
                 audio_playing = True
             except pygame.error as e:
                 print(f"Pygame error: {e}")
-                current_alarm_box_id = None
         else:
-            print(f"File not found: {next_audio_file}")
-            current_alarm_box_id = None
-    else:
-        current_alarm_box_id = None
+            print(f"File not found: {selected_audio_file}")
 
-def check_music_end():
+def stop_alarm_sound():
     global audio_playing
-    if not pygame.mixer.music.get_busy():
+    if audio_playing:
+        pygame.mixer.music.stop()
         audio_playing = False
-        play_next_in_queue()
-    root.after(100, check_music_end)
 
-def stop_alarm_sound(box_id):
-    global audio_playing, current_alarm_box_id
-    with audio_lock:
-        if current_alarm_box_id == box_id:
-            pygame.mixer.music.stop()
-            audio_playing = False
-            while not audio_queue.empty():
-                audio_queue.get()
-            current_alarm_box_id = None
+def set_alarm_status(active, box_id, fut=False):
+    global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
+    # 이전 상태 저장
+    prev_state = box_alarm_states.get(box_id, {'active': False, 'fut': False})
+    prev_global_alarm_active = global_alarm_active
+    prev_global_fut_active = global_fut_active
 
-def set_alarm_status(active, box_id):
-    global alarm_active, alarm_blinking
-    alarm_active = active
-    if alarm_active and not alarm_blinking:
+    # 새로운 상태 저장
+    box_alarm_states[box_id] = {'active': active, 'fut': fut}
+
+    # 전체 알람 상태 업데이트
+    global_alarm_active = any(state['active'] for state in box_alarm_states.values())
+    global_fut_active = any(state['fut'] for state in box_alarm_states.values())
+
+    # 상태 변경 여부 확인
+    state_changed = (prev_state['active'] != active) or (prev_state['fut'] != fut)
+    global_state_changed = (prev_global_alarm_active != global_alarm_active) or (prev_global_fut_active != global_fut_active)
+
+    if global_fut_active:
+        if not prev_global_fut_active:
+            stop_alarm_sound()
+            alarm_blinking = False
+            start_fut_blinking()
+    elif global_alarm_active:
+        if not prev_global_alarm_active:
+            play_alarm_sound()
+            start_alarm_blinking()
+    else:
+        if prev_global_alarm_active or prev_global_fut_active:
+            stop_all_alarms()
+
+def start_alarm_blinking():
+    global alarm_blinking
+    if not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
-        play_alarm_sound(box_id)
-    elif not alarm_active and alarm_blinking:
-        alarm_blinking = False
-        root.config(background=default_background)
-        stop_alarm_sound(box_id)
+
+def start_fut_blinking():
+    global fut_blinking
+    if not fut_blinking:
+        fut_blinking = True
+        fut_blink()
+
+def stop_all_alarms():
+    global alarm_blinking, fut_blinking
+    alarm_blinking = False
+    fut_blinking = False
+    GPIO.output(RED_PIN, GPIO.LOW)
+    GPIO.output(YELLOW_PIN, GPIO.LOW)
+    root.config(background=default_background)
+    stop_alarm_sound()
+
+def alarm_blink():
+    red_duration = 1000
+    off_duration = 1000
+    toggle_color_id = None
+
+    def toggle_color():
+        nonlocal toggle_color_id
+        if global_alarm_active and alarm_blinking:
+            current_color = root.cget("background")
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            GPIO.output(RED_PIN, GPIO.LOW)
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
+
+    toggle_color()
+
+def fut_blink():
+    yellow_duration = 1000
+    off_duration = 1000
+    toggle_color_id = None
+
+    def toggle_color():
+        nonlocal toggle_color_id
+        if global_fut_active and fut_blinking:
+            current_color = root.cget("background")
+            new_color = "yellow" if current_color != "yellow" else default_background
+            root.config(background=new_color)
+            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            GPIO.output(YELLOW_PIN, GPIO.LOW)
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
+
+    toggle_color()
 
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
@@ -215,22 +283,6 @@ def change_branch():
         messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
         branch_window.destroy()
 
-def alarm_blink():
-    red_duration = 200
-    off_duration = 200
-
-    def toggle_color():
-        if alarm_active:
-            current_color = root.cget("background")
-            new_color = "red" if current_color != "red" else default_background
-            root.config(background=new_color)
-            root.after(red_duration if new_color == "red" else off_duration, toggle_color)
-        else:
-            root.config(background=default_background)
-            root.after_cancel(toggle_color)
-
-    toggle_color()
-
 def update_clock_thread(clock_label, date_label, stop_event):
     while not stop_event.is_set():
         now = datetime.datetime.now()
@@ -248,6 +300,7 @@ if __name__ == "__main__":
 
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
+        GPIO.cleanup()  # GPIO 핀 초기화
         root.destroy()
         sys.exit(0)
 
@@ -266,6 +319,7 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
+    settings = load_settings()
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
         modbus_boxes = [None] * modbus_boxes
@@ -283,25 +337,28 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0)
 
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], set_alarm_status)
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], set_alarm_status)
+    # 각 상자의 고유 ID를 설정합니다.
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
-    # UPS 박스 초기화 (토글에 따라 추가)
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
-        ups_ui = UPSMonitorUI(main_frame, 1)  # UPSMonitorUI 인스턴스 생성
+        ups_ui = UPSMonitorUI(main_frame, 1)
 
     all_boxes = []
 
-    # UPS 박스를 가장 앞에 추가
     if ups_ui:
-        all_boxes.append((ups_ui, 0))
+        all_boxes.append((ups_ui, "ups_0"))
 
     for i in range(len(modbus_boxes)):
-        all_boxes.append((modbus_ui, i))
+        all_boxes.append((modbus_ui, f"modbus_{i}"))
 
     for i in range(len(analog_boxes)):
-        all_boxes.append((analog_ui, i))
+        all_boxes.append((analog_ui, f"analog_{i}"))
+
+    # 각 상자의 알람 상태 초기화
+    for ui, idx in all_boxes:
+        box_alarm_states[idx] = {'active': False, 'fut': False}
 
     row_index = 0
     column_index = 0
@@ -324,10 +381,10 @@ if __name__ == "__main__":
         main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
-    
+
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
-    
+
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
@@ -356,6 +413,7 @@ if __name__ == "__main__":
         if 0 <= total_boxes <= 4:
             stop_event.set()
             clock_thread.join()
+        GPIO.cleanup()
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
@@ -373,8 +431,6 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
-
-    check_music_end()
 
     root.mainloop()
 
