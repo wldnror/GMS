@@ -5,17 +5,13 @@ import json
 import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
-from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 import threading
-# from pymodbus.client.asynchronous.async_io import AsyncModbusTCPClient
-# from pymodbus.client.asynchronous.schedulers import AsyncIOScheduler
-from pymodbus.client import AsyncModbusTcpClient
+from pymodbus.client import AsyncModbusTcpClient  # 수정된 임포트 구문
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
-from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display
+from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
-
 
 SCALE_FACTOR = 1.65
 
@@ -44,7 +40,6 @@ class ModbusUI:
         self.entries = []
         self.action_buttons = []
         self.clients = {}
-        self.protocols = {}
         self.box_indices = {}
         self.console = Console()
         self.box_states = []
@@ -75,12 +70,10 @@ class ModbusUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.loop = asyncio.get_event_loop()
-        self.scheduler = AsyncIOScheduler(self.loop)
-        self.loop.create_task(self.process_data())
+        self.loop = asyncio.new_event_loop()  # 이벤트 루프 초기화 수정
+        threading.Thread(target=self.start_event_loop, daemon=True).start()
         self.root.after(100, self.update_ui_from_queue)
 
-        threading.Thread(target=self.start_event_loop, daemon=True).start()
         self.root.bind("<Button-1>", self.check_click)
 
     def load_image(self, path, size):
@@ -369,18 +362,17 @@ class ModbusUI:
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.clients:
-            self.loop.create_task(self.disconnect(i))
+            asyncio.run_coroutine_threadsafe(self.disconnect(i), self.loop)
         else:
-            self.loop.create_task(self.connect(i))
+            asyncio.run_coroutine_threadsafe(self.connect(i), self.loop)
 
     async def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.clients:
             try:
-                client = AsyncModbusTCPClient(scheduler=self.scheduler, host=ip, port=502)
-                protocol = client.protocol
+                client = AsyncModbusTcpClient(ip, port=502)
+                await client.connect()
                 self.clients[ip] = client
-                self.protocols[ip] = protocol
                 self.box_indices[ip] = i
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))
@@ -389,7 +381,7 @@ class ModbusUI:
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
-                self.loop.create_task(self.read_modbus_data(ip, protocol, i))
+                asyncio.run_coroutine_threadsafe(self.read_modbus_data(ip, client, i), self.loop)
             except Exception as e:
                 self.console.print(f"Failed to connect to {ip}: {e}")
 
@@ -399,7 +391,6 @@ class ModbusUI:
             client = self.clients[ip]
             await client.close()
             del self.clients[ip]
-            del self.protocols[ip]
             del self.box_indices[ip]
             self.reset_ui_elements(i)
             self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
@@ -412,11 +403,11 @@ class ModbusUI:
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
 
-    async def read_modbus_data(self, ip, protocol, box_index):
+    async def read_modbus_data(self, ip, client, box_index):
         interval = 1.0  # 폴링 주기를 늘림
         while ip in self.clients:
             try:
-                if not protocol.transport.is_closing():
+                if client.connected:
                     address_40001 = 40001 - 1
                     address_40005 = 40005 - 1
                     address_40007 = 40008 - 1
@@ -512,11 +503,8 @@ class ModbusUI:
             json.dump(ip_settings, file)
 
     def start_event_loop(self):
+        asyncio.set_event_loop(self.loop)  # 이벤트 루프 설정
         self.loop.run_forever()
-
-    async def process_data(self):
-        while True:
-            await asyncio.sleep(1)  # 필요 시 데이터 처리 로직 추가
 
     def update_ui_from_queue(self):
         # 필요 시 UI 업데이트 로직 추가
