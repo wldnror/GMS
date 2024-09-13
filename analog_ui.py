@@ -1,5 +1,8 @@
+# analog_ui.py
+
 import os
 import threading
+import time
 from collections import deque
 from tkinter import Frame, Canvas, StringVar, Toplevel, Button
 import Adafruit_ADS1x15
@@ -10,9 +13,8 @@ from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
 
-# 전역 변수로 설정
-GAIN = 2 / 3  
-SCALE_FACTOR = 1.65  # 20% 키우기
+GAIN = 2 / 3
+SCALE_FACTOR = 1.65
 
 class AnalogUI:
     LOGS_PER_FILE = 10
@@ -25,10 +27,10 @@ class AnalogUI:
     }
 
     GAS_TYPE_POSITIONS = {
-        "ORG": (115, 95),
-        "ARF-T": (107, 95),
-        "HMDS": (110, 95),
-        "HC-100": (104, 95)
+        "ORG": (int(115 * SCALE_FACTOR), int(95 * SCALE_FACTOR)),
+        "ARF-T": (int(107 * SCALE_FACTOR), int(95 * SCALE_FACTOR)),
+        "HMDS": (int(110 * SCALE_FACTOR), int(95 * SCALE_FACTOR)),
+        "HC-100": (int(104 * SCALE_FACTOR), int(95 * SCALE_FACTOR))
     }
 
     ALARM_LEVELS = {
@@ -59,7 +61,7 @@ class AnalogUI:
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
 
-        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]  # 필터링을 위해 최근 5개의 값을 유지
+        self.adc_values = [deque(maxlen=5) for _ in range(num_boxes)]
 
         for i in range(num_boxes):
             self.create_analog_box(i)
@@ -67,9 +69,10 @@ class AnalogUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.adc_queue = queue.Queue()
-        self.start_adc_thread()
-        self.schedule_ui_update()
+        self.loop = asyncio.get_event_loop()
+        self.loop.create_task(self.read_adc_data())
+        threading.Thread(target=self.start_event_loop, daemon=True).start()
+        self.root.after(100, self.update_ui_from_queue)
 
     def create_analog_box(self, index):
         max_boxes_per_row = 6
@@ -101,7 +104,7 @@ class AnalogUI:
         gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
-        gas_type_text_id = box_canvas.create_text(*[int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type_var.get()]],
+        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()],
                                                   text=gas_type_var.get(), font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
         self.box_states.append({
             "previous_value": 0,
@@ -120,7 +123,7 @@ class AnalogUI:
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
             "alarm2_on": False,
-            "fut_on": False,  # FUT 신호 상태 추가
+            "fut_on": False,
             "error_code_active": False
         })
 
@@ -165,7 +168,7 @@ class AnalogUI:
         self.box_states[box_index]["full_scale"] = full_scale
 
         box_canvas = self.box_frames[box_index][1]
-        position = [int(coord * SCALE_FACTOR) for coord in self.GAS_TYPE_POSITIONS[gas_type]]
+        position = self.GAS_TYPE_POSITIONS[gas_type]
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
@@ -215,40 +218,13 @@ class AnalogUI:
 
         if value != previous_segment_display:
             self.box_states[box_index]["previous_segment_display"] = value
-            self.schedule_segment_update(box_canvas, value, box_index, blink)
-
-    def schedule_segment_update(self, box_canvas, value, box_index, blink):
-        segment_queue = self.box_states[box_index].get("segment_queue", None)
-        if not segment_queue:
-            segment_queue = queue.Queue(maxsize=10)
-            self.box_states[box_index]["segment_queue"] = segment_queue
-        
-        if not segment_queue.full():
-            segment_queue.put((value, blink))
-
-        if not self.box_states[box_index].get("segment_updating", False):
-            self.box_states[box_index]["segment_updating"] = True
-            self.root.after(10, self.process_segment_queue, box_canvas, box_index)
-
-    def process_segment_queue(self, box_canvas, box_index):
-        segment_queue = self.box_states[box_index]["segment_queue"]
-        if not segment_queue.empty():
-            value, blink = segment_queue.get()
-            self.perform_segment_update(box_canvas, value, blink, box_index)
-            self.root.after(10, self.process_segment_queue, box_canvas, box_index)
-        else:
-            self.box_states[box_index]["segment_updating"] = False
-
-    def perform_segment_update(self, box_canvas, value, blink, box_index):
-        def update_all_digits():
-            leading_zero = True
+            # 필요할 때만 업데이트
             for index in range(len(value)):
                 digit = value[index]
-                if leading_zero and digit == '0' and index < 3:
+                if digit == ' ':
                     segments = SEGMENTS[' ']
                 else:
                     segments = SEGMENTS[digit]
-                    leading_zero = False
 
                 if blink and self.box_states[box_index]["blink_state"]:
                     segments = SEGMENTS[' ']
@@ -257,9 +233,7 @@ class AnalogUI:
                     color = '#fc0c0c' if state == '1' else '#424242'
                     box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-        update_all_digits()
-
-        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
         if value.strip():
@@ -380,7 +354,7 @@ class AnalogUI:
                 task = self.read_adc_values(adc, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.5)  # 폴링 주기를 늘림
 
     async def read_adc_values(self, adc, adc_index):
         try:
@@ -397,9 +371,7 @@ class AnalogUI:
                 if box_index >= self.num_boxes:
                     continue
 
-                # 소수점 두 자리까지만 반영하여 떨림 감소
                 rounded_value = round(milliamp, 2)
-            
                 self.adc_values[box_index].append(rounded_value)
                 filtered_value = sum(self.adc_values[box_index]) / len(self.adc_values[box_index])
 
@@ -407,49 +379,31 @@ class AnalogUI:
 
                 change = abs(filtered_value - previous_value)
 
-                # 변화량이 특정 임계값 이상일 때만 반영
-                if change > 0.02:  # 변화량이 미세할 경우 무시
+                if change > 0.02:
                     self.box_states[box_index]["previous_value"] = previous_value
                     self.box_states[box_index]["current_value"] = filtered_value
                     self.box_states[box_index]["interpolating"] = True
-                    self.adc_queue.put(box_index)
 
         except OSError as e:
             print(f"Error reading ADC data: {e}")
         except Exception as e:
             print(f"Unexpected error reading ADC data: {e}")
 
-
-    def start_adc_thread(self):
-        adc_thread = threading.Thread(target=self.run_async_adc)
-        adc_thread.daemon = True
-        adc_thread.start()
-
-    def run_async_adc(self):
-        try:
-            asyncio.run(self.read_adc_data())
-        except RuntimeError as e:
-            print(f"Asyncio runtime error: {e}")
-        except Exception as e:
-            print(f"Unexpected error running ADC thread: {e}")
-
-    def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)  # 업데이트 간격을 100ms로 변경하여 부하 감소
+    def start_event_loop(self):
+        self.loop.run_forever()
 
     def update_ui_from_queue(self):
         try:
-            while not self.adc_queue.empty():
-                box_index = self.adc_queue.get_nowait()
-                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
-                full_scale = self.GAS_FULL_SCALE[gas_type]
-                alarm_levels = self.ALARM_LEVELS[gas_type]
-
-                self.start_interpolation(box_index, full_scale, alarm_levels)
-
+            for box_index in range(self.num_boxes):
+                if self.box_states[box_index]["interpolating"]:
+                    gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+                    full_scale = self.GAS_FULL_SCALE[gas_type]
+                    alarm_levels = self.ALARM_LEVELS[gas_type]
+                    self.start_interpolation(box_index, full_scale, alarm_levels)
         except Exception as e:
-            print(f"Error updating UI from queue: {e}")
-
-        self.schedule_ui_update()
+            print(f"Error updating UI: {e}")
+        finally:
+            self.root.after(100, self.update_ui_from_queue)
 
     def start_interpolation(self, box_index, full_scale, alarm_levels):
         if self.box_states[box_index]["interpolating"]:
@@ -520,19 +474,3 @@ class AnalogUI:
     def maintain_error_display(self, box_index, expected_code):
         if self.box_states[box_index]["previous_segment_display"] == expected_code:
             self.update_segment_display(expected_code, self.box_frames[box_index][1], blink=True, box_index=box_index)
-
-if __name__ == "__main__":
-    from tkinter import Tk
-    import json
-
-    with open('settings.json') as f:
-        settings = json.load(f)
-
-    root = Tk()
-    main_frame = Frame(root)
-    main_frame.pack()
-
-    analog_boxes = settings["analog_boxes"]
-    analog_ui = AnalogUI(main_frame, analog_boxes, settings["analog_gas_types"], alarm_callback=lambda active, box_id, fut: print(f"Alarm {'Active' if active else 'Inactive'} on Box {box_id} {'(FUT)' if fut else ''}"))
-
-    root.mainloop()
