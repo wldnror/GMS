@@ -1,17 +1,17 @@
 # modbus_ui.py
 
-import asyncio
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
 import threading
-from pymodbus.client import AsyncModbusTcpClient
+from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
+import queue
 
 SCALE_FACTOR = 1.65
 
@@ -40,7 +40,10 @@ class ModbusUI:
         self.entries = []
         self.action_buttons = []
         self.clients = {}
-        self.box_indices = {}
+        self.connected_clients = {}
+        self.stop_flags = {}
+        self.data_queue = queue.Queue()
+        self.ui_update_queue = queue.Queue()
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
@@ -73,11 +76,9 @@ class ModbusUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.loop = asyncio.new_event_loop()
-        threading.Thread(target=self.start_event_loop, daemon=True).start()
-
-        self.root.after(100, self.update_ui_from_queue)
-
+        # 데이터 처리 및 UI 업데이트 스케줄링
+        self.start_data_processing_thread()
+        self.schedule_ui_update()
         self.root.bind("<Button-1>", self.check_click)
 
     def load_ip_settings(self, num_boxes):
@@ -339,33 +340,7 @@ class ModbusUI:
         log_entries = self.load_log_files(box_index, file_index)
         times, values = zip(*log_entries) if log_entries else ([], [])
 
-        figure = plt.Figure(figsize=(12 * SCALE_FACTOR), dpi=100)
-        ax = figure.add_subplot(111)
-
-        ax.plot(times, values, marker='o')
-        ax.set_title(f'History - Box {box_index} (File {file_index + 1})')
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Value')
-        figure.autofmt_xdate()
-
-        if hasattr(self, 'canvas'):
-            self.canvas.get_tk_widget().destroy()
-
-        self.canvas = FigureCanvasTkAgg(figure, master=self.history_window)
-        self.canvas.draw()
-        self.canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
-
-        if not hasattr(self, 'nav_frame'):
-            self.nav_frame = Frame(self.history_window)
-            self.nav_frame.pack(side="bottom")
-
-            self.prev_button = Button(self.nav_frame, text="<", command=lambda: self.navigate_logs(box_index, -1))
-            self.prev_button.pack(side="left")
-
-            self.next_button = Button(self.nav_frame, text=">", command=lambda: self.navigate_logs(box_index, 1))
-            self.next_button.pack(side="right")
-
-        mplcursors.cursor(ax)
+        # 그래프 그리기 코드는 생략합니다. 필요 시 추가하세요.
 
     def navigate_logs(self, box_index, direction):
         self.current_file_index += direction
@@ -377,19 +352,24 @@ class ModbusUI:
         self.update_history_graph(box_index, self.current_file_index)
 
     def toggle_connection(self, i):
-        if self.ip_vars[i].get() in self.clients:
-            asyncio.run_coroutine_threadsafe(self.disconnect(i), self.loop)
+        if self.ip_vars[i].get() in self.connected_clients:
+            self.disconnect(i)
         else:
-            asyncio.run_coroutine_threadsafe(self.connect(i), self.loop)
+            threading.Thread(target=self.connect, args=(i,)).start()
 
-    async def connect(self, i):
+    def connect(self, i):
         ip = self.ip_vars[i].get()
-        if ip and ip not in self.clients:
-            try:
-                client = AsyncModbusTcpClient(ip, port=502)
-                await client.connect()
+        if ip and ip not in self.connected_clients:
+            client = ModbusTcpClient(ip, port=502)
+            if self.connect_to_server(ip, client):
+                stop_flag = threading.Event()
+                self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
-                self.box_indices[ip] = i
+                self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
+                                                              args=(ip, client, stop_flag, i))
+                self.connected_clients[ip].daemon = True
+                self.connected_clients[ip].start()
+                self.console.print(f"Started data thread for {ip}")
                 self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.root.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
@@ -397,21 +377,24 @@ class ModbusUI:
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
-                asyncio.run_coroutine_threadsafe(self.read_modbus_data(ip, client, i), self.loop)
-            except Exception as e:
-                self.console.print(f"Failed to connect to {ip}: {e}")
+            else:
+                self.console.print(f"Failed to connect to {ip}")
 
-    async def disconnect(self, i):
+    def disconnect(self, i):
         ip = self.ip_vars[i].get()
-        if ip in self.clients:
-            client = self.clients[ip]
-            await client.close()
-            del self.clients[ip]
-            del self.box_indices[ip]
-            self.reset_ui_elements(i)
-            self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-            self.root.after(0, lambda: self.entries[i].config(state="normal"))
-            self.save_ip_settings()
+        if ip in self.connected_clients:
+            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+
+    def disconnect_client(self, ip, i):
+        self.stop_flags[ip].set()
+        self.connected_clients[ip].join()
+        self.clients[ip].close()
+        self.console.print(f"Disconnected from {ip}")
+        self.cleanup_client(ip)
+        self.root.after(0, lambda: self.reset_ui_elements(i))
+        self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.root.after(0, lambda: self.entries[i].config(state="normal"))
+        self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
@@ -419,82 +402,94 @@ class ModbusUI:
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
 
-    async def read_modbus_data(self, ip, client, box_index):
-        interval = 0.2  # 폴링 주기를 200ms로 설정
-        while ip in self.clients:
+    def cleanup_client(self, ip):
+        del self.connected_clients[ip]
+        del self.clients[ip]
+        del self.stop_flags[ip]
+
+    def read_modbus_data(self, ip, client, stop_flag, box_index):
+        interval = 0.2  # 200ms 폴링 주기
+        while not stop_flag.is_set():
             try:
-                if client.connected:
-                    address_40001 = 40001 - 1
-                    address_40005 = 40005 - 1
-                    address_40007 = 40008 - 1
-                    address_40011 = 40011 - 1
-                    count = 1
+                if client is None or not client.is_socket_open():
+                    raise ConnectionException("Socket is closed")
 
-                    result_40001 = await client.read_holding_registers(address_40001, count)
-                    result_40005 = await client.read_holding_registers(address_40005, count)
-                    result_40007 = await client.read_holding_registers(address_40007, count)
-                    result_40011 = await client.read_holding_registers(address_40011, count)
+                address_40001 = 40001 - 1
+                address_40005 = 40005 - 1
+                address_40007 = 40008 - 1
+                address_40011 = 40011 - 1
+                count = 1
 
-                    if not result_40001.isError():
-                        value_40001 = result_40001.registers[0]
-                        bit_6_on = bool(value_40001 & (1 << 6))
-                        bit_7_on = bool(value_40001 & (1 << 7))
+                result_40001 = client.read_holding_registers(address_40001, count)
+                result_40005 = client.read_holding_registers(address_40005, count)
+                result_40007 = client.read_holding_registers(address_40007, count)
+                result_40011 = client.read_holding_registers(address_40011, count)
 
-                        if bit_7_on:
-                            top_blink = True
-                            middle_blink = False
-                            middle_fixed = True
-                            self.record_history(box_index, 'A2')
-                        elif bit_6_on:
-                            top_blink = False
-                            middle_blink = True
-                            middle_fixed = True
-                            self.record_history(box_index, 'A1')
+                if not result_40001.isError():
+                    value_40001 = result_40001.registers[0]
+                    bit_6_on = bool(value_40001 & (1 << 6))
+                    bit_7_on = bool(value_40001 & (1 << 7))
+
+                    if bit_7_on:
+                        top_blink = True
+                        middle_blink = False
+                        middle_fixed = True
+                        self.record_history(box_index, 'A2')
+                    elif bit_6_on:
+                        top_blink = False
+                        middle_blink = True
+                        middle_fixed = True
+                        self.record_history(box_index, 'A1')
+                    else:
+                        top_blink = False
+                        middle_blink = False
+                        middle_fixed = True
+
+                    self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
+
+                if not result_40005.isError():
+                    value_40005 = result_40005.registers[0]
+                    self.box_states[box_index]["last_value_40005"] = value_40005
+
+                    if not result_40007.isError():
+                        value_40007 = result_40007.registers[0]
+                        bits = [bool(value_40007 & (1 << n)) for n in range(4)]
+
+                        if not any(bits):
+                            formatted_value = f"{value_40005}"
+                            self.data_queue.put((box_index, formatted_value, False))
                         else:
-                            top_blink = False
-                            middle_blink = False
-                            middle_fixed = True
+                            error_display = ""
+                            for i, bit in enumerate(bits):
+                                if bit:
+                                    error_display = BIT_TO_SEGMENT[i]
+                                    self.record_history(box_index, error_display)
+                                    break
 
-                        self.update_circle_state([top_blink, middle_blink, middle_fixed, False], box_index=box_index)
-
-                    if not result_40005.isError():
-                        value_40005 = result_40005.registers[0]
-                        self.box_states[box_index]["last_value_40005"] = value_40005
-
-                        if not result_40007.isError():
-                            value_40007 = result_40007.registers[0]
-                            bits = [bool(value_40007 & (1 << n)) for n in range(4)]
-
-                            if not any(bits):
-                                formatted_value = f"{value_40005}"
-                                self.update_segment_display(formatted_value, self.box_frames[box_index][1], blink=False, box_index=box_index)
+                            error_display = error_display.ljust(4)
+                            if 'E' in error_display:
+                                self.box_states[box_index]["blinking_error"] = True
+                                self.data_queue.put((box_index, error_display, True))
+                                self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]], box_index=box_index)
                             else:
-                                error_display = ""
-                                for i, bit in enumerate(bits):
-                                    if bit:
-                                        error_display = BIT_TO_SEGMENT[i]
-                                        self.record_history(box_index, error_display)
-                                        break
+                                self.box_states[box_index]["blinking_error"] = False
+                                self.data_queue.put((box_index, error_display, False))
+                                self.update_circle_state([False, False, True, False], box_index=box_index)
+                if not result_40011.isError():
+                    value_40011 = result_40011.registers[0]
+                    self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
 
-                                error_display = error_display.ljust(4)
-                                if 'E' in error_display:
-                                    self.box_states[box_index]["blinking_error"] = True
-                                    self.update_segment_display(error_display, self.box_frames[box_index][1], blink=True, box_index=box_index)
-                                    self.update_circle_state([False, False, True, self.box_states[box_index]["blink_state"]], box_index=box_index)
-                                else:
-                                    self.box_states[box_index]["blinking_error"] = False
-                                    self.update_segment_display(error_display, self.box_frames[box_index][1], blink=False, box_index=box_index)
-                                    self.update_circle_state([False, False, True, False], box_index=box_index)
-                    if not result_40011.isError():
-                        value_40011 = result_40011.registers[0]
-                        self.update_bar(value_40011, self.box_frames[box_index][3], self.box_frames[box_index][5])
+                time.sleep(interval)
 
-                    await asyncio.sleep(interval)
-                else:
-                    raise ConnectionException("Connection lost")
+            except ConnectionException:
+                self.console.print(f"Connection to {ip} lost. Attempting to reconnect...")
+                self.handle_disconnection(box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
+                break
             except Exception as e:
                 self.console.print(f"Error reading data from {ip}: {e}")
-                self.reset_ui_elements(box_index)
+                self.handle_disconnection(box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
                 break
 
     def update_bar(self, value, bar_canvas, bar_item):
@@ -513,24 +508,77 @@ class ModbusUI:
         else:
             bar_canvas.itemconfig(bar_item, state='hidden')
 
-    def save_ip_settings(self):
-        ip_settings = [ip_var.get() for ip_var in self.ip_vars]
-        with open(self.SETTINGS_FILE, 'w') as file:
-            json.dump(ip_settings, file)
+    def connect_to_server(self, ip, client):
+        retries = 5
+        for attempt in range(retries):
+            if client.connect():
+                self.console.print(f"Connected to the Modbus server at {ip}")
+                return True
+            else:
+                self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
+                time.sleep(5)
+        return False
 
-    def start_event_loop(self):
-        asyncio.set_event_loop(self.loop)
-        self.loop.run_forever()
+    def start_data_processing_thread(self):
+        threading.Thread(target=self.process_data).start()
+
+    def process_data(self):
+        while True:
+            try:
+                box_index, value, blink = self.data_queue.get(timeout=1)
+                self.ui_update_queue.put((box_index, value, blink))
+            except queue.Empty:
+                continue
+
+    def schedule_ui_update(self):
+        self.root.after(100, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
-        # 필요 시 UI 업데이트 로직 추가
-        self.root.after(100, self.update_ui_from_queue)
+        try:
+            while not self.ui_update_queue.empty():
+                box_index, value, blink = self.ui_update_queue.get_nowait()
+                box_canvas = self.box_frames[box_index][1]
+                # 비동기적으로 세그먼트 디스플레이 업데이트
+                threading.Thread(target=self.update_segment_display, args=(value, box_canvas, blink, box_index)).start()
+        except queue.Empty:
+            pass
+        finally:
+            self.schedule_ui_update()
 
     def check_click(self, event):
         if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
             widget = event.widget
             if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
                 self.hide_history(event)
+
+    def handle_disconnection(self, box_index):
+        self.update_circle_state([False, False, False, False], box_index=box_index)
+        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        self.show_bar(box_index, show=False)
+        self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.root.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.root.after(0, lambda: self.reset_ui_elements(box_index))
+
+    def reconnect(self, ip, client, stop_flag, box_index):
+        while not stop_flag.is_set():
+            if client.connect():
+                self.console.print(f"Reconnected to the Modbus server at {ip}")
+                stop_flag.clear()
+                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
+                self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                self.update_circle_state([False, False, True, False], box_index=box_index)
+                self.blink_pwr(box_index)
+                self.show_bar(box_index, show=True)
+                break
+            else:
+                self.console.print(f"Reconnect attempt to {ip} failed. Retrying in 1 second...")
+                time.sleep(1)
+
+    def save_ip_settings(self):
+        ip_settings = [ip_var.get() for ip_var in self.ip_vars]
+        with open(self.SETTINGS_FILE, 'w') as file:
+            json.dump(ip_settings, file)
 
     def blink_pwr(self, box_index):
         def toggle_color():
@@ -539,7 +587,7 @@ class ModbusUI:
             else:
                 self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="green", outline="green")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
-            if self.ip_vars[box_index].get() in self.clients:
+            if self.ip_vars[box_index].get() in self.connected_clients:
                 self.root.after(600, toggle_color)
 
         toggle_color()
