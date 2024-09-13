@@ -6,7 +6,7 @@ import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
-from pymodbus.client import AsyncModbusTcpClient  # 수정된 임포트 구문
+from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
@@ -70,8 +70,9 @@ class ModbusUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.loop = asyncio.new_event_loop()  # 이벤트 루프 초기화 수정
+        self.loop = asyncio.new_event_loop()
         threading.Thread(target=self.start_event_loop, daemon=True).start()
+
         self.root.after(100, self.update_ui_from_queue)
 
         self.root.bind("<Button-1>", self.check_click)
@@ -244,28 +245,29 @@ class ModbusUI:
             self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        # 필요할 때만 업데이트
-        if value != previous_segment_display or blink:
-            # 각 자리의 숫자를 업데이트
-            for index in range(len(value)):
-                digit = value[index]
-                if digit == ' ':
-                    segments = SEGMENTS[' ']
-                else:
-                    segments = SEGMENTS[digit]
+        # 각 자리의 숫자를 순차적으로 업데이트
+        leading_zero = True
+        for index in range(len(value)):
+            digit = value[index]
 
-                if blink and self.box_states[box_index]["blink_state"]:
-                    segments = SEGMENTS[' ']
+            if leading_zero and digit == '0' and index < 3:
+                segments = SEGMENTS[' ']
+            else:
+                segments = SEGMENTS[digit]
+                leading_zero = False
 
-                for j, state in enumerate(segments):
-                    color = '#fc0c0c' if state == '1' else '#424242'
-                    segment_tag = f'segment_{index}_{chr(97 + j)}'
+            if blink and self.box_states[box_index]["blink_state"]:
+                segments = SEGMENTS[' ']
 
-                    if box_canvas.segment_canvas.find_withtag(segment_tag):
-                        box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
+            for j, state in enumerate(segments):
+                color = '#fc0c0c' if state == '1' else '#424242'
+                segment_tag = f'segment_{index}_{chr(97 + j)}'
 
-            # 블링크 상태 업데이트
-            self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+                if box_canvas.segment_canvas.find_withtag(segment_tag):
+                    box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
+
+        # 블링크 상태 업데이트
+        self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def record_history(self, box_index, value):
         if value.strip():
@@ -399,12 +401,12 @@ class ModbusUI:
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("   0", self.box_frames[box_index][1], box_index=box_index)
+        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
 
     async def read_modbus_data(self, ip, client, box_index):
-        interval = 0.2  # 폴링 주기를 늘림
+        interval = 0.2  # 폴링 주기를 200ms로 설정
         while ip in self.clients:
             try:
                 if client.connected:
@@ -450,7 +452,7 @@ class ModbusUI:
                             bits = [bool(value_40007 & (1 << n)) for n in range(4)]
 
                             if not any(bits):
-                                formatted_value = f"{value_40005:04d}"
+                                formatted_value = f"{value_40005}"
                                 self.update_segment_display(formatted_value, self.box_frames[box_index][1], blink=False, box_index=box_index)
                             else:
                                 error_display = ""
@@ -503,7 +505,7 @@ class ModbusUI:
             json.dump(ip_settings, file)
 
     def start_event_loop(self):
-        asyncio.set_event_loop(self.loop)  # 이벤트 루프 설정
+        asyncio.set_event_loop(self.loop)
         self.loop.run_forever()
 
     def update_ui_from_queue(self):
