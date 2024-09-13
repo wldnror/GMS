@@ -6,13 +6,15 @@ import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Label, messagebox
 import threading
-from pymodbus.client.asynchronous.async_io import AsyncModbusTCPClient
-from pymodbus.client.asynchronous.schedulers import AsyncIOScheduler
+# from pymodbus.client.asynchronous.async_io import AsyncModbusTCPClient
+# from pymodbus.client.asynchronous.schedulers import AsyncIOScheduler
+from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException
 from rich.console import Console
 from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display
 from virtual_keyboard import VirtualKeyboard
+
 
 SCALE_FACTOR = 1.65
 
