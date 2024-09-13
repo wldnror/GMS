@@ -57,49 +57,44 @@ ignore_commit = None
 update_notification_frame = None
 checking_updates = True
 branch_window = None
-alarm_active = False
-fut_active = False
+
+# 전역 알람 상태 변수
+global_alarm_active = False
+global_fut_active = False
 alarm_blinking = False
 fut_blinking = False
+
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
 audio_queue = queue.Queue()
 audio_lock = threading.Lock()
 
-current_alarm_box_id = None
-last_signal_type = None
-signal_received_time = 0
+# 각 상자의 알람 상태를 저장하는 딕셔너리
+box_alarm_states = {}
 
 pygame.mixer.init()
 
-# 비동기 큐를 통해 작업 분배를 관리
-modbus_queue = queue.Queue()
-analog_queue = queue.Queue()
-
-def play_alarm_sound(box_id):
-    global selected_audio_file, audio_playing, current_alarm_box_id
+def play_alarm_sound():
+    global selected_audio_file, audio_playing
     if selected_audio_file is None:
         print("No audio file selected. Skipping alarm sound.")
         return
 
     with audio_lock:
-        if current_alarm_box_id is None or current_alarm_box_id == box_id:
-            current_alarm_box_id = box_id
-            if not audio_playing:
-                audio_queue.put(selected_audio_file)
-                if not pygame.mixer.music.get_busy():
-                    play_next_in_queue()
+        if not audio_playing:
+            audio_queue.put(selected_audio_file)
+            if not pygame.mixer.music.get_busy():
+                play_next_in_queue()
 
 def play_next_in_queue():
-    global audio_playing, current_alarm_box_id
+    global audio_playing
     if not audio_queue.empty():
         next_audio_file = audio_queue.get()
         print(f"Trying to play: {next_audio_file}")
 
         if next_audio_file is None:
             print("Error: No audio file to play. Skipping.")
-            current_alarm_box_id = None
             return
 
         if os.path.isfile(next_audio_file):
@@ -109,12 +104,10 @@ def play_next_in_queue():
                 audio_playing = True
             except pygame.error as e:
                 print(f"Pygame error: {e}")
-                current_alarm_box_id = None
         else:
             print(f"File not found: {next_audio_file}")
-            current_alarm_box_id = None
     else:
-        current_alarm_box_id = None
+        audio_playing = False
 
 def check_music_end():
     global audio_playing
@@ -123,57 +116,51 @@ def check_music_end():
         play_next_in_queue()
     root.after(100, check_music_end)
 
-def stop_alarm_sound(box_id):
-    global audio_playing, current_alarm_box_id
+def stop_alarm_sound():
+    global audio_playing
     with audio_lock:
-        if current_alarm_box_id == box_id:
-            pygame.mixer.music.stop()
-            audio_playing = False
-            while not audio_queue.empty():
-                audio_queue.get()
-            current_alarm_box_id = None  # 알람이 멈추면 현재 알람 ID 초기화
+        pygame.mixer.music.stop()
+        audio_playing = False
+        while not audio_queue.empty():
+            audio_queue.get()
 
 def set_alarm_status(active, box_id, fut=False):
-    global alarm_active, fut_active, last_signal_type, signal_received_time, current_alarm_box_id
+    global global_alarm_active, global_fut_active
+    box_alarm_states[box_id] = {'active': active, 'fut': fut}
 
-    # 기존 알람이 이미 활성화된 경우 새 요청 무시
-    if current_alarm_box_id is not None and current_alarm_box_id != box_id:
-        print(f"Alarm from box {box_id} ignored because box {current_alarm_box_id} is already active.")
-        return
+    # 전체 알람 상태 업데이트
+    global_alarm_active = any(state['active'] for state in box_alarm_states.values())
+    global_fut_active = any(state['fut'] for state in box_alarm_states.values())
 
-    current_time = time.time()
+    if global_fut_active:
+        stop_alarm_sound()
+        start_fut_blinking()
+    elif global_alarm_active:
+        start_alarm_blinking()
+        play_alarm_sound()
+    else:
+        stop_all_alarms()
 
-    # 신호가 기존 신호와 다르거나 1초 이상 경과했을 때만 처리
-    if (last_signal_type != (active, fut)) or (current_time - signal_received_time > 1):
-        alarm_active = active
-        fut_active = fut
-        last_signal_type = (active, fut)
-        signal_received_time = current_time
-        current_alarm_box_id = box_id
-
-        # 알람을 별도 스레드에서 처리하여 메인 스레드를 차단하지 않도록 함
-        threading.Thread(target=handle_alarm, args=(box_id,)).start()
-
-def handle_alarm(box_id):
-    global alarm_active, fut_active
-
-    if fut_active:
-        stop_alarm_sound(box_id)
-        alarm_blinking = False
-        fut_blinking = True
-        fut_blink()
-    elif alarm_active:
-        fut_blinking = False
+def start_alarm_blinking():
+    global alarm_blinking
+    if not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
-        play_alarm_sound(box_id)
-    else:
-        fut_blinking = False
-        alarm_blinking = False
-        GPIO.output(RED_PIN, GPIO.LOW)  # LED 끄기
-        GPIO.output(YELLOW_PIN, GPIO.LOW)  # LED 끄기
-        root.config(background=default_background)
-        stop_alarm_sound(box_id)
+
+def start_fut_blinking():
+    global fut_blinking
+    if not fut_blinking:
+        fut_blinking = True
+        fut_blink()
+
+def stop_all_alarms():
+    global alarm_blinking, fut_blinking
+    alarm_blinking = False
+    fut_blinking = False
+    GPIO.output(RED_PIN, GPIO.LOW)
+    GPIO.output(YELLOW_PIN, GPIO.LOW)
+    root.config(background=default_background)
+    stop_alarm_sound()
 
 def alarm_blink():
     red_duration = 1000
@@ -182,15 +169,15 @@ def alarm_blink():
 
     def toggle_color():
         nonlocal toggle_color_id
-        if alarm_active:
+        if global_alarm_active and alarm_blinking:
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            GPIO.output(RED_PIN, GPIO.HIGH)  # 빨강 LED 켜기
+            GPIO.output(RED_PIN, GPIO.HIGH if new_color == "red" else GPIO.LOW)
             toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            GPIO.output(RED_PIN, GPIO.LOW)  # LED 끄기
+            GPIO.output(RED_PIN, GPIO.LOW)
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -203,15 +190,15 @@ def fut_blink():
 
     def toggle_color():
         nonlocal toggle_color_id
-        if fut_active:
+        if global_fut_active and fut_blinking:
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
-            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # 노랑 LED 켜기
+            GPIO.output(YELLOW_PIN, GPIO.HIGH if new_color == "yellow" else GPIO.LOW)
             toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            GPIO.output(YELLOW_PIN, GPIO.LOW)  # LED 끄기
+            GPIO.output(YELLOW_PIN, GPIO.LOW)
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -321,20 +308,6 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
-def modbus_worker():
-    """Modbus 작업을 처리하는 스레드 함수."""
-    while True:
-        box_id, data = modbus_queue.get()
-        # Modbus 데이터 처리 로직 추가
-        time.sleep(0.1)  # Modbus 처리 지연 시뮬레이션
-
-def analog_worker():
-    """Analog 작업을 처리하는 스레드 함수."""
-    while True:
-        box_id, data = analog_queue.get()
-        # Analog 데이터 처리 로직 추가
-        time.sleep(0.1)  # Analog 처리 지연 시뮬레이션
-
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -396,6 +369,10 @@ if __name__ == "__main__":
 
     for i in range(len(analog_boxes)):
         all_boxes.append((analog_ui, i))
+
+    # 각 상자의 알람 상태 초기화
+    for ui, idx in all_boxes:
+        box_alarm_states[idx] = {'active': False, 'fut': False}
 
     row_index = 0
     column_index = 0
@@ -468,10 +445,6 @@ if __name__ == "__main__":
     utils.checking_updates = True
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
-
-    # Modbus 및 Analog 작업을 처리하는 별도 스레드 시작
-    threading.Thread(target=modbus_worker, daemon=True).start()
-    threading.Thread(target=analog_worker, daemon=True).start()
 
     check_music_end()
 
