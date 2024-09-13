@@ -399,12 +399,12 @@ class ModbusUI:
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        self.update_segment_display("   0", self.box_frames[box_index][1], box_index=box_index)
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
 
     async def read_modbus_data(self, ip, client, box_index):
-        interval = 1.0  # 폴링 주기를 늘림
+        interval = 0.2  # 폴링 주기를 늘림
         while ip in self.clients:
             try:
                 if client.connected:
