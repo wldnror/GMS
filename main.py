@@ -1,4 +1,5 @@
 # main.py
+
 import json
 import os
 import time
@@ -348,10 +349,11 @@ if __name__ == "__main__":
 
     all_boxes = []
 
-    if ups_ui:
-        all_boxes.append((ups_ui.box_frame, "ups_0"))
-
     # 개별 프레임 수집
+    if ups_ui:
+        for i, frame in enumerate(ups_ui.box_frames):
+            all_boxes.append((frame, f"ups_{i}"))
+
     for i, frame in enumerate(modbus_ui.box_frames):
         all_boxes.append((frame, f"modbus_{i}"))
 
@@ -398,7 +400,7 @@ if __name__ == "__main__":
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    total_boxes = len(modbus_boxes) + len(analog_boxes) + (1 if ups_ui else 0)
+    total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
     if 0 <= total_boxes <= 4:
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
