@@ -198,6 +198,9 @@ class ModbusUI:
         self.show_bar(index, show=False)
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+       
+        # 초기 상태 설정 추가
+        self.update_circle_state([False, False, False, False], box_index=index)
 
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
