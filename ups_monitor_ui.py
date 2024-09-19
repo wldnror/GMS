@@ -1,5 +1,3 @@
-# ups_monitor_ui.py
-
 from tkinter import Frame, Canvas, Button
 
 # 스케일 팩터로 20% 확대
@@ -39,15 +37,15 @@ class UPSMonitorUI:
         battery_percentage_text = box_canvas.create_text(int(75 * SCALE_FACTOR), int(40 * SCALE_FACTOR), text="0%", font=("Helvetica", int(12 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
 
         # UPS 모드 표시
-        mode_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00", anchor="center")
+        mode_text_id = box_canvas.create_text(int(75 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00", anchor="center")
 
         # 모드 전환 버튼을 상자 내부에 배치
-        toggle_button = Button(inner_frame, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
-        toggle_button.pack(pady=int(5 * SCALE_FACTOR))
+        toggle_button = Button(box_canvas, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
+        box_canvas.create_window(int(75 * SCALE_FACTOR), int(140 * SCALE_FACTOR), window=toggle_button)
 
         # UPS 및 제조사 정보
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
+        box_canvas.create_text(int(75 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
+        box_canvas.create_text(int(75 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
 
         # 필요한 데이터 저장
         self.box_frames.append(box_frame)
