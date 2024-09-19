@@ -349,7 +349,7 @@ if __name__ == "__main__":
 
     all_boxes = []
 
-    # 개별 프레임 수집
+    # 클래스에서 프레임 수집
     if ups_ui:
         for i, frame in enumerate(ups_ui.box_frames):
             all_boxes.append((frame, f"ups_{i}"))
@@ -364,25 +364,36 @@ if __name__ == "__main__":
     for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
-    # 프레임 배치
-    row_index = 0
-    column_index = 0
+    # 최대 열의 수 설정
     max_columns = 6
 
-    for frame, idx in all_boxes:
-        if column_index >= max_columns:
-            column_index = 0
-            row_index += 1
-
-        frame.grid(row=row_index, column=column_index, padx=2, pady=2, sticky="nsew")
-        column_index += 1
+    # 총 행의 수 계산
+    num_rows = (len(all_boxes) + max_columns - 1) // max_columns
 
     # 그리드 행과 열의 가중치 설정
-    for i in range(max_columns):
+    main_frame.grid_rowconfigure(0, weight=1)  # 상단 여백
+    main_frame.grid_rowconfigure(num_rows + 1, weight=1)  # 하단 여백
+    main_frame.grid_columnconfigure(0, weight=1)  # 좌측 여백
+    main_frame.grid_columnconfigure(max_columns + 1, weight=1)  # 우측 여백
+
+    # 상자들이 위치하는 행과 열의 가중치를 0으로 설정
+    for i in range(1, num_rows + 1):
+        main_frame.grid_rowconfigure(i, weight=0)
+    for i in range(1, max_columns + 1):
         main_frame.grid_columnconfigure(i, weight=0)
 
-    for i in range((len(all_boxes) + max_columns - 1) // max_columns):
-        main_frame.grid_rowconfigure(i, weight=0)
+    # 상자 배치 시작 인덱스를 1로 변경
+    row_index = 1
+    column_index = 1
+
+    # 프레임 배치
+    for frame, idx in all_boxes:
+        if column_index > max_columns:
+            column_index = 1
+            row_index += 1
+
+        frame.grid(row=row_index, column=column_index, padx=2, pady=2)
+        column_index += 1
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
 
