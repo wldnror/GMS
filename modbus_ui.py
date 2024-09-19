@@ -71,10 +71,9 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
         self.disconnect_image = self.load_image(disconnect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
 
-        for i in range(num_boxes):
-            self.create_modbus_box(i)
 
         for i in range(num_boxes):
+            self.create_modbus_box(i)
             frame = tk.Frame(parent)
             self.update_circle_state([False, False, False, False], box_index=i)
             self.box_frames.append(frame)
