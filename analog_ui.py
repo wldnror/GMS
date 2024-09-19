@@ -42,6 +42,8 @@ class AnalogUI:
     }
 
     def __init__(self, root, num_boxes, gas_types, alarm_callback):
+        self.box_frames = []
+        self.clients = {}
         self.root = root
         self.alarm_callback = alarm_callback
         self.gas_types = gas_types
@@ -67,6 +69,8 @@ class AnalogUI:
 
         for i in range(num_boxes):
             self.create_analog_box(i)
+            frame = tk.Frame(parent, relief="raised", borderwidth=2)
+            self.box_frames.append(frame)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
