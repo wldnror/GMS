@@ -374,7 +374,7 @@ if __name__ == "__main__":
             column_index = 0
             row_index += 1
 
-        frame.grid(row=row_index, column=column_index, padx=5, pady=5, sticky="nsew")
+        frame.grid(row=row_index, column=column_index, padx=2, pady=2, sticky="nsew")
         column_index += 1
 
     # 그리드 행과 열의 가중치 설정
