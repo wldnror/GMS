@@ -49,14 +49,10 @@ class ModbusUI:
         self.graph_windows = [None for _ in range(num_boxes)]
         self.history_window = None
         self.history_lock = threading.Lock()
-        self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0)
-        self.row_frames = []
         self.box_frames = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.history_dir = "history_logs"
         self.gas_types = gas_types
-        self.box_frames = []
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -71,12 +67,8 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
         self.disconnect_image = self.load_image(disconnect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
 
-
         for i in range(num_boxes):
             self.create_modbus_box(i)
-            frame = tk.Frame(parent)
-            self.update_circle_state([False, False, False, False], box_index=i)
-            self.box_frames.append(frame)
 
         # 데이터 처리 및 UI 업데이트 스케줄링
         self.start_data_processing_thread()
@@ -136,19 +128,8 @@ class ModbusUI:
         self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        max_boxes_per_row = 6
-        row = index // max_boxes_per_row
-        col = index % max_boxes_per_row
-
-        if col == 0:
-            row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0, sticky="w")
-            self.row_frames.append(row_frame)
-        else:
-            row_frame = self.row_frames[-1]
-
-        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))
-        box_frame.grid(row=0, column=col)
+        # 프레임 생성
+        box_frame = Frame(highlightthickness=int(2.5 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
@@ -209,6 +190,7 @@ class ModbusUI:
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
+        # 필요한 데이터 저장
         self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
 
         self.show_bar(index, show=False)
@@ -241,7 +223,7 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
         alarm_active = states[0] or states[1]
-        self.alarm_callback(alarm_active, box_index)
+        self.alarm_callback(alarm_active, f"modbus_{box_index}")
 
         if states[0]:
             outline_color = outline_colors[0]
@@ -516,7 +498,8 @@ class ModbusUI:
         bar_canvas.bar_image = bar_image
 
     def show_bar(self, box_index, show):
-        bar_canvas, _, bar_item = self.box_frames[box_index][3:6]
+        bar_canvas = self.box_frames[box_index][3]
+        bar_item = self.box_frames[box_index][5]
         if show:
             bar_canvas.itemconfig(bar_item, state='normal')
         else:
