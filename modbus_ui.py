@@ -56,6 +56,7 @@ class ModbusUI:
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.history_dir = "history_logs"
         self.gas_types = gas_types
+        self.box_frames = []
 
         if not os.path.exists(self.history_dir):
             os.makedirs(self.history_dir)
@@ -70,11 +71,13 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
         self.disconnect_image = self.load_image(disconnect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
 
-        for i in range(num_boxes):
+       um_boxes):
             self.create_modbus_box(i)
 
         for i in range(num_boxes):
+            frame = tk.Frame(parent)
             self.update_circle_state([False, False, False, False], box_index=i)
+            self.box_frames.append(frame)
 
         # 데이터 처리 및 UI 업데이트 스케줄링
         self.start_data_processing_thread()
