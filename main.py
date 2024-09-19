@@ -1,3 +1,4 @@
+# main.py
 import json
 import os
 import time
@@ -337,7 +338,7 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")
 
-    # 각 상자의 고유 ID를 설정합니다.
+    # 클래스 인스턴스 생성 (프레임 배치 없음)
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
@@ -350,11 +351,10 @@ if __name__ == "__main__":
     if ups_ui:
         all_boxes.append((ups_ui.box_frame, "ups_0"))
 
-    # Modbus 상자의 프레임을 개별적으로 추가
+    # 개별 프레임 수집
     for i, frame in enumerate(modbus_ui.box_frames):
         all_boxes.append((frame, f"modbus_{i}"))
 
-    # Analog 상자의 프레임을 개별적으로 추가
     for i, frame in enumerate(analog_ui.box_frames):
         all_boxes.append((frame, f"analog_{i}"))
 
@@ -362,6 +362,7 @@ if __name__ == "__main__":
     for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
+    # 프레임 배치
     row_index = 0
     column_index = 0
     max_columns = 6
@@ -372,9 +373,9 @@ if __name__ == "__main__":
             row_index += 1
 
         frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
-
         column_index += 1
 
+    # 그리드 행과 열의 가중치 설정
     for i in range(max_columns):
         main_frame.grid_columnconfigure(i, weight=1)
 
