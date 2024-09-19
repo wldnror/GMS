@@ -32,10 +32,10 @@ class ModbusUI:
         "HC-100": (int(104 * SCALE_FACTOR), int(100 * SCALE_FACTOR))
     }
 
-    def __init__(self, root, num_boxes, gas_types, alarm_callback):
-        self.root = root
+    def __init__(self, parent, num_boxes, gas_types, alarm_callback):
+        self.parent = parent
         self.alarm_callback = alarm_callback
-        self.virtual_keyboard = VirtualKeyboard(root)
+        self.virtual_keyboard = VirtualKeyboard(parent)
         self.ip_vars = [StringVar() for _ in range(num_boxes)]
         self.entries = []
         self.action_buttons = []
@@ -50,6 +50,7 @@ class ModbusUI:
         self.history_window = None
         self.history_lock = threading.Lock()
         self.box_frames = []
+        self.box_data = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.history_dir = "history_logs"
         self.gas_types = gas_types
@@ -73,7 +74,7 @@ class ModbusUI:
         # 데이터 처리 및 UI 업데이트 스케줄링
         self.start_data_processing_thread()
         self.schedule_ui_update()
-        self.root.bind("<Button-1>", self.check_click)
+        self.parent.bind("<Button-1>", self.check_click)
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
@@ -129,10 +130,10 @@ class ModbusUI:
 
     def create_modbus_box(self, index):
         # 프레임 생성
-        box_frame = Frame(highlightthickness=int(2.5 * SCALE_FACTOR))
+        box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
-        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
+        inner_frame.pack(padx=0, pady=0)
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
@@ -191,18 +192,22 @@ class ModbusUI:
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
         # 필요한 데이터 저장
-        self.box_frames.append((box_frame, box_canvas, circle_items, bar_canvas, bar_image, bar_item))
+        self.box_frames.append(box_frame)
+        self.box_data.append((box_canvas, circle_items, bar_canvas, bar_image, bar_item))
 
         self.show_bar(index, show=False)
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+       
+        # 초기 상태 설정 추가
+        self.update_circle_state([False, False, False, False], box_index=index)
 
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
         self.box_states[box_index]["full_scale"] = full_scale
 
-        box_canvas = self.box_frames[box_index][1]
+        box_canvas = self.box_data[box_index][0]
         position = self.GAS_TYPE_POSITIONS[gas_type]
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
@@ -211,7 +216,7 @@ class ModbusUI:
         threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
-        _, box_canvas, circle_items, _, _, _ = self.box_frames[box_index]
+        box_canvas, circle_items, _, _, _ = self.box_data[box_index]
 
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -236,7 +241,8 @@ class ModbusUI:
 
         box_canvas.config(highlightbackground=outline_color)
 
-    def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
+    def update_segment_display(self, value, box_index=0, blink=False):
+        box_canvas = self.box_data[box_index][0]
         value = value.zfill(4)  # 네 자리로 맞추기
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
@@ -312,7 +318,7 @@ class ModbusUI:
             if self.history_window and self.history_window.winfo_exists():
                 self.history_window.destroy()
 
-            self.history_window = Toplevel(self.root)
+            self.history_window = Toplevel(self.parent)
             self.history_window.title(f"History - Box {box_index}")
             self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
             self.history_window.attributes("-topmost", True)
@@ -354,8 +360,8 @@ class ModbusUI:
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
-                self.root.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[i].config(state="disabled"))
+                self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -363,7 +369,7 @@ class ModbusUI:
                 self.save_ip_settings()
             else:
                 self.console.print(f"Failed to connect to {ip}")
-                self.root.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
+                self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
@@ -378,14 +384,14 @@ class ModbusUI:
         self.clients[ip].close()
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
-        self.root.after(0, lambda: self.reset_ui_elements(i))
-        self.root.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.root.after(0, lambda: self.entries[i].config(state="normal"))
+        self.parent.after(0, lambda: self.reset_ui_elements(i))
+        self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("    ", self.box_frames[box_index][1], box_index=box_index)
+        self.update_segment_display("    ", box_index=box_index)
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
 
@@ -488,7 +494,8 @@ class ModbusUI:
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
-    def update_bar(self, value, bar_canvas, bar_item):
+    def update_bar(self, value, box_index):
+        bar_canvas, _, _, _, bar_item = self.box_data[box_index]
         percentage = value / 100.0
         bar_length = int(153 * SCALE_FACTOR * percentage)
 
@@ -498,8 +505,8 @@ class ModbusUI:
         bar_canvas.bar_image = bar_image
 
     def show_bar(self, box_index, show):
-        bar_canvas = self.box_frames[box_index][3]
-        bar_item = self.box_frames[box_index][5]
+        bar_canvas = self.box_data[box_index][2]
+        bar_item = self.box_data[box_index][4]
         if show:
             bar_canvas.itemconfig(bar_item, state='normal')
         else:
@@ -528,7 +535,7 @@ class ModbusUI:
                 continue
 
     def schedule_ui_update(self):
-        self.root.after(100, self.update_ui_from_queue)
+        self.parent.after(100, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
@@ -539,11 +546,10 @@ class ModbusUI:
                     self.update_circle_state(states, box_index=box_index)
                 elif item[0] == 'bar':
                     _, box_index, value = item
-                    self.update_bar(value, self.box_frames[box_index][3], self.box_frames[box_index][5])
+                    self.update_bar(value, box_index)
                 elif item[0] == 'segment_display':
                     _, box_index, value, blink = item
-                    box_canvas = self.box_frames[box_index][1]
-                    self.update_segment_display(value, box_canvas, blink, box_index)
+                    self.update_segment_display(value, box_index=box_index, blink=blink)
         except queue.Empty:
             pass
         finally:
@@ -559,9 +565,9 @@ class ModbusUI:
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
-        self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.root.after(0, lambda: self.entries[box_index].config(state="normal"))
-        self.root.after(0, lambda: self.reset_ui_elements(box_index))
+        self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
@@ -573,8 +579,8 @@ class ModbusUI:
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
-                self.root.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.root.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
@@ -594,12 +600,14 @@ class ModbusUI:
 
     def blink_pwr(self, box_index):
         def toggle_color():
+            box_canvas = self.box_data[box_index][0]
+            circle_items = self.box_data[box_index][1]
             if self.box_states[box_index]["pwr_blink_state"]:
-                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="blue", outline="blue")
+                box_canvas.itemconfig(circle_items[2], fill="blue", outline="blue")
             else:
-                self.box_frames[box_index][1].itemconfig(self.box_frames[box_index][2][2], fill="green", outline="green")
+                box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
-                self.root.after(600, toggle_color)
+                self.parent.after(600, toggle_color)
 
         toggle_color()
