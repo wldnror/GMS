@@ -379,10 +379,10 @@ if __name__ == "__main__":
 
     # 그리드 행과 열의 가중치 설정
     for i in range(max_columns):
-        main_frame.grid_columnconfigure(i, weight=1)
+        main_frame.grid_columnconfigure(i, weight=0)
 
     for i in range((len(all_boxes) + max_columns - 1) // max_columns):
-        main_frame.grid_rowconfigure(i, weight=1)
+        main_frame.grid_rowconfigure(i, weight=0)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
 
