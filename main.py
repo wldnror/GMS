@@ -335,7 +335,7 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
+    main_frame.grid(row=0, column=0, sticky="nsew")
 
     # 각 상자의 고유 ID를 설정합니다.
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
@@ -348,29 +348,30 @@ if __name__ == "__main__":
     all_boxes = []
 
     if ups_ui:
-        all_boxes.append((ups_ui, "ups_0"))
+        all_boxes.append((ups_ui.box_frame, "ups_0"))
 
-    for i in range(len(modbus_boxes)):
-        all_boxes.append((modbus_ui, f"modbus_{i}"))
+    # Modbus 상자의 프레임을 개별적으로 추가
+    for i, frame in enumerate(modbus_ui.box_frames):
+        all_boxes.append((frame, f"modbus_{i}"))
 
-    for i in range(len(analog_boxes)):
-        all_boxes.append((analog_ui, f"analog_{i}"))
+    # Analog 상자의 프레임을 개별적으로 추가
+    for i, frame in enumerate(analog_ui.box_frames):
+        all_boxes.append((frame, f"analog_{i}"))
 
     # 각 상자의 알람 상태 초기화
-    for ui, idx in all_boxes:
+    for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
     row_index = 0
     column_index = 0
     max_columns = 6
 
-    for ui, idx in all_boxes:
+    for frame, idx in all_boxes:
         if column_index >= max_columns:
             column_index = 0
             row_index += 1
 
-        if isinstance(ui, (ModbusUI, AnalogUI, UPSMonitorUI)):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
+        frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
 
         column_index += 1
 
