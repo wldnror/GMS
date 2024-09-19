@@ -76,7 +76,7 @@ class AnalogUI:
         box_frame = Frame(self.parent, highlightthickness=int(1.5 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
-        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
+        inner_frame.pack(padx=int(1), pady=int(1))
         
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR),
