@@ -1,3 +1,5 @@
+# main.py
+
 import json
 import os
 import time
@@ -335,9 +337,9 @@ if __name__ == "__main__":
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
-    main_frame.grid(row=0, column=0)
+    main_frame.grid(row=0, column=0, sticky="nsew")
 
-    # 각 상자의 고유 ID를 설정합니다.
+    # 클래스 인스턴스 생성 (프레임 배치 없음)
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
     analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
@@ -347,38 +349,51 @@ if __name__ == "__main__":
 
     all_boxes = []
 
+    # 클래스에서 프레임 수집
     if ups_ui:
-        all_boxes.append((ups_ui, "ups_0"))
+        for i, frame in enumerate(ups_ui.box_frames):
+            all_boxes.append((frame, f"ups_{i}"))
 
-    for i in range(len(modbus_boxes)):
-        all_boxes.append((modbus_ui, f"modbus_{i}"))
+    for i, frame in enumerate(modbus_ui.box_frames):
+        all_boxes.append((frame, f"modbus_{i}"))
 
-    for i in range(len(analog_boxes)):
-        all_boxes.append((analog_ui, f"analog_{i}"))
+    for i, frame in enumerate(analog_ui.box_frames):
+        all_boxes.append((frame, f"analog_{i}"))
 
     # 각 상자의 알람 상태 초기화
-    for ui, idx in all_boxes:
+    for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
-    row_index = 0
-    column_index = 0
+    # 최대 열의 수 설정
     max_columns = 6
 
-    for ui, idx in all_boxes:
-        if column_index >= max_columns:
-            column_index = 0
+    # 총 행의 수 계산
+    num_rows = (len(all_boxes) + max_columns - 1) // max_columns
+
+    # 그리드 행과 열의 가중치 설정
+    main_frame.grid_rowconfigure(0, weight=1)  # 상단 여백
+    main_frame.grid_rowconfigure(num_rows + 1, weight=1)  # 하단 여백
+    main_frame.grid_columnconfigure(0, weight=1)  # 좌측 여백
+    main_frame.grid_columnconfigure(max_columns + 1, weight=1)  # 우측 여백
+
+    # 상자들이 위치하는 행과 열의 가중치를 0으로 설정
+    for i in range(1, num_rows + 1):
+        main_frame.grid_rowconfigure(i, weight=0)
+    for i in range(1, max_columns + 1):
+        main_frame.grid_columnconfigure(i, weight=0)
+
+    # 상자 배치 시작 인덱스를 1로 변경
+    row_index = 1
+    column_index = 1
+
+    # 프레임 배치
+    for frame, idx in all_boxes:
+        if column_index > max_columns:
+            column_index = 1
             row_index += 1
 
-        if isinstance(ui, (ModbusUI, AnalogUI, UPSMonitorUI)):
-            ui.box_frame.grid(row=row_index, column=column_index, padx=10, pady=10, sticky="nsew")
-
+        frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
-
-    for i in range(max_columns):
-        main_frame.grid_columnconfigure(i, weight=1)
-
-    for i in range((len(all_boxes) + max_columns - 1) // max_columns):
-        main_frame.grid_rowconfigure(i, weight=1)
 
     settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
 
@@ -396,7 +411,7 @@ if __name__ == "__main__":
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    total_boxes = len(modbus_boxes) + len(analog_boxes) + (1 if ups_ui else 0)
+    total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
     if 0 <= total_boxes <= 4:
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)

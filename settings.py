@@ -295,6 +295,9 @@ def show_box_settings():
     battery_box_check = Checkbutton(box_settings_window, text="배터리 박스 활성화", variable=battery_box_var, font=("Arial", 12))
     battery_box_check.grid(row=0, column=2, padx=2, pady=2, sticky="e")  # 같은 줄 오른쪽 끝에 배치
 
+    # 배터리 박스 변경 시 총합 검사 함수 호출
+    battery_box_var.trace_add("write", lambda *args: check_total_boxes())
+
     try:
         modbus_box_count = int(modbus_boxes_var.get())
         analog_box_count = int(analog_boxes_var.get())
@@ -307,9 +310,14 @@ def show_box_settings():
 
     def modify_box_count(var, delta):
         current_value = int(var.get())
+        other_value = int(analog_boxes_var.get() if var == modbus_boxes_var else modbus_boxes_var.get())
+        battery_box = battery_box_var.get()
         new_value = current_value + delta
-        if 0 <= new_value <= 14:  # 상자 수는 0에서 14 사이로 제한
+        total_boxes = new_value + other_value + battery_box
+        if 0 <= new_value <= 12 and total_boxes <= 12:
             var.set(str(new_value))
+        else:
+            messagebox.showerror("입력 오류", "상자의 총합이 12개를 초과할 수 없습니다.")
 
     frame_modbus = Frame(box_settings_window)
     frame_modbus.grid(row=0, column=1, padx=2, pady=2)
@@ -377,16 +385,29 @@ def show_box_settings():
 
     update_gas_type_options()
 
+    # 총합 검사 함수
+    def check_total_boxes():
+        modbus_boxes = int(modbus_boxes_var.get())
+        analog_boxes = int(analog_boxes_var.get())
+        battery_box = battery_box_var.get()
+        total_boxes = modbus_boxes + analog_boxes + battery_box
+        if total_boxes > 12:
+            # 배터리 박스 체크박스 변경으로 인한 초과 시 체크 해제
+            if battery_box_var.get() == 1:
+                battery_box_var.set(0)
+            messagebox.showerror("입력 오류", "상자의 총합이 12개를 초과할 수 없습니다.")
+
     def save_and_close():
         try:
             modbus_boxes = int(modbus_boxes_var.get())
             analog_boxes = int(analog_boxes_var.get())
-            if modbus_boxes + analog_boxes > 14:
-                messagebox.showerror("입력 오류", "상자의 총합이 14개를 초과할 수 없습니다.")
+            battery_box = battery_box_var.get()
+            if modbus_boxes + analog_boxes + battery_box > 12:
+                messagebox.showerror("입력 오류", "상자의 총합이 12개를 초과할 수 없습니다.")
                 return
             settings["modbus_boxes"] = modbus_boxes
             settings["analog_boxes"] = analog_boxes
-            settings["battery_box_enabled"] = battery_box_var.get()  # 배터리 박스 활성화 설정 저장
+            settings["battery_box_enabled"] = battery_box  # 배터리 박스 활성화 설정 저장
             for i, var in enumerate(modbus_gas_type_vars):
                 settings["modbus_gas_types"][f"modbus_box_{i}"] = var.get()
             for i, var in enumerate(analog_gas_type_vars):
@@ -399,4 +420,3 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
-
