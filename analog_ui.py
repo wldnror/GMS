@@ -52,10 +52,6 @@ class AnalogUI:
         self.history_window = None
         self.history_lock = threading.Lock()
 
-        self.box_frame = Frame(self.root)
-        self.box_frame.grid(row=0, column=0)
-
-        self.row_frames = []
         self.box_frames = []
         self.history_dir = "analog_history_logs"
 
@@ -76,20 +72,7 @@ class AnalogUI:
         self.schedule_ui_update()
 
     def create_analog_box(self, index):
-        max_boxes_per_row = 6
-
-        row = index // max_boxes_per_row
-        col = index % max_boxes_per_row
-
-        if col == 0:
-            row_frame = Frame(self.box_frame)
-            row_frame.grid(row=row, column=0)
-            self.row_frames.append(row_frame)
-        else:
-            row_frame = self.row_frames[-1]
-
-        box_frame = Frame(row_frame, highlightthickness=int(2.5 * SCALE_FACTOR))
-        box_frame.grid(row=0, column=col)
+        box_frame = Frame(highlightthickness=int(2.5 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
