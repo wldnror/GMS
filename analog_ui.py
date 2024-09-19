@@ -73,10 +73,11 @@ class AnalogUI:
         self.schedule_ui_update()
 
     def create_analog_box(self, index):
-        box_frame = Frame(parent, highlightthickness=int(2.5 * SCALE_FACTOR))
+        box_frame = Frame(self.parent, highlightthickness=int(1.5 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
-        inner_frame.pack(padx=0, pady=0)
+        inner_frame.pack(padx=int(2.5 * SCALE_FACTOR), pady=int(2.5 * SCALE_FACTOR))
+        
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR),
                             highlightthickness=int(3 * SCALE_FACTOR),
