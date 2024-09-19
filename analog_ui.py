@@ -12,6 +12,7 @@ import mplcursors
 from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
+import tkinter as tk  # Make sure to import tkinter as tk for consistency
 
 # 전역 변수로 설정
 GAIN = 2 / 3
@@ -114,32 +115,42 @@ class AnalogUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                                                   int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                               text="AL2", fill="#cccccc", anchor="e")
 
-        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                                                   int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                               text="AL1", fill="#cccccc", anchor="e")
 
+        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                                                   int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                               text="PWR", fill="#cccccc", anchor="center")
 
-        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                                                   int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
+        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                               text="FUT", fill="#cccccc", anchor="n")
 
-        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
-
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000",
+                               font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         milliamp_var = StringVar(value="4-20 mA")
-        milliamp_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(240 * SCALE_FACTOR), text=milliamp_var.get(), font=("Helvetica", int(10 * SCALE_FACTOR), "bold"), fill="#00ff00", anchor="center")
+        milliamp_text_id = box_canvas.create_text(int(80 * SCALE_FACTOR), int(240 * SCALE_FACTOR), text=milliamp_var.get(),
+                                                  font=("Helvetica", int(10 * SCALE_FACTOR), "bold"), fill="#00ff00", anchor="center")
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
-        led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
-        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='#FF0000', outline='white')
+        led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='black', outline='white')
+        led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR), int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR), fill='black', outline='white')
         box_canvas.lift(led1)
         box_canvas.lift(led2)
 
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD",
+                               font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, circle_items, led1, led2))
@@ -191,8 +202,7 @@ class AnalogUI:
         box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
-    def update_segment_display(self, value, box_index=0, blink=False):
-        box_canvas = self.box_data[box_index][0]
+    def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
@@ -301,7 +311,7 @@ class AnalogUI:
         log_entries = self.load_log_files(box_index, file_index)
         times, values = zip(*log_entries) if log_entries else ([], [])
 
-        # 그래프 그리기 코드는 생략합니다. 필요 시 추가하세요.
+        # 그래프 그리기 코드 (필요 시 추가)
 
     def navigate_logs(self, box_index, direction):
         self.current_file_index += direction
@@ -431,9 +441,9 @@ class AnalogUI:
         self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
         if pwr_on:
-            self.update_segment_display(str(int(formatted_value)), box_index=box_index, blink=False)
+            self.update_segment_display(str(int(formatted_value)), self.box_data[box_index][0], blink=False, box_index=box_index)
         else:
-            self.update_segment_display("    ", box_index=box_index, blink=False)
+            self.update_segment_display("    ", self.box_data[box_index][0], blink=False, box_index=box_index)
 
         milliamp_text = f"{interpolated_value:.1f} mA" if pwr_on else "PWR OFF"
         milliamp_color = "#00ff00" if pwr_on else "#ff0000"
@@ -455,9 +465,9 @@ class AnalogUI:
         self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
         if pwr_on:
-            self.update_segment_display(str(int(formatted_value)), box_index=box_index, blink=False)
+            self.update_segment_display(str(int(formatted_value)), self.box_data[box_index][0], blink=False, box_index=box_index)
         else:
-            self.update_segment_display("    ", box_index=box_index, blink=False)
+            self.update_segment_display("    ", self.box_data[box_index][0], blink=False, box_index=box_index)
 
         milliamp_text = f"{current_value:.1f} mA" if pwr_on else "PWR OFF"
         milliamp_color = "#00ff00" if pwr_on else "#ff0000"
@@ -476,7 +486,7 @@ class AnalogUI:
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
                 if self.box_states[box_index]["current_value"] is not None:
-                    self.update_segment_display(str(self.box_states[box_index]["current_value"]), box_index=box_index, blink=False)
+                    self.update_segment_display(str(self.box_states[box_index]["current_value"]), self.box_data[box_index][0], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.parent.after(1000, toggle_color) if is_second_alarm else self.parent.after(600, toggle_color)
