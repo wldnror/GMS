@@ -1,4 +1,11 @@
 from tkinter import Frame, Canvas, Button
+import time
+import threading
+
+# Adafruit INA219 라이브러리 임포트
+from adafruit_ina219 import INA219
+from busio import I2C
+import board
 
 # 스케일 팩터로 20% 확대
 SCALE_FACTOR = 1.65
@@ -9,8 +16,19 @@ class UPSMonitorUI:
         self.box_frames = []
         self.box_data = []
 
+        # I2C 통신 설정
+        i2c_bus = I2C(board.SCL, board.SDA)
+
+        # INA219 인스턴스 생성 (기본 주소 0x40 사용)
+        self.ina219 = INA219(i2c_bus)
+
         for i in range(num_boxes):
             self.create_ups_box(i)
+
+        # 주기적으로 업데이트하는 쓰레드 시작
+        self.running = True
+        self.update_thread = threading.Thread(target=self.update_loop)
+        self.update_thread.start()
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -53,11 +71,12 @@ class UPSMonitorUI:
             "box_canvas": box_canvas,
             "battery_level_bar": battery_level_bar,
             "battery_percentage_text": battery_percentage_text,
-            "mode_text_id": mode_text_id
+            "mode_text_id": mode_text_id,
+            "mode": "상시 모드"  # 초기 모드 설정
         })
 
-        # 초기 상태 업데이트 (상시 모드로 설정)
-        self.update_battery_status(index, battery_level=self.calculate_battery_percentage(21.37), mode="상시 모드")  # 측정된 전압 예시 21.37V
+        # 프레임을 부모 위젯에 추가
+        box_frame.pack(side="left", padx=10, pady=10)
 
     def update_battery_status(self, index, battery_level, mode):
         """
@@ -100,14 +119,14 @@ class UPSMonitorUI:
             return
 
         data = self.box_data[index]
-        mode_text_id = data["mode_text_id"]
 
-        # 현재 모드 텍스트를 읽어와서 모드 전환
-        current_mode = canvas.itemcget(mode_text_id, "text")
+        # 현재 모드 전환
+        current_mode = data["mode"]
         new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
+        data["mode"] = new_mode
 
-        # 상태 업데이트
-        self.update_battery_status(index, battery_level=self.calculate_battery_percentage(21.37), mode=new_mode)  # 전압 예시로 21.37V
+        # 상태 업데이트 (배터리 레벨은 그대로 유지)
+        self.update_battery_status(index, battery_level=self.last_battery_level, mode=new_mode)
 
     def calculate_battery_percentage(self, voltage):
         """
@@ -125,3 +144,35 @@ class UPSMonitorUI:
             return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
         else:
             return 0
+
+    def update_loop(self):
+        """
+        주기적으로 배터리 상태를 업데이트하는 함수
+        """
+        while self.running:
+            try:
+                # INA219에서 전압 측정
+                bus_voltage = self.ina219.bus_voltage  # 전압 (V)
+                shunt_voltage = self.ina219.shunt_voltage  # 션트 전압 (mV)
+                voltage = bus_voltage + (shunt_voltage / 1000)  # 전체 전압 계산
+
+                # 배터리 잔량 계산
+                battery_level = self.calculate_battery_percentage(voltage)
+                self.last_battery_level = battery_level  # 토글 모드에서 사용하기 위해 저장
+
+                # 각 박스에 대해 업데이트
+                for index, data in enumerate(self.box_data):
+                    self.update_battery_status(index, battery_level=battery_level, mode=data["mode"])
+
+                # 1초마다 업데이트
+                time.sleep(1)
+            except Exception as e:
+                print(f"업데이트 중 오류 발생: {e}")
+                time.sleep(1)
+
+    def stop(self):
+        """
+        쓰레드를 중지하는 함수
+        """
+        self.running = False
+        self.update_thread.join()
