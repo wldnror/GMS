@@ -13,7 +13,7 @@ class UPSMonitorUI:
             self.create_ups_box(i)
 
     def create_ups_box(self, index):
-        box_frame = Frame(self.parent, highlightthickness=int(10 * SCALE_FACTOR))
+        box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
