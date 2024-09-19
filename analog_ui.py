@@ -80,8 +80,8 @@ class AnalogUI:
         inner_frame.pack(padx=int(1), pady=int(1))
         
 
-        box_canvas = Canvas(inner_frame, width=int(140 * SCALE_FACTOR), height=int(290 * SCALE_FACTOR),
-                            highlightthickness=int(3 * SCALE_FACTOR),
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR),
+                            highlightthickness=int(1 * SCALE_FACTOR),
                             highlightbackground="#000000", highlightcolor="#000000", bg='white')
         box_canvas.pack()
 
