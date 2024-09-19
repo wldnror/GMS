@@ -105,8 +105,19 @@ class ModbusUI:
         entry.grid(row=0, column=0)
         self.entries.append(entry)
 
-        action_button = Button(frame, image=self.connect_image, command=lambda i=index: self.toggle_connection(i),
-                               width=int(60 * SCALE_FACTOR), height=int(40 * SCALE_FACTOR), bd=0, highlightthickness=0, borderwidth=0, relief='flat', bg='black', activebackground='black')
+        action_button = Button(
+            frame,
+            image=self.connect_image,
+            command=lambda i=index: self.toggle_connection(i),
+            width=int(60 * SCALE_FACTOR),
+            height=int(40 * SCALE_FACTOR),
+            bd=0,
+            highlightthickness=0,
+            borderwidth=0,
+            relief='flat',
+            bg='black',
+            activebackground='black'
+        )
         action_button.grid(row=0, column=1)
         self.action_buttons.append(action_button)
 
@@ -135,7 +146,14 @@ class ModbusUI:
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(
+            inner_frame,
+            width=int(150 * SCALE_FACTOR),
+            height=int(300 * SCALE_FACTOR),
+            highlightthickness=int(3 * SCALE_FACTOR),
+            highlightbackground="#000000",
+            highlightcolor="#000000"
+        )
         box_canvas.pack()
 
         box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
@@ -155,7 +173,10 @@ class ModbusUI:
             "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
         })
 
-        self.box_states[index]["gas_type_var"].trace_add("write", lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx))
+        self.box_states[index]["gas_type_var"].trace_add(
+            "write",
+            lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx)
+        )
 
         control_frame = Frame(box_canvas, bg="black")
         control_frame.place(x=int(10 * SCALE_FACTOR), y=int(205 * SCALE_FACTOR))
@@ -165,27 +186,105 @@ class ModbusUI:
 
         circle_items = []
 
-        circle_items.append(box_canvas.create_oval(int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL1", fill="#cccccc", anchor="e")
+        circle_items.append(
+            box_canvas.create_oval(
+                int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
+                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
+            )
+        )
+        box_canvas.create_text(
+            int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR),
+            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            text="AL1",
+            fill="#cccccc",
+            anchor="e"
+        )
 
-        circle_items.append(box_canvas.create_oval(int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="AL2", fill="#cccccc", anchor="e")
+        circle_items.append(
+            box_canvas.create_oval(
+                int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
+                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
+            )
+        )
+        box_canvas.create_text(
+            int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR),
+            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            text="AL2",
+            fill="#cccccc",
+            anchor="e"
+        )
 
-        circle_items.append(box_canvas.create_oval(int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR), int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="PWR", fill="#cccccc", anchor="center")
+        circle_items.append(
+            box_canvas.create_oval(
+                int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
+                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
+            )
+        )
+        box_canvas.create_text(
+            int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
+            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            text="PWR",
+            fill="#cccccc",
+            anchor="center"
+        )
 
-        circle_items.append(box_canvas.create_oval(int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR), int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)))
-        box_canvas.create_text(int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR), text="FUT", fill="#cccccc", anchor="n")
+        circle_items.append(
+            box_canvas.create_oval(
+                int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+                int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
+            )
+        )
+        box_canvas.create_text(
+            int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            text="FUT",
+            fill="#cccccc",
+            anchor="n"
+        )
 
         gas_type_var = self.box_states[index]["gas_type_var"]
-        gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()], text=gas_type_var.get(), font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        gas_type_text_id = box_canvas.create_text(
+            *self.GAS_TYPE_POSITIONS[gas_type_var.get()],
+            text=gas_type_var.get(),
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center"
+        )
         self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="GMS-1000", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(
+            int(80 * SCALE_FACTOR),
+            int(270 * SCALE_FACTOR),
+            text="GMS-1000",
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center"
+        )
 
-        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+        box_canvas.create_text(
+            int(80 * SCALE_FACTOR),
+            int(295 * SCALE_FACTOR),
+            text="GDS ENGINEERING CO.,LTD",
+            font=("Helvetica", int(7 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center"
+        )
 
-        bar_canvas = Canvas(box_canvas, width=int(120 * SCALE_FACTOR), height=int(5 * SCALE_FACTOR), bg="white", highlightthickness=0)
+        bar_canvas = Canvas(
+            box_canvas,
+            width=int(120 * SCALE_FACTOR),
+            height=int(5 * SCALE_FACTOR),
+            bg="white",
+            highlightthickness=0
+        )
         bar_canvas.place(x=int(18.5 * SCALE_FACTOR), y=int(75 * SCALE_FACTOR))
 
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
@@ -198,7 +297,7 @@ class ModbusUI:
         self.show_bar(index, show=False)
 
         box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
-       
+
         # 초기 상태 설정 추가
         self.update_circle_state([False, False, False, False], box_index=index)
 
@@ -355,8 +454,10 @@ class ModbusUI:
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
-                self.connected_clients[ip] = threading.Thread(target=self.read_modbus_data,
-                                                              args=(ip, client, stop_flag, i))
+                self.connected_clients[ip] = threading.Thread(
+                    target=self.read_modbus_data,
+                    args=(ip, client, stop_flag, i)
+                )
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
@@ -495,14 +596,16 @@ class ModbusUI:
                 break
 
     def update_bar(self, value, box_index):
-        bar_canvas, _, _, _, bar_item = self.box_data[box_index]
+        # 수정된 부분: 올바른 인덱스로 bar_canvas와 bar_item을 가져옵니다.
+        _, _, bar_canvas, _, bar_item = self.box_data[box_index]
         percentage = value / 100.0
         bar_length = int(153 * SCALE_FACTOR * percentage)
 
+        # Gradient bar의 크기를 조정합니다.
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, int(5 * SCALE_FACTOR)))
         bar_image = ImageTk.PhotoImage(cropped_image)
         bar_canvas.itemconfig(bar_item, image=bar_image)
-        bar_canvas.bar_image = bar_image
+        bar_canvas.bar_image = bar_image  # 이미지 참조 유지
 
     def show_bar(self, box_index, show):
         bar_canvas = self.box_data[box_index][2]
