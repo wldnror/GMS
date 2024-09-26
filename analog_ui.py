@@ -43,7 +43,7 @@ class AnalogUI:
     def __init__(self, parent, num_boxes, gas_types, alarm_callback):
         self.parent = parent
         self.alarm_callback = alarm_callback
-        self.gas_types = gas_types
+        self.gas_types = {}  # 수정: 빈 딕셔너리로 초기화
         self.num_boxes = num_boxes
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
@@ -61,7 +61,7 @@ class AnalogUI:
         self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
 
         for i in range(num_boxes):
-            self.create_analog_box(i)
+            self.create_analog_box(i, gas_types)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
@@ -70,7 +70,7 @@ class AnalogUI:
         self.start_adc_thread()
         self.schedule_ui_update()
 
-    def create_analog_box(self, index):
+    def create_analog_box(self, index, initial_gas_types):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
@@ -86,9 +86,11 @@ class AnalogUI:
         box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR),
                                     fill='black', outline='grey', tags='border')
 
-        gas_type_var = StringVar(value=self.gas_types.get(f"analog_box_{index}", "ORG"))
+        gas_type_value = initial_gas_types.get(f"analog_box_{index}", "ORG")
+        gas_type_var = StringVar(value=gas_type_value)
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
-        self.gas_types[f"analog_box_{index}"] = gas_type_var.get()
+        self.gas_types[f"analog_box_{index}"] = gas_type_var  # 수정: StringVar를 저장
+
         gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()],
                                                   text=gas_type_var.get(),
                                                   font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
@@ -252,7 +254,8 @@ class AnalogUI:
 
     def perform_segment_update(self, box_canvas, value, blink, box_index):
         value = value.strip()
-        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        gas_type_var = self.gas_types.get(f"analog_box_{box_index}", StringVar(value="ORG"))
+        gas_type = gas_type_var.get()
 
         digits = []
         decimal_positions = [False, False, False, False]
@@ -433,7 +436,8 @@ class AnalogUI:
         try:
             while not self.adc_queue.empty():
                 box_index = self.adc_queue.get_nowait()
-                gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+                gas_type_var = self.gas_types.get(f"analog_box_{box_index}", StringVar(value="ORG"))
+                gas_type = gas_type_var.get()
                 full_scale = self.GAS_FULL_SCALE[gas_type]
                 alarm_levels = self.ALARM_LEVELS[gas_type]
 
@@ -472,7 +476,9 @@ class AnalogUI:
 
         pwr_on = interpolated_value >= 1.5
 
-        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        gas_type_var = self.gas_types.get(f"analog_box_{box_index}", StringVar(value="ORG"))
+        gas_type = gas_type_var.get()
+
         if gas_type == "HMDS":
             display_value = f"{formatted_value:4.1f}"
         else:
@@ -507,7 +513,9 @@ class AnalogUI:
 
         pwr_on = current_value >= 1.5
 
-        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        gas_type_var = self.gas_types.get(f"analog_box_{box_index}", StringVar(value="ORG"))
+        gas_type = gas_type_var.get()
+
         if gas_type == "HMDS":
             display_value = f"{formatted_value:4.1f}"
         else:
