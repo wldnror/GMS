@@ -22,7 +22,7 @@ class AnalogUI:
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
-        "HMDS": 3000,
+        "HMDS": 3000.0,  # 복원: 300.0 -> 3000.0
         "HC-100": 5000
     }
 
@@ -36,14 +36,14 @@ class AnalogUI:
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
         "ARF-T": {"AL1": 2000, "AL2": 4000},
-        "HMDS": {"AL1": 2640, "AL2": 3000},
+        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},  # 복원: 264.0 -> 2640.0, 300.0 -> 3000.0
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
     def __init__(self, parent, num_boxes, gas_types, alarm_callback):
         self.parent = parent
         self.alarm_callback = alarm_callback
-        self.gas_types = {}  # 수정: 빈 딕셔너리로 초기화
+        self.gas_types = {}
         self.num_boxes = num_boxes
         self.box_states = []
         self.histories = [[] for _ in range(num_boxes)]
@@ -89,7 +89,7 @@ class AnalogUI:
         gas_type_value = initial_gas_types.get(f"analog_box_{index}", "ORG")
         gas_type_var = StringVar(value=gas_type_value)
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
-        self.gas_types[f"analog_box_{index}"] = gas_type_var  # 수정: StringVar를 저장
+        self.gas_types[f"analog_box_{index}"] = gas_type_var
 
         gas_type_text_id = box_canvas.create_text(*self.GAS_TYPE_POSITIONS[gas_type_var.get()],
                                                   text=gas_type_var.get(),
@@ -264,7 +264,7 @@ class AnalogUI:
             dot_index = value.find('.')
             digits = list(value.replace('.', ''))
             digits = [' '] * (4 - len(digits)) + digits  # 왼쪽에 공백 추가하여 길이 4로 맞춤
-            adjusted_dot_index = dot_index + (4 - len(value))
+            adjusted_dot_index = dot_index - (len(value) - 4)  # 수정된 부분
             if 0 <= adjusted_dot_index < 4:
                 decimal_positions[adjusted_dot_index] = True
         else:
@@ -480,7 +480,7 @@ class AnalogUI:
         gas_type = gas_type_var.get()
 
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:4.1f}"
+            display_value = f"{formatted_value / 10:4.1f}"
         else:
             display_value = f"{int(formatted_value):>4}"
 
@@ -517,7 +517,7 @@ class AnalogUI:
         gas_type = gas_type_var.get()
 
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:4.1f}"
+            display_value = f"{formatted_value / 10:4.1f}"
         else:
             display_value = f"{int(formatted_value):>4}"
 
