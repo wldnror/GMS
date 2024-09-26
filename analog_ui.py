@@ -4,15 +4,13 @@ import os
 import threading
 import time
 from collections import deque
-from tkinter import Frame, Canvas, StringVar, Toplevel, Button
+from tkinter import Frame, Canvas, StringVar, Toplevel
 import Adafruit_ADS1x15
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import mplcursors
-from common import SEGMENTS, create_segment_display
 import queue
 import asyncio
-import tkinter as tk  # Make sure to import tkinter as tk for consistency
+import tkinter as tk
+
+from common import SEGMENTS, create_segment_display, SCALE
 
 # 전역 변수로 설정
 GAIN = 2 / 3
@@ -24,7 +22,7 @@ class AnalogUI:
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
-        "HMDS": 3000,
+        "HMDS": 300.0,
         "HC-100": 5000
     }
 
@@ -38,7 +36,7 @@ class AnalogUI:
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
         "ARF-T": {"AL1": 2000, "AL2": 4000},
-        "HMDS": {"AL1": 2640, "AL2": 3000},
+        "HMDS": {"AL1": 264.0, "AL2": 300.0},
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
@@ -205,7 +203,6 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
@@ -235,24 +232,38 @@ class AnalogUI:
             self.box_states[box_index]["segment_updating"] = False
 
     def perform_segment_update(self, box_canvas, value, blink, box_index):
+        # 모든 소수점 세그먼트를 초기화합니다.
+        for i in range(4):
+            box_canvas.segment_canvas.itemconfig(f'segment_{i}_dot', fill='#424242')
+
         def update_digit(index, leading_zero=True):
             if index >= len(value):
                 return
 
             digit = value[index]
+            is_decimal_point = (digit == '.')
 
-            if leading_zero and digit == '0' and index < 3:
-                segments = SEGMENTS[' ']
+            segment_index = index
+            if '.' in value:
+                if index > value.index('.'):
+                    segment_index -= 1  # 소수점 이후의 숫자는 인덱스를 하나 줄입니다.
+
+            if is_decimal_point:
+                # 소수점 세그먼트를 현재 숫자의 오른쪽 아래에 표시합니다.
+                box_canvas.segment_canvas.itemconfig(f'segment_{segment_index - 1}_dot', fill='#fc0c0c')
             else:
-                segments = SEGMENTS[digit]
-                leading_zero = False
+                if leading_zero and digit == '0' and index < len(value) - 1:
+                    segments = SEGMENTS[' ']
+                else:
+                    segments = SEGMENTS.get(digit, SEGMENTS[' '])
+                    leading_zero = False
 
-            if blink and self.box_states[box_index]["blink_state"]:
-                segments = SEGMENTS[' ']
+                if blink and self.box_states[box_index]["blink_state"]:
+                    segments = SEGMENTS[' ']
 
-            for j, state in enumerate(segments):
-                color = '#fc0c0c' if state == '1' else '#424242'
-                box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
+                for j, state in enumerate(segments):
+                    color = '#fc0c0c' if state == '1' else '#424242'
+                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_{chr(97 + j)}', fill=color)
 
             self.parent.after(10, lambda: update_digit(index + 1, leading_zero))
 
@@ -432,10 +443,16 @@ class AnalogUI:
             return
 
         interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
-        formatted_value = int((interpolated_value - 4) / (20 - 4) * full_scale)
-        formatted_value = max(0, min(formatted_value, full_scale))
+        formatted_value = ((interpolated_value - 4) / (20 - 4)) * full_scale
+        formatted_value = max(0.0, min(formatted_value, full_scale))
 
         pwr_on = interpolated_value >= 1.5
+
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        if gas_type == "HMDS":
+            display_value = f"{formatted_value:.1f}"
+        else:
+            display_value = f"{int(formatted_value)}"
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
@@ -443,7 +460,7 @@ class AnalogUI:
         self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
         if pwr_on:
-            self.update_segment_display(str(int(formatted_value)), self.box_data[box_index][0], blink=False, box_index=box_index)
+            self.update_segment_display(display_value, self.box_data[box_index][0], blink=False, box_index=box_index)
         else:
             self.update_segment_display("    ", self.box_data[box_index][0], blink=False, box_index=box_index)
 
@@ -456,10 +473,16 @@ class AnalogUI:
         self.parent.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
     def update_display_immediately(self, box_index, current_value, full_scale, alarm_levels):
-        formatted_value = int((current_value - 4) / (20 - 4) * full_scale)
-        formatted_value = max(0, min(formatted_value, full_scale))
+        formatted_value = ((current_value - 4) / (20 - 4)) * full_scale
+        formatted_value = max(0.0, min(formatted_value, full_scale))
 
         pwr_on = current_value >= 1.5
+
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
+        if gas_type == "HMDS":
+            display_value = f"{formatted_value:.1f}"
+        else:
+            display_value = f"{int(formatted_value)}"
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
@@ -467,7 +490,7 @@ class AnalogUI:
         self.update_circle_state([self.box_states[box_index]["alarm1_on"], self.box_states[box_index]["alarm2_on"], pwr_on, False], box_index=box_index)
 
         if pwr_on:
-            self.update_segment_display(str(int(formatted_value)), self.box_data[box_index][0], blink=False, box_index=box_index)
+            self.update_segment_display(display_value, self.box_data[box_index][0], blink=False, box_index=box_index)
         else:
             self.update_segment_display("    ", self.box_data[box_index][0], blink=False, box_index=box_index)
 
