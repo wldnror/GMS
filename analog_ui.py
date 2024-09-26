@@ -2,9 +2,8 @@
 
 import os
 import threading
-import time
 from collections import deque
-from tkinter import Frame, Canvas, StringVar, Toplevel
+from tkinter import Frame, Canvas, StringVar
 import Adafruit_ADS1x15
 import queue
 import asyncio
@@ -17,8 +16,6 @@ GAIN = 2 / 3
 SCALE_FACTOR = 1.65  # 20% 키우기
 
 class AnalogUI:
-    LOGS_PER_FILE = 10
-
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
@@ -46,16 +43,8 @@ class AnalogUI:
         self.gas_types = {}
         self.num_boxes = num_boxes
         self.box_states = []
-        self.histories = [[] for _ in range(num_boxes)]
-        self.graph_windows = [None for _ in range(num_boxes)]
-        self.history_window = None
-        self.history_lock = threading.Lock()
         self.box_frames = []
         self.box_data = []
-        self.history_dir = "analog_history_logs"
-
-        if not os.path.exists(self.history_dir):
-            os.makedirs(self.history_dir)
 
         # 필터 크기 축소 및 가중치 필터 적용
         self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
@@ -176,8 +165,7 @@ class AnalogUI:
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, circle_items, led1, led2))
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
-
+     
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
@@ -188,9 +176,7 @@ class AnalogUI:
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
-    def on_segment_click(self, box_index):
-        threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
-
+    
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, led1, led2 = self.box_data[box_index]
 
@@ -298,69 +284,9 @@ class AnalogUI:
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
-    def record_history(self, box_index, value):
-        if value.strip():
-            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-            log_line = f"{timestamp},{value}\n"
-            log_file_index = self.get_log_file_index(box_index)
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
-
-            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
-
     def async_write_log(self, log_file, log_line):
         with open(log_file, 'a') as file:
             file.write(log_line)
-
-    def get_log_file_index(self, box_index):
-        index = 0
-        while True:
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
-            if not os.path.exists(log_file):
-                return index
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                if len(lines) < self.LOGS_PER_FILE:
-                    return index
-            index += 1
-
-    def load_log_files(self, box_index, file_index):
-        log_entries = []
-        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                for line in lines:
-                    timestamp, value = line.strip().split(',')
-                    log_entries.append((timestamp, value))
-        return log_entries
-
-    def show_history_graph(self, box_index):
-        with self.history_lock:
-            if self.history_window and self.history_window.winfo_exists():
-                self.history_window.destroy()
-
-            self.history_window = Toplevel(self.parent)
-            self.history_window.title(f"History - Box {box_index}")
-            self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
-            self.history_window.attributes("-topmost", True)
-
-            self.current_file_index = self.get_log_file_index(box_index) - 1
-            self.update_history_graph(box_index, self.current_file_index)
-
-    def update_history_graph(self, box_index, file_index):
-        log_entries = self.load_log_files(box_index, file_index)
-        times, values = zip(*log_entries) if log_entries else ([], [])
-
-        # 그래프 그리기 코드 (필요 시 추가)
-
-    def navigate_logs(self, box_index, direction):
-        self.current_file_index += direction
-        if (self.current_file_index) < 0:
-            self.current_file_index = 0
-        elif self.current_file_index >= self.get_log_file_index(box_index):
-            self.current_file_index = self.get_log_file_index(box_index) - 1
-
-        self.update_history_graph(box_index, self.current_file_index)
 
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
