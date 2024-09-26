@@ -237,9 +237,11 @@ class AnalogUI:
         value = value.strip()
         value_length = len(value)
 
-        for i in range(4):
-            segment_index = i
-            char_index = i - (4 - value_length)
+        segment_indices = [0, 1, 2, 3]  # 세그먼트 인덱스
+
+        for i in range(len(segment_indices)):
+            segment_index = segment_indices[i]
+            char_index = i - (5 - value_length)  # 전체 폭이 5이므로 5에서 빼줍니다.
             if char_index < 0:
                 digit = ' '
             else:
@@ -438,7 +440,7 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:>4.1f}"  # 전체 4자리, 소수점 이하 1자리, 오른쪽 정렬
+            display_value = f"{formatted_value:5.1f}"  # 전체 폭을 5로 지정하여 오른쪽 정렬
         else:
             display_value = f"{int(formatted_value):>4}"
 
@@ -468,7 +470,7 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:>4.2f}"  # 전체 4자리, 소수점 이하 1자리, 오른쪽 정렬
+            display_value = f"{formatted_value:5.1f}"  # 전체 폭을 5로 지정하여 오른쪽 정렬
         else:
             display_value = f"{int(formatted_value):>4}"
 
