@@ -73,10 +73,8 @@ class AnalogUI:
     def create_analog_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
 
-
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=int(1), pady=int(1))
-        
 
         box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR),
                             highlightthickness=int(3 * SCALE_FACTOR),
@@ -236,34 +234,42 @@ class AnalogUI:
         for i in range(4):
             box_canvas.segment_canvas.itemconfig(f'segment_{i}_dot', fill='#424242')
 
-        def update_digit(index, leading_zero=True):
-            if index >= len(value):
+        # 소수점을 제외한 숫자만 추출
+        value_no_dp = value.replace('.', '').strip()
+        num_digits = len(value_no_dp)
+        starting_segment = 4 - num_digits  # 오른쪽 정렬을 위해 시작 인덱스 계산
+
+        value_index = 0
+
+        def update_digit(segment_index):
+            nonlocal value_index
+
+            if value_index >= len(value):
                 return
 
-            digit = value[index]
+            digit = value[value_index]
             is_decimal_point = (digit == '.')
 
             if is_decimal_point:
-                # 소수점 세그먼트를 해당 위치에 표시합니다.
-                if index > 0:
-                    box_canvas.segment_canvas.itemconfig(f'segment_{index-1}_dot', fill='#fc0c0c')
+                # 소수점을 이전 자리의 dot에 표시
+                if segment_index > 0:
+                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index - 1}_dot', fill='#fc0c0c')
+                value_index += 1
+                update_digit(segment_index)  # 소수점은 세그먼트 인덱스를 증가시키지 않음
             else:
-                if leading_zero and digit == '0' and index < len(value) - 1:
+                if blink and self.box_states[box_index]["blink_state"]:
                     segments = SEGMENTS[' ']
                 else:
                     segments = SEGMENTS.get(digit, SEGMENTS[' '])
-                    leading_zero = False
-
-                if blink and self.box_states[box_index]["blink_state"]:
-                    segments = SEGMENTS[' ']
 
                 for j, state in enumerate(segments):
                     color = '#fc0c0c' if state == '1' else '#424242'
-                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
+                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_{chr(97 + j)}', fill=color)
 
-            self.parent.after(10, lambda: update_digit(index + 1, leading_zero))
+                value_index += 1
+                self.parent.after(10, lambda: update_digit(segment_index + 1))
 
-        update_digit(0)
+        update_digit(starting_segment)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
@@ -446,9 +452,12 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:4.1f}"
+            display_value = f"{formatted_value:.1f}"
         else:
-            display_value = f"{int(formatted_value):>4}"
+            display_value = f"{int(formatted_value)}"
+
+        # 값을 4자리로 오른쪽 정렬
+        display_value = display_value.rjust(4)
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
@@ -476,9 +485,12 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:4.1f}"  # 네 자리 확보, 소수점 이하 한 자리
+            display_value = f"{formatted_value:.1f}"
         else:
-            display_value = f"{int(formatted_value):>4}"
+            display_value = f"{int(formatted_value)}"
+
+        # 값을 4자리로 오른쪽 정렬
+        display_value = display_value.rjust(4)
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
