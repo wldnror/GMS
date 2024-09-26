@@ -478,7 +478,7 @@ class AnalogUI:
         self.parent.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
     def update_display_immediately(self, box_index, current_value, full_scale, alarm_levels):
-        formatted_value = ((current_value - 4) / (20 - 4)) * full_scale
+        formatted_value = ((current_value - 3) / (20 - 3)) * full_scale
         formatted_value = max(0.0, min(formatted_value, full_scale))
 
         pwr_on = current_value >= 1.5
