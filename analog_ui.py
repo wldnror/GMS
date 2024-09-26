@@ -445,7 +445,7 @@ class AnalogUI:
             return
 
         interpolated_value = prev_value + (curr_value - prev_value) * (step / total_steps)
-        formatted_value = ((interpolated_value - 3) / (20 - 4)) * full_scale
+        formatted_value = ((interpolated_value - 4) / (20 - 4)) * full_scale
         formatted_value = max(0.0, min(formatted_value, full_scale))
 
         pwr_on = interpolated_value >= 1.5
