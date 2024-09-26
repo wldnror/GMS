@@ -235,29 +235,35 @@ class AnalogUI:
             box_canvas.segment_canvas.itemconfig(f'segment_{i}_dot', fill='#424242')
 
         value = value.strip()
-        value_length = len(value)
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
 
-        segment_indices = [0, 1, 2, 3]  # 세그먼트 인덱스
+        if gas_type == "HMDS" and value == "  00":
+            # HMDS에서 0.0 값을 표시하기 위한 특별 처리
+            digits = [' ', ' ', '0', '0']
+            decimal_positions = [False, False, True, False]  # 세 번째 자리의 소수점 켜기
+        else:
+            digits = list(value.rjust(4))
+            decimal_positions = [False] * 4
+            if '.' in value:
+                dot_index = value.find('.')
+                decimal_positions[dot_index - (4 - len(value)) - 1] = True  # 소수점 위치 조정
+                digits.remove('.')
 
-        for i in range(len(segment_indices)):
-            segment_index = segment_indices[i]
-            char_index = i - (5 - value_length)  # 전체 폭이 5이므로 5에서 빼줍니다.
-            if char_index < 0:
-                digit = ' '
+        for i in range(4):
+            segment_index = i
+            digit = digits[i]
+
+            if decimal_positions[i]:
+                box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_dot', fill='#fc0c0c')
             else:
-                digit = value[char_index]
+                box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_dot', fill='#424242')
 
-            if digit == '.':
-                # 소수점 처리
-                if segment_index > 0:
-                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index -1}_dot', fill='#fc0c0c')
-            else:
-                segments = SEGMENTS.get(digit, SEGMENTS[' '])
-                if blink and self.box_states[box_index]["blink_state"]:
-                    segments = SEGMENTS[' ']
-                for j, state in enumerate(segments):
-                    color = '#fc0c0c' if state == '1' else '#424242'
-                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_{chr(97 + j)}', fill=color)
+            segments = SEGMENTS.get(digit, SEGMENTS[' '])
+            if blink and self.box_states[box_index]["blink_state"]:
+                segments = SEGMENTS[' ']
+            for j, state in enumerate(segments):
+                color = '#fc0c0c' if state == '1' else '#424242'
+                box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_{chr(97 + j)}', fill=color)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
@@ -440,7 +446,10 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:5.1f}"  # 전체 폭을 5로 지정하여 오른쪽 정렬
+            if formatted_value == 0.0:
+                display_value = "  00"  # 특별 처리
+            else:
+                display_value = f"{formatted_value:4.1f}"
         else:
             display_value = f"{int(formatted_value):>4}"
 
@@ -470,7 +479,10 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:5.1f}"  # 전체 폭을 5로 지정하여 오른쪽 정렬
+            if formatted_value == 0.0:
+                display_value = "  00"  # 특별 처리
+            else:
+                display_value = f"{formatted_value:4.1f}"
         else:
             display_value = f"{int(formatted_value):>4}"
 
