@@ -452,9 +452,10 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:.1f}"
+            display_value = f"{formatted_value:>4.1f}"  # 전체 4자리, 소수점 이하 1자리, 오른쪽 정렬
         else:
-            display_value = f"{int(formatted_value)}"
+            display_value = f"{int(formatted_value):>4}"
+ 
 
         # 값을 4자리로 오른쪽 정렬
         display_value = display_value.rjust(4)
