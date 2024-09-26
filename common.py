@@ -1,3 +1,5 @@
+# common.py
+
 from tkinter import Canvas, Toplevel
 from PIL import Image
 import matplotlib.pyplot as plt
