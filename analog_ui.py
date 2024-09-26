@@ -234,42 +234,28 @@ class AnalogUI:
         for i in range(4):
             box_canvas.segment_canvas.itemconfig(f'segment_{i}_dot', fill='#424242')
 
-        # 소수점을 제외한 숫자만 추출
-        value_no_dp = value.replace('.', '').strip()
-        num_digits = len(value_no_dp)
-        starting_segment = 4 - num_digits  # 오른쪽 정렬을 위해 시작 인덱스 계산
+        value = value.strip()
+        value_length = len(value)
 
-        value_index = 0
-
-        def update_digit(segment_index):
-            nonlocal value_index
-
-            if value_index >= len(value):
-                return
-
-            digit = value[value_index]
-            is_decimal_point = (digit == '.')
-
-            if is_decimal_point:
-                # 소수점을 이전 자리의 dot에 표시
-                if segment_index > 0:
-                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index - 1}_dot', fill='#fc0c0c')
-                value_index += 1
-                update_digit(segment_index)  # 소수점은 세그먼트 인덱스를 증가시키지 않음
+        for i in range(4):
+            segment_index = i
+            char_index = i - (4 - value_length)
+            if char_index < 0:
+                digit = ' '
             else:
+                digit = value[char_index]
+
+            if digit == '.':
+                # 소수점 처리
+                if segment_index > 0:
+                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index -1}_dot', fill='#fc0c0c')
+            else:
+                segments = SEGMENTS.get(digit, SEGMENTS[' '])
                 if blink and self.box_states[box_index]["blink_state"]:
                     segments = SEGMENTS[' ']
-                else:
-                    segments = SEGMENTS.get(digit, SEGMENTS[' '])
-
                 for j, state in enumerate(segments):
                     color = '#fc0c0c' if state == '1' else '#424242'
                     box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_{chr(97 + j)}', fill=color)
-
-                value_index += 1
-                self.parent.after(10, lambda: update_digit(segment_index + 1))
-
-        update_digit(starting_segment)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
@@ -455,10 +441,6 @@ class AnalogUI:
             display_value = f"{formatted_value:>4.1f}"  # 전체 4자리, 소수점 이하 1자리, 오른쪽 정렬
         else:
             display_value = f"{int(formatted_value):>4}"
- 
-
-        # 값을 4자리로 오른쪽 정렬
-        display_value = display_value.rjust(4)
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
@@ -479,19 +461,16 @@ class AnalogUI:
         self.parent.after(interval, self.animate_step, box_index, step + 1, total_steps, prev_value, curr_value, full_scale, alarm_levels, interval)
 
     def update_display_immediately(self, box_index, current_value, full_scale, alarm_levels):
-        formatted_value = ((current_value - 3) / (20 - 3)) * full_scale
+        formatted_value = ((current_value - 4) / (20 - 4)) * full_scale
         formatted_value = max(0.0, min(formatted_value, full_scale))
 
         pwr_on = current_value >= 1.5
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:.1f}"
+            display_value = f"{formatted_value:>4.1f}"  # 전체 4자리, 소수점 이하 1자리, 오른쪽 정렬
         else:
-            display_value = f"{int(formatted_value)}"
-
-        # 값을 4자리로 오른쪽 정렬
-        display_value = display_value.rjust(4)
+            display_value = f"{int(formatted_value):>4}"
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
