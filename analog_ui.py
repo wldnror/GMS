@@ -243,14 +243,10 @@ class AnalogUI:
             digit = value[index]
             is_decimal_point = (digit == '.')
 
-            segment_index = index
-            if '.' in value:
-                if index > value.index('.'):
-                    segment_index -= 1  # 소수점 이후의 숫자는 인덱스를 하나 줄입니다.
-
             if is_decimal_point:
-                # 소수점 세그먼트를 현재 숫자의 오른쪽 아래에 표시합니다.
-                box_canvas.segment_canvas.itemconfig(f'segment_{segment_index - 1}_dot', fill='#fc0c0c')
+                # 소수점 세그먼트를 해당 위치에 표시합니다.
+                if index > 0:
+                    box_canvas.segment_canvas.itemconfig(f'segment_{index-1}_dot', fill='#fc0c0c')
             else:
                 if leading_zero and digit == '0' and index < len(value) - 1:
                     segments = SEGMENTS[' ']
@@ -263,7 +259,7 @@ class AnalogUI:
 
                 for j, state in enumerate(segments):
                     color = '#fc0c0c' if state == '1' else '#424242'
-                    box_canvas.segment_canvas.itemconfig(f'segment_{segment_index}_{chr(97 + j)}', fill=color)
+                    box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
             self.parent.after(10, lambda: update_digit(index + 1, leading_zero))
 
@@ -450,9 +446,9 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:.1f}"
+            display_value = f"{formatted_value:4.1f}"
         else:
-            display_value = f"{int(formatted_value)}"
+            display_value = f"{int(formatted_value):>4}"
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
@@ -480,9 +476,9 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:.1f}"
+            display_value = f"{formatted_value:4.1f}"  # 네 자리 확보, 소수점 이하 한 자리
         else:
-            display_value = f"{int(formatted_value)}"
+            display_value = f"{int(formatted_value):>4}"
 
         self.box_states[box_index]["alarm1_on"] = formatted_value >= alarm_levels["AL1"]
         self.box_states[box_index]["alarm2_on"] = formatted_value >= alarm_levels["AL2"] if pwr_on else False
