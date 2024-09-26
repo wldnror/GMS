@@ -222,7 +222,6 @@ class AnalogUI:
         box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
-        value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
@@ -252,16 +251,34 @@ class AnalogUI:
             self.box_states[box_index]["segment_updating"] = False
 
     def perform_segment_update(self, box_canvas, value, blink, box_index):
-        def update_digit(index, leading_zero=True):
-            if index >= len(value):
-                return
+        value = value.strip()
+        gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
 
-            digit = value[index]
+        digits = []
+        decimal_positions = [False, False, False, False]
+
+        if '.' in value:
+            dot_index = value.find('.')
+            digits = list(value.replace('.', ''))
+            digits = [' '] * (4 - len(digits)) + digits  # 왼쪽에 공백 추가하여 길이 4로 맞춤
+            adjusted_dot_index = dot_index + (4 - len(value))
+            if 0 <= adjusted_dot_index < 4:
+                decimal_positions[adjusted_dot_index] = True
+        else:
+            digits = list(value.rjust(4))
+
+        leading_zero = True
+
+        for index in range(4):
+            if index >= len(digits):
+                break
+
+            digit = digits[index]
 
             if leading_zero and digit == '0' and index < 3:
                 segments = SEGMENTS[' ']
             else:
-                segments = SEGMENTS[digit]
+                segments = SEGMENTS.get(digit, SEGMENTS[' '])
                 leading_zero = False
 
             if blink and self.box_states[box_index]["blink_state"]:
@@ -271,15 +288,10 @@ class AnalogUI:
                 color = '#fc0c0c' if state == '1' else '#424242'
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_{chr(97 + j)}', fill=color)
 
-            # 세 번째 세그먼트의 소수점을 항상 켭니다.
-            if index == 2:
+            if decimal_positions[index]:
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_dot', fill='#fc0c0c')
             else:
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_dot', fill='#424242')
-
-            self.parent.after(10, lambda: update_digit(index + 1, leading_zero))
-
-        update_digit(0)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
@@ -462,7 +474,7 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:04.0f}"
+            display_value = f"{formatted_value:4.1f}"
         else:
             display_value = f"{int(formatted_value):>4}"
 
@@ -497,7 +509,7 @@ class AnalogUI:
 
         gas_type = self.gas_types.get(f"analog_box_{box_index}", "ORG")
         if gas_type == "HMDS":
-            display_value = f"{formatted_value:04.0f}"
+            display_value = f"{formatted_value:4.1f}"
         else:
             display_value = f"{int(formatted_value):>4}"
 
