@@ -86,10 +86,7 @@ class ModbusUI:
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
 
-    def add_ip_row(self, frame, ip_var, index, box_frame, box_canvas):
-        """
-        IP 입력창과 연결 버튼을 생성하여 프레임에 배치합니다.
-        """
+    def add_ip_row(self, frame, ip_var, index):
         entry = Entry(
             frame,
             textvariable=ip_var,
@@ -107,12 +104,8 @@ class ModbusUI:
         else:
             entry.config(fg="black")
 
-        # 포커스 이벤트 바인딩
-        entry.bind("<FocusIn>", lambda event, bf=box_frame, bc=box_canvas, idx=index: self.on_entry_focus_in(bf, bc, idx))
-        entry.bind("<FocusOut>", lambda event, bf=box_frame, bc=box_canvas, idx=index: self.on_entry_focus_out(bf, bc, idx))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.pack(side='left', padx=5, pady=5)  # `pack` 사용
-
+        entry.grid(row=0, column=0, padx=5, pady=5)  # 여백 추가
         self.entries.append(entry)
 
         action_button = Button(
@@ -128,46 +121,30 @@ class ModbusUI:
             bg='black',
             activebackground='black'
         )
-        action_button.pack(side='left', padx=5, pady=5)  # `pack` 사용
+        action_button.grid(row=0, column=1, padx=5, pady=5)
         self.action_buttons.append(action_button)
 
     def show_virtual_keyboard(self, entry):
         self.virtual_keyboard.show(entry)
         entry.focus_set()
 
-    def on_entry_focus_in(self, box_frame, box_canvas, box_index):
-        """
-        Entry 위젯에 포커스가 들어왔을 때 호출됩니다.
-        연결되어 있지 않은 경우에만 테두리 색상을 변경합니다.
-        """
-        if not self.is_connected[box_index]:
-            box_frame.config(highlightbackground="#0000FF")  # 포커스 시 테두리 색상 (파란색)
-            box_canvas.config(highlightbackground="#0000FF")
+    def on_focus_in(self, event, entry, placeholder):
+        if entry.get() == placeholder:
+            entry.delete(0, "end")
+            entry.config(fg="black")
 
-    def on_entry_focus_out(self, box_frame, box_canvas, box_index):
-        """
-        Entry 위젯에서 포커스가 나갔을 때 호출됩니다.
-        연결되어 있지 않은 경우에만 테두리 색상을 원래대로 변경합니다.
-        """
-        if not self.is_connected[box_index]:
-            box_frame.config(highlightbackground="#808080")  # 기본 테두리 색상 (회색)
-            box_canvas.config(highlightbackground="#808080")
+    def on_focus_out(self, event, entry, placeholder):
+        if not entry.get():
+            entry.insert(0, placeholder)
+            entry.config(fg="grey")
 
     def on_entry_click(self, event, entry, placeholder):
-        """
-        Entry 위젯을 클릭했을 때 가상 키보드를 표시합니다.
-        """
         # 상태가 'normal'일 때만 가상 키보드 표시
         if entry['state'] == 'normal':
-            if entry.get() == placeholder:
-                entry.delete(0, "end")
-                entry.config(fg="black")
+            self.on_focus_in(event, entry, placeholder)
             self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        """
-        Modbus 박스를 생성하여 GUI에 추가합니다.
-        """
         box_frame = Frame(
             self.parent,
             highlightthickness=int(7 * SCALE_FACTOR),
@@ -178,7 +155,7 @@ class ModbusUI:
         box_frame.pack(padx=10, pady=10)
 
         inner_frame = Frame(box_frame)
-        inner_frame.pack()
+        inner_frame.pack(padx=0, pady=0)
 
         box_canvas = Canvas(
             inner_frame,
@@ -215,7 +192,7 @@ class ModbusUI:
         control_frame.place(x=int(10 * SCALE_FACTOR), y=int(205 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
-        self.add_ip_row(control_frame, ip_var, index, box_frame, box_canvas)
+        self.add_ip_row(control_frame, ip_var, index)
 
         circle_items = []
 
@@ -391,7 +368,7 @@ class ModbusUI:
                 color = '#fc0c0c' if state == '1' else '#424242'
                 segment_tag = f'segment_{index}_{chr(97 + j)}'
 
-                if hasattr(box_canvas, 'segment_canvas') and box_canvas.segment_canvas.find_withtag(segment_tag):
+                if box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
@@ -677,6 +654,7 @@ class ModbusUI:
 
         toggle_color()
 
+    # 포커스 이벤트 핸들러 수정
     def on_entry_focus_in(self, box_frame, box_canvas, box_index):
         if not self.is_connected[box_index]:
             # 포커스 시 테두리 색상 변경
@@ -688,3 +666,27 @@ class ModbusUI:
             # 포커스 해제 시 테두리 색상 변경
             box_frame.config(highlightbackground="#808080")  # 기본 테두리 색상 (회색)
             box_canvas.config(highlightbackground="#808080")
+
+# 추가적으로 main 실행 부분이 필요할 수 있습니다.
+# 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
+
+if __name__ == "__main__":
+    import tkinter as tk
+
+    def alarm_callback(active, source):
+        if active:
+            print(f"Alarm active from {source}")
+        else:
+            print(f"Alarm cleared from {source}")
+
+    root = tk.Tk()
+    root.title("Modbus UI")
+    num_boxes = 4
+    gas_types = {
+        "modbus_box_0": "ORG",
+        "modbus_box_1": "ARF-T",
+        "modbus_box_2": "HMDS",
+        "modbus_box_3": "HC-100"
+    }
+    app = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+    root.mainloop()
