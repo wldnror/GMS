@@ -137,7 +137,7 @@ class ModbusUI:
             self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR),highlightcolor="#0000FF")
+        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
