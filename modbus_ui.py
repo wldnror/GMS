@@ -7,11 +7,21 @@ from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
-from rich.console import Console
+import logging
 from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
 import queue
+
+# 로깅 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("modbus_ui.log"),
+        logging.StreamHandler()
+    ]
+)
 
 SCALE_FACTOR = 1.65
 
@@ -44,13 +54,16 @@ class ModbusUI:
         self.stop_flags = {}
         self.data_queue = queue.Queue()
         self.ui_update_queue = queue.Queue()
-        self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
         self.box_frames = []
         self.box_data = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.gas_types = gas_types
+
+        # 동기화 도구 추가
+        self.file_lock = threading.Lock()
+        self.clients_lock = threading.Lock()
 
         self.load_ip_settings(num_boxes)
 
@@ -65,7 +78,7 @@ class ModbusUI:
             self.create_modbus_box(i)
 
         self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int((self.communication_interval / 1) * 00)  # 200ms
+        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -73,20 +86,25 @@ class ModbusUI:
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
-            with open(self.SETTINGS_FILE, 'r') as file:
-                ip_settings = json.load(file)
-                for i in range(min(num_boxes, len(ip_settings))):
-                    self.ip_vars[i].set(ip_settings[i])
+            with self.file_lock:
+                with open(self.SETTINGS_FILE, 'r') as file:
+                    ip_settings = json.load(file)
+                    for i in range(min(num_boxes, len(ip_settings))):
+                        self.ip_vars[i].set(ip_settings[i])
         else:
             self.ip_vars = [StringVar() for _ in range(num_boxes)]
 
     def load_image(self, path, size):
-        img = Image.open(path).convert("RGBA")
-        img.thumbnail(size, Image.LANCZOS)
-        return ImageTk.PhotoImage(img)
+        try:
+            img = Image.open(path).convert("RGBA")
+            img.thumbnail(size, Image.LANCZOS)
+            return ImageTk.PhotoImage(img)
+        except Exception as e:
+            logging.error(f"Error loading image {path}: {e}")
+            return None
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(11 * SCALE_FACTOR), highlightthickness=0)
+        entry = Entry(frame, textvariable=ip_var, width=int(12 * SCALE_FACTOR), highlightthickness=0)
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -293,11 +311,11 @@ class ModbusUI:
 
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
-        full_scale = self.GAS_FULL_SCALE[gas_type]
+        full_scale = self.GAS_FULL_SCALE.get(gas_type, 9999)  # 기본값 설정
         self.box_states[box_index]["full_scale"] = full_scale
 
         box_canvas = self.box_data[box_index][0]
-        position = self.GAS_TYPE_POSITIONS[gas_type]
+        position = self.GAS_TYPE_POSITIONS.get(gas_type, (int(115 * SCALE_FACTOR), int(100 * SCALE_FACTOR)))
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
@@ -340,9 +358,9 @@ class ModbusUI:
             digit = value[index]
 
             if leading_zero and digit == '0' and index < 3:
-                segments = SEGMENTS[' ']
+                segments = SEGMENTS.get(' ', SEGMENTS[' '])
             else:
-                segments = SEGMENTS[digit]
+                segments = SEGMENTS.get(digit, SEGMENTS[' '])
                 leading_zero = False
 
             if blink and self.box_states[box_index]["blink_state"]:
@@ -358,10 +376,11 @@ class ModbusUI:
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def toggle_connection(self, i):
-        if self.ip_vars[i].get() in self.connected_clients:
-            self.disconnect(i)
-        else:
-            threading.Thread(target=self.connect, args=(i,)).start()
+        with self.clients_lock:
+            if self.ip_vars[i].get() in self.connected_clients:
+                self.disconnect(i)
+            else:
+                threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
@@ -369,15 +388,16 @@ class ModbusUI:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
                 stop_flag = threading.Event()
-                self.stop_flags[ip] = stop_flag
-                self.clients[ip] = client
-                self.connected_clients[ip] = threading.Thread(
-                    target=self.read_modbus_data,
-                    args=(ip, client, stop_flag, i)
-                )
-                self.connected_clients[ip].daemon = True
-                self.connected_clients[ip].start()
-                self.console.print(f"Started data thread for {ip}")
+                with self.clients_lock:
+                    self.stop_flags[ip] = stop_flag
+                    self.clients[ip] = client
+                    self.connected_clients[ip] = threading.Thread(
+                        target=self.read_modbus_data,
+                        args=(ip, client, stop_flag, i),
+                        daemon=True
+                    )
+                    self.connected_clients[ip].start()
+                logging.info(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[i].config(state="disabled", bg="#e0e0e0"))
                 self.update_circle_state([False, False, True, False], box_index=i)
@@ -386,22 +406,37 @@ class ModbusUI:
                 self.blink_pwr(i)
                 self.save_ip_settings()
             else:
-                self.console.print(f"Failed to connect to {ip}")
+                logging.error(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
+
+    def connect_to_server(self, ip, client):
+        retries = 5
+        for attempt in range(retries):
+            if client.connect():
+                logging.info(f"Connected to the Modbus server at {ip}")
+                return True
+            else:
+                logging.warning(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
+                time.sleep(5)
+        return False
 
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+            threading.Thread(target=self.disconnect_client, args=(ip, i), daemon=True).start()
 
     def disconnect_client(self, ip, i):
-        self.stop_flags[ip].set()
-        self.connected_clients[ip].join(timeout=5)
-        if self.connected_clients[ip].is_alive():
-            self.console.print(f"Thread for {ip} did not terminate in time.")
-        self.clients[ip].close()
-        self.console.print(f"Disconnected from {ip}")
-        self.cleanup_client(ip)
+        with self.clients_lock:
+            if ip in self.stop_flags:
+                self.stop_flags[ip].set()
+            if ip in self.connected_clients:
+                self.connected_clients[ip].join(timeout=5)
+                if self.connected_clients[ip].is_alive():
+                    logging.error(f"Thread for {ip} did not terminate in time.")
+                if ip in self.clients:
+                    self.clients[ip].close()
+                logging.info(f"Disconnected from {ip}")
+                self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.parent.after(0, lambda: self.entries[i].config(state="normal", bg="white"))
@@ -411,12 +446,16 @@ class ModbusUI:
         self.update_circle_state([False, False, False, False], box_index=box_index)
         self.update_segment_display("    ", box_index=box_index)
         self.show_bar(box_index, show=False)
-        self.console.print(f"Reset UI elements for box {box_index}")
+        logging.info(f"Reset UI elements for box {box_index}")
 
     def cleanup_client(self, ip):
-        del self.connected_clients[ip]
-        del self.clients[ip]
-        del self.stop_flags[ip]
+        with self.clients_lock:
+            if ip in self.connected_clients:
+                del self.connected_clients[ip]
+            if ip in self.clients:
+                del self.clients[ip]
+            if ip in self.stop_flags:
+                del self.stop_flags[ip]
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         while not stop_flag.is_set():
@@ -424,12 +463,14 @@ class ModbusUI:
                 if client is None or not client.is_socket_open():
                     raise ConnectionException("Socket is closed")
 
+                # Modbus 주소 설정
                 address_40001 = 40001 - 1
                 address_40005 = 40005 - 1
                 address_40007 = 40008 - 1
                 address_40011 = 40011 - 1
                 count = 1
 
+                # 데이터 읽기
                 result_40001 = client.read_holding_registers(address_40001, count)
                 result_40005 = client.read_holding_registers(address_40005, count)
                 result_40007 = client.read_holding_registers(address_40007, count)
@@ -476,10 +517,9 @@ class ModbusUI:
                     error_display = ""
                     for i, bit in enumerate(bits):
                         if bit:
-                            error_display = BIT_TO_SEGMENT[i]
+                            error_display = BIT_TO_SEGMENT.get(i, ' ').ljust(4)
                             break
 
-                    error_display = error_display.ljust(4)
                     if 'E' in error_display:
                         self.box_states[box_index]["blinking_error"] = True
                         self.data_queue.put((box_index, error_display, True))
@@ -498,25 +538,28 @@ class ModbusUI:
                 time.sleep(self.communication_interval)
 
             except (ConnectionException, ModbusIOException) as e:
-                self.console.print(f"Connection to {ip} lost: {e}")
+                logging.error(f"Connection to {ip} lost: {e}")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
             except Exception as e:
-                self.console.print(f"Error reading data from {ip}: {e}")
+                logging.error(f"Error reading data from {ip}: {e}")
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
     def update_bar(self, value, box_index):
         _, _, bar_canvas, _, bar_item = self.box_data[box_index]
-        percentage = value / 100.0
-        bar_length = int(153 * SCALE_FACTOR * percentage)
+        try:
+            percentage = value / 100.0
+            bar_length = int(153 * SCALE_FACTOR * percentage)
 
-        cropped_image = self.gradient_bar.crop((0, 0, bar_length, int(5 * SCALE_FACTOR)))
-        bar_image = ImageTk.PhotoImage(cropped_image)
-        bar_canvas.itemconfig(bar_item, image=bar_image)
-        bar_canvas.bar_image = bar_image
+            cropped_image = self.gradient_bar.crop((0, 0, bar_length, int(5 * SCALE_FACTOR)))
+            bar_image = ImageTk.PhotoImage(cropped_image)
+            bar_canvas.itemconfig(bar_item, image=bar_image)
+            bar_canvas.bar_image = bar_image
+        except Exception as e:
+            logging.error(f"Error updating bar for box {box_index}: {e}")
 
     def show_bar(self, box_index, show):
         bar_canvas = self.box_data[box_index][2]
@@ -525,17 +568,6 @@ class ModbusUI:
             bar_canvas.itemconfig(bar_item, state='normal')
         else:
             bar_canvas.itemconfig(bar_item, state='hidden')
-
-    def connect_to_server(self, ip, client):
-        retries = 5
-        for attempt in range(retries):
-            if client.connect():
-                self.console.print(f"Connected to the Modbus server at {ip}")
-                return True
-            else:
-                self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 5 seconds...")
-                time.sleep(5)
-        return False
 
     def start_data_processing_thread(self):
         threading.Thread(target=self.process_data, daemon=True).start()
@@ -585,11 +617,17 @@ class ModbusUI:
         max_retries = 5
         while not stop_flag.is_set() and retries < max_retries:
             time.sleep(5)
-            self.console.print(f"Attempting to reconnect to {ip} (Attempt {retries + 1}/{max_retries})")
+            logging.info(f"Attempting to reconnect to {ip} (Attempt {retries + 1}/{max_retries})")
             if client.connect():
-                self.console.print(f"Reconnected to the Modbus server at {ip}")
+                logging.info(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
-                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
+                with self.clients_lock:
+                    self.connected_clients[ip] = threading.Thread(
+                        target=self.read_modbus_data,
+                        args=(ip, client, stop_flag, box_index),
+                        daemon=True
+                    )
+                    self.connected_clients[ip].start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", bg="#e0e0e0"))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
@@ -598,16 +636,21 @@ class ModbusUI:
                 break
             else:
                 retries += 1
-                self.console.print(f"Reconnect attempt to {ip} failed.")
+                logging.warning(f"Reconnect attempt to {ip} failed.")
 
         if retries >= max_retries:
-            self.console.print(f"Failed to reconnect to {ip} after {max_retries} attempts.")
+            logging.error(f"Failed to reconnect to {ip} after {max_retries} attempts.")
             self.disconnect_client(ip, box_index)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
-        with open(self.SETTINGS_FILE, 'w') as file:
-            json.dump(ip_settings, file)
+        with self.file_lock:
+            try:
+                with open(self.SETTINGS_FILE, 'w') as file:
+                    json.dump(ip_settings, file)
+                logging.info("IP settings saved successfully.")
+            except Exception as e:
+                logging.error(f"Error saving IP settings: {e}")
 
     def blink_pwr(self, box_index):
         def toggle_color():
