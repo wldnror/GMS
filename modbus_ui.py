@@ -86,7 +86,14 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(11 * SCALE_FACTOR), highlightthickness=0)
+        entry = Entry(
+            frame,
+            textvariable=ip_var,
+            width=int(11 * SCALE_FACTOR),
+            highlightthickness=0,
+            bd=0,
+            relief='flat'
+        )
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -97,7 +104,7 @@ class ModbusUI:
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0)
+        entry.grid(row=0, column=0, padx=(0, 10), pady=5)
         self.entries.append(entry)
 
         action_button = Button(
@@ -121,22 +128,37 @@ class ModbusUI:
         entry.focus_set()
 
     def on_focus_in(self, event, entry, placeholder):
-        if entry.get() == placeholder:
-            entry.delete(0, "end")
-            entry.config(fg="black")
+        if entry['state'] == 'normal':
+            if entry.get() == placeholder:
+                entry.delete(0, "end")
+                entry.config(fg="black")
+            entry.config(
+                highlightthickness=1,
+                highlightbackground="blue",
+                highlightcolor="blue",
+                bd=1,
+                relief='solid'
+            )
 
     def on_focus_out(self, event, entry, placeholder):
-        if not entry.get():
-            entry.insert(0, placeholder)
-            entry.config(fg="grey")
+        if entry['state'] == 'normal':
+            if not entry.get():
+                entry.insert(0, placeholder)
+                entry.config(fg="grey")
+            entry.config(
+                highlightthickness=0,
+                bd=0,
+                relief='flat'
+            )
 
     def on_entry_click(self, event, entry, placeholder):
-        self.on_focus_in(event, entry, placeholder)
-        self.show_virtual_keyboard(entry)
+        if entry['state'] == 'normal':
+            self.on_focus_in(event, entry, placeholder)
+            self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
-
+        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))  # 기존 코드 유지
+        # ... 기존 코드 ...
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
@@ -366,6 +388,7 @@ class ModbusUI:
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
+                # 연결 성공
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
@@ -377,13 +400,17 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
+
+                # 테두리 제거 # 수정됨
+                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))  # 수정됨
             else:
+                # 연결 실패
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
 
@@ -402,7 +429,8 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
+        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
+        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))  # 수정됨
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -575,7 +603,8 @@ class ModbusUI:
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
         self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
+        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))  # 수정됨
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -589,7 +618,8 @@ class ModbusUI:
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
+                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))  # 수정됨
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
@@ -620,27 +650,3 @@ class ModbusUI:
                 self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
-
-# 추가적으로 main 실행 부분이 필요할 수 있습니다.
-# 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
-
-if __name__ == "__main__":
-    import tkinter as tk
-
-    def alarm_callback(active, source):
-        if active:
-            print(f"Alarm active from {source}")
-        else:
-            print(f"Alarm cleared from {source}")
-
-    root = tk.Tk()
-    root.title("Modbus UI")
-    num_boxes = 4
-    gas_types = {
-        "modbus_box_0": "ORG",
-        "modbus_box_1": "ARF-T",
-        "modbus_box_2": "HMDS",
-        "modbus_box_3": "HC-100"
-    }
-    app = ModbusUI(root, num_boxes, gas_types, alarm_callback)
-    root.mainloop()
