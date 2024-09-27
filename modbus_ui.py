@@ -643,26 +643,3 @@ class ModbusUI:
 
         toggle_color()
 
-# 추가적으로 main 실행 부분이 필요합니다.
-# 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
-
-if __name__ == "__main__":
-    import tkinter as tk
-
-    def alarm_callback(active, source):
-        if active:
-            print(f"Alarm active from {source}")
-        else:
-            print(f"Alarm cleared from {source}")
-
-    root = tk.Tk()
-    root.title("Modbus UI")
-    num_boxes = 4
-    gas_types = {
-        "modbus_box_0": "ORG",
-        "modbus_box_1": "ARF-T",
-        "modbus_box_2": "HMDS",
-        "modbus_box_3": "HC-100"
-    }
-    app = ModbusUI(root, num_boxes, gas_types, alarm_callback)
-    root.mainloop()
