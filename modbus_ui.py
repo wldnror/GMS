@@ -51,7 +51,6 @@ class ModbusUI:
         self.box_data = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.gas_types = gas_types
-        self.is_connected = [False for _ in range(num_boxes)]  # 연결 상태 추적
 
         self.load_ip_settings(num_boxes)
 
@@ -87,16 +86,7 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(
-            frame,
-            textvariable=ip_var,
-            width=int(12 * SCALE_FACTOR),
-            borderwidth=2,
-            relief="solid",
-            highlightthickness=2,
-            highlightbackground="gray",
-            highlightcolor="blue"
-        )
+        entry = Entry(frame, textvariable=ip_var, width=int(12 * SCALE_FACTOR), highlightthickness=0)
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -104,8 +94,10 @@ class ModbusUI:
         else:
             entry.config(fg="black")
 
+        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
+        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=5, pady=5)  # 여백 추가
+        entry.grid(row=0, column=0)
         self.entries.append(entry)
 
         action_button = Button(
@@ -121,7 +113,7 @@ class ModbusUI:
             bg='black',
             activebackground='black'
         )
-        action_button.grid(row=0, column=1, padx=5, pady=5)
+        action_button.grid(row=0, column=1)
         self.action_buttons.append(action_button)
 
     def show_virtual_keyboard(self, entry):
@@ -145,14 +137,7 @@ class ModbusUI:
             self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        box_frame = Frame(
-            self.parent,
-            highlightthickness=int(7 * SCALE_FACTOR),
-            highlightbackground="#808080",  # 기본 테두리 색상 (회색)
-            highlightcolor="#0000FF",        # 포커스 시 테두리 색상 (파란색)
-            relief="solid"
-        )
-        box_frame.pack(padx=10, pady=10)
+        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
@@ -162,9 +147,8 @@ class ModbusUI:
             width=int(150 * SCALE_FACTOR),
             height=int(300 * SCALE_FACTOR),
             highlightthickness=int(3 * SCALE_FACTOR),
-            highlightbackground="#808080",  # 기본 테두리 색상
-            highlightcolor="#0000FF",        # 포커스 시 테두리 색상
-            bg="white"
+            highlightbackground="#000000",
+            highlightcolor="#000000"
         )
         box_canvas.pack()
 
@@ -401,14 +385,6 @@ class ModbusUI:
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
-
-                # 연결 상태 업데이트
-                self.is_connected[i] = True
-
-                # 테두리 두께를 0으로 설정하여 테두리 제거
-                self.box_frames[i].config(highlightthickness=0)
-                self.box_data[i][0].config(highlightthickness=0)
-
             else:
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
@@ -430,13 +406,6 @@ class ModbusUI:
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.parent.after(0, lambda: self.entries[i].config(state="normal", bg="white"))
         self.save_ip_settings()
-
-        # 연결 상태 업데이트
-        self.is_connected[i] = False
-
-        # 테두리 두께를 원래대로 복원
-        self.box_frames[i].config(highlightthickness=int(7 * SCALE_FACTOR))
-        self.box_data[i][0].config(highlightthickness=int(3 * SCALE_FACTOR))
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
@@ -653,19 +622,6 @@ class ModbusUI:
                 self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
-
-    # 포커스 이벤트 핸들러 수정
-    def on_entry_focus_in(self, box_frame, box_canvas, box_index):
-        if not self.is_connected[box_index]:
-            # 포커스 시 테두리 색상 변경
-            box_frame.config(highlightbackground="#0000FF")  # 포커스 시 테두리 색상 (파란색)
-            box_canvas.config(highlightbackground="#0000FF")
-
-    def on_entry_focus_out(self, box_frame, box_canvas, box_index):
-        if not self.is_connected[box_index]:
-            # 포커스 해제 시 테두리 색상 변경
-            box_frame.config(highlightbackground="#808080")  # 기본 테두리 색상 (회색)
-            box_canvas.config(highlightbackground="#808080")
 
 # 추가적으로 main 실행 부분이 필요할 수 있습니다.
 # 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
