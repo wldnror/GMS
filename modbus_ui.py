@@ -74,7 +74,7 @@ class ModbusUI:
         # 통신 주기 설정 (초 단위)
         self.communication_interval = 0.2  # 200ms
 
-        # 깜빡임 주기 설정 (통신 주기보다 1.5배 빠르게)
+        # 깜빡임 주기 설정 (통신 주기보다 1.8배 빠르게)
         self.blink_interval = int((self.communication_interval / 1.8) * 1000)  # 133ms
 
         # 데이터 처리 및 UI 업데이트 스케줄링
