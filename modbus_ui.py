@@ -47,16 +47,16 @@ class ModbusUI:
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
-        self.history_window = None
-        self.history_lock = threading.Lock()
+        # self.history_window = None  # 히스토리 창 관련 변수 제거
+        # self.history_lock = threading.Lock()  # 히스토리 창 관련 변수 제거
         self.box_frames = []
         self.box_data = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
-        self.history_dir = "history_logs"
+        # self.history_dir = "history_logs"  # 히스토리 디렉토리 관련 변수 제거
         self.gas_types = gas_types
 
-        if not os.path.exists(self.history_dir):
-            os.makedirs(self.history_dir)
+        # if not os.path.exists(self.history_dir):
+        #     os.makedirs(self.history_dir)  # 히스토리 디렉토리 생성 코드 제거
 
         # IP 설정 로드
         self.load_ip_settings(num_boxes)
@@ -302,7 +302,8 @@ class ModbusUI:
 
         self.show_bar(index, show=False)
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
+        # 세그먼트 클릭 이벤트 바인딩 제거
+        # box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
 
         # 초기 상태 설정 추가
         self.update_circle_state([False, False, False, False], box_index=index)
@@ -317,8 +318,9 @@ class ModbusUI:
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
-    def on_segment_click(self, box_index):
-        threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
+    # def on_segment_click(self, box_index):
+    #     threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
+    # on_segment_click 메서드 제거
 
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
@@ -352,7 +354,7 @@ class ModbusUI:
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
-            self.record_history(box_index, value)
+            # self.record_history(box_index, value)  # 히스토리 기록 제거
             self.box_states[box_index]["previous_segment_display"] = value
 
         # 각 자리의 숫자를 순차적으로 업데이트
@@ -379,72 +381,79 @@ class ModbusUI:
         # 블링크 상태 업데이트
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
-    def record_history(self, box_index, value):
-        if value.strip():
-            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-            log_line = f"{timestamp},{value}\n"
-            log_file_index = self.get_log_file_index(box_index)
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
+    # def record_history(self, box_index, value):
+    #     if value.strip():
+    #         timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    #         log_line = f"{timestamp},{value}\n"
+    #         log_file_index = self.get_log_file_index(box_index)
+    #         log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
 
-            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+    #         threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
+    # 히스토리 기록 메서드 제거
 
-    def async_write_log(self, log_file, log_line):
-        try:
-            with open(log_file, 'a') as file:
-                file.write(log_line)
-        except IOError as e:
-            self.console.print(f"Error writing log file: {e}")
+    # def async_write_log(self, log_file, log_line):
+    #     try:
+    #         with open(log_file, 'a') as file:
+    #             file.write(log_line)
+    #     except IOError as e:
+    #         self.console.print(f"Error writing log file: {e}")
+    # 히스토리 기록 메서드 제거
 
-    def get_log_file_index(self, box_index):
-        index = 0
-        while True:
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
-            if not os.path.exists(log_file):
-                return index
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                if len(lines) < self.LOGS_PER_FILE:
-                    return index
-            index += 1
+    # def get_log_file_index(self, box_index):
+    #     index = 0
+    #     while True:
+    #         log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
+    #         if not os.path.exists(log_file):
+    #             return index
+    #         with open(log_file, 'r') as file:
+    #             lines = file.readlines()
+    #             if len(lines) < self.LOGS_PER_FILE:
+    #                 return index
+    #         index += 1
+    # 히스토리 파일 인덱스 메서드 제거
 
-    def load_log_files(self, box_index, file_index):
-        log_entries = []
-        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                for line in lines:
-                    timestamp, value = line.strip().split(',')
-                    log_entries.append((timestamp, value))
-        return log_entries
+    # def load_log_files(self, box_index, file_index):
+    #     log_entries = []
+    #     log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
+    #     if os.path.exists(log_file):
+    #         with open(log_file, 'r') as file:
+    #             lines = file.readlines()
+    #             for line in lines:
+    #                 timestamp, value = line.strip().split(',')
+    #                 log_entries.append((timestamp, value))
+    #     return log_entries
+    # 히스토리 파일 로드 메서드 제거
 
-    def show_history_graph(self, box_index):
-        with self.history_lock:
-            if self.history_window and self.history_window.winfo_exists():
-                self.history_window.destroy()
+    # def show_history_graph(self, box_index):
+    #     with self.history_lock:
+    #         if self.history_window and self.history_window.winfo_exists():
+    #             self.history_window.destroy()
 
-            self.history_window = Toplevel(self.parent)
-            self.history_window.title(f"History - Box {box_index}")
-            self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
-            self.history_window.attributes("-topmost", True)
+    #         self.history_window = Toplevel(self.parent)
+    #         self.history_window.title(f"History - Box {box_index}")
+    #         self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
+    #         self.history_window.attributes("-topmost", True)
 
-            self.current_file_index = self.get_log_file_index(box_index) - 1
-            self.update_history_graph(box_index, self.current_file_index)
+    #         self.current_file_index = self.get_log_file_index(box_index) - 1
+    #         self.update_history_graph(box_index, self.current_file_index)
+    # 히스토리 창 표시 메서드 제거
 
-    def update_history_graph(self, box_index, file_index):
-        log_entries = self.load_log_files(box_index, file_index)
-        times, values = zip(*log_entries) if log_entries else ([], [])
+    # def update_history_graph(self, box_index, file_index):
+    #     log_entries = self.load_log_files(box_index, file_index)
+    #     times, values = zip(*log_entries) if log_entries else ([], [])
 
-        # 그래프 그리기 코드는 생략합니다. 필요 시 추가하세요.
+    #     # 그래프 그리기 코드는 생략합니다. 필요 시 추가하세요.
+    # 히스토리 그래프 업데이트 메서드 제거
 
-    def navigate_logs(self, box_index, direction):
-        self.current_file_index += direction
-        if self.current_file_index < 0:
-            self.current_file_index = 0
-        elif self.current_file_index >= self.get_log_file_index(box_index):
-            self.current_file_index = self.get_log_file_index(box_index) - 1
+    # def navigate_logs(self, box_index, direction):
+    #     self.current_file_index += direction
+    #     if self.current_file_index < 0:
+    #         self.current_file_index = 0
+    #     elif self.current_file_index >= self.get_log_file_index(box_index):
+    #         self.current_file_index = self.get_log_file_index(box_index) - 1
 
-        self.update_history_graph(box_index, self.current_file_index)
+    #     self.update_history_graph(box_index, self.current_file_index)
+    # 히스토리 로그 탐색 메서드 제거
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
@@ -535,12 +544,12 @@ class ModbusUI:
                     top_blink = True
                     middle_blink = False
                     middle_fixed = True
-                    self.record_history(box_index, 'A2')
+                    # self.record_history(box_index, 'A2')  # 히스토리 기록 제거
                 elif bit_6_on:
                     top_blink = False
                     middle_blink = True
                     middle_fixed = True
-                    self.record_history(box_index, 'A1')
+                    # self.record_history(box_index, 'A1')  # 히스토리 기록 제거
                 else:
                     top_blink = False
                     middle_blink = False
@@ -568,7 +577,7 @@ class ModbusUI:
                     for i, bit in enumerate(bits):
                         if bit:
                             error_display = BIT_TO_SEGMENT[i]
-                            self.record_history(box_index, error_display)
+                            # self.record_history(box_index, error_display)  # 히스토리 기록 제거
                             break
 
                     error_display = error_display.ljust(4)
@@ -665,10 +674,8 @@ class ModbusUI:
             self.schedule_ui_update()
 
     def check_click(self, event):
-        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            widget = event.widget
-            if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
-                self.hide_history(event)
+        # 히스토리 창 관련 체크 로직 제거
+        pass
 
     def handle_disconnection(self, box_index):
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
@@ -724,9 +731,10 @@ class ModbusUI:
         toggle_color()
 
     # 추가된 메서드: hide_history (구현 필요)
-    def hide_history(self, event):
-        if self.history_window and self.history_window.winfo_exists():
-            self.history_window.destroy()
+    # def hide_history(self, event):
+    #     if self.history_window and self.history_window.winfo_exists():
+    #         self.history_window.destroy()
+    # 히스토리 창 숨기기 메서드 제거
 
 # 추가적으로 main 실행 부분이 필요할 수 있습니다.
 # 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
