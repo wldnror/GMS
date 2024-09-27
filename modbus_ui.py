@@ -131,8 +131,10 @@ class ModbusUI:
             entry.config(fg="grey")
 
     def on_entry_click(self, event, entry, placeholder):
-        self.on_focus_in(event, entry, placeholder)
-        self.show_virtual_keyboard(entry)
+        # 상태가 'normal'일 때만 가상 키보드 표시
+        if entry['state'] == 'normal':
+            self.on_focus_in(event, entry, placeholder)
+            self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
