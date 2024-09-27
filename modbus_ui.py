@@ -74,8 +74,8 @@ class ModbusUI:
         # 통신 주기 설정 (초 단위)
         self.communication_interval = 0.2  # 200ms
 
-        # 깜빡임 주기 설정 (통신 주기의 3배)
-        self.blink_interval = int(self.communication_interval * 3 * 1000)  # 밀리초 단위
+        # 깜빡임 주기 설정 (통신 주기보다 2배 빠르게)
+        self.blink_interval = int((self.communication_interval / 2) * 1000)  # 100ms
 
         # 데이터 처리 및 UI 업데이트 스케줄링
         self.start_data_processing_thread()
@@ -323,7 +323,7 @@ class ModbusUI:
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
 
-        colors_on = ['red', 'red', 'green', 'yellow']  # 변경된 부분: 첫 두 상태를 'red'로
+        colors_on = ['red', 'red', 'green', 'yellow']  # 첫 두 상태를 'red'로 변경
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
         outline_color_off = '#000000'
@@ -711,14 +711,14 @@ class ModbusUI:
         def toggle_color():
             box_canvas = self.box_data[box_index][0]
             circle_items = self.box_data[box_index][1]
-            # 파란색("blue")을 빨간색("red")으로 변경
+            # 빨간색("red")과 녹색("green")으로 변경
             if self.box_states[box_index]["pwr_blink_state"]:
                 box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
             else:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
-                # 통신 주기에 따라 깜빡임 주기 조정
+                # 통신 주기보다 2배 빠르게 깜빡임 주기 설정 (100ms)
                 self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
