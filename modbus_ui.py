@@ -429,8 +429,8 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=int(3 * SCALE_FACTOR), bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=int(3 * SCALE_FACTOR)))  # 수정됨
+        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
+        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))  # 수정됨
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -603,8 +603,8 @@ class ModbusUI:
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
         self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=int(3 * SCALE_FACTOR), bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=int(3 * SCALE_FACTOR)))  # 수정됨
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
+        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))  # 수정됨
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
