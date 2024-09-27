@@ -86,7 +86,14 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(11 * SCALE_FACTOR), highlightthickness=0)
+        entry = Entry(
+            frame,
+            textvariable=ip_var,
+            width=int(11 * SCALE_FACTOR),
+            highlightthickness=0,
+            bd=0,
+            relief='flat'
+        )
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -121,18 +128,33 @@ class ModbusUI:
         entry.focus_set()
 
     def on_focus_in(self, event, entry, placeholder):
-        if entry.get() == placeholder:
-            entry.delete(0, "end")
-            entry.config(fg="black")
+        if entry['state'] == 'normal':
+            if entry.get() == placeholder:
+                entry.delete(0, "end")
+                entry.config(fg="black")
+            entry.config(
+                highlightthickness=1,
+                highlightbackground="blue",
+                highlightcolor="blue",
+                bd=1,
+                relief='solid'
+            )
 
     def on_focus_out(self, event, entry, placeholder):
-        if not entry.get():
-            entry.insert(0, placeholder)
-            entry.config(fg="grey")
+        if entry['state'] == 'normal':
+            if not entry.get():
+                entry.insert(0, placeholder)
+                entry.config(fg="grey")
+            entry.config(
+                highlightthickness=0,
+                bd=0,
+                relief='flat'
+            )
 
     def on_entry_click(self, event, entry, placeholder):
-        self.on_focus_in(event, entry, placeholder)
-        self.show_virtual_keyboard(entry)
+        if entry['state'] == 'normal':
+            self.on_focus_in(event, entry, placeholder)
+            self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
@@ -377,7 +399,7 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -402,7 +424,7 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
+        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=0, bd=0, relief='flat'))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -575,7 +597,7 @@ class ModbusUI:
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
         self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=0, bd=0, relief='flat'))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -589,7 +611,7 @@ class ModbusUI:
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
@@ -621,7 +643,7 @@ class ModbusUI:
 
         toggle_color()
 
-# 추가적으로 main 실행 부분이 필요할 수 있습니다.
+# 추가적으로 main 실행 부분이 필요합니다.
 # 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
 
 if __name__ == "__main__":
