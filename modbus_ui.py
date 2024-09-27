@@ -66,7 +66,7 @@ class ModbusUI:
         self.communication_interval = 0.2  # 200ms
 
         # 깜빡임 주기 설정 (통신 주기보다 1.8배 빠르게)
-        self.blink_interval = int((self.communication_interval / 1.2) * 1000)  # 133ms
+        self.blink_interval = int((self.communication_interval / 1.8) * 1000)  # 133ms
 
         # 데이터 처리 및 UI 업데이트 스케줄링
         self.start_data_processing_thread()
@@ -578,7 +578,7 @@ class ModbusUI:
             self.schedule_ui_update()
 
     def check_click(self, event):
-        # 히스토리 관련 코드가 없으므로 이 메서드를 제거하거나 빈 메서드로 유지할 수 있습니다.
+        # 히스토리 표시 관련 코드가 제거되었으므로 빈 메서드로 유지
         pass
 
     def handle_disconnection(self, box_index):
