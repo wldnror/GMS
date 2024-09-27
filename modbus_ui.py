@@ -157,8 +157,8 @@ class ModbusUI:
             self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))  # 기존 코드 유지
-        # ... 기존 코드 ...
+        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
+
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
@@ -388,7 +388,6 @@ class ModbusUI:
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
-                # 연결 성공
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
@@ -406,11 +405,7 @@ class ModbusUI:
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
-
-                # 테두리 제거 # 수정됨
-                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))  # 수정됨
             else:
-                # 연결 실패
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
 
@@ -429,8 +424,7 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=int(3 * SCALE_FACTOR), bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=int(3 * SCALE_FACTOR)))  # 수정됨
+        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=0, bd=0, relief='flat'))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -603,8 +597,7 @@ class ModbusUI:
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
         self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=int(3 * SCALE_FACTOR), bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=int(3 * SCALE_FACTOR)))  # 수정됨
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=0, bd=0, relief='flat'))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -619,7 +612,6 @@ class ModbusUI:
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
-                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))  # 수정됨
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
