@@ -105,7 +105,7 @@ class ModbusUI:
             entry.config(fg="black")
 
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=5, pady=5)  # 여백 추가
+        entry.pack(side='left', padx=5, pady=5)  # `pack` 사용으로 변경
         self.entries.append(entry)
 
         action_button = Button(
@@ -121,8 +121,9 @@ class ModbusUI:
             bg='black',
             activebackground='black'
         )
-        action_button.grid(row=0, column=1, padx=5, pady=5)
+        action_button.pack(side='left', padx=5, pady=5)  # `pack` 사용으로 변경
         self.action_buttons.append(action_button)
+
 
     def show_virtual_keyboard(self, entry):
         self.virtual_keyboard.show(entry)
