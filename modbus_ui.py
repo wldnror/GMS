@@ -3,12 +3,13 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
+from tkinter import Frame, Canvas, StringVar, Toplevel
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from rich.console import Console
 from PIL import Image, ImageTk
+from tkinter import ttk  # ttk 모듈 추가
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
 import queue
@@ -61,6 +62,28 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
         self.disconnect_image = self.load_image(disconnect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
 
+        # 스타일 설정
+        self.style = ttk.Style()
+        self.style.theme_use('clam')  # 클램 테마 사용 (필요에 따라 변경 가능)
+        
+        # Entry 스타일 설정
+        self.style.configure("TEntry",
+                             foreground="black",
+                             fieldbackground="#f0f0f0",
+                             font=("Helvetica", int(12 * SCALE_FACTOR)))
+        self.style.configure("Placeholder.TEntry",
+                             foreground="grey",
+                             fieldbackground="#f0f0f0",
+                             font=("Helvetica", int(12 * SCALE_FACTOR)))
+        
+        # Button 스타일 설정
+        self.style.configure("TButton",
+                             padding=0,
+                             relief="flat",
+                             background="black")
+        self.style.map("TButton",
+                       background=[('active', '#333333')])
+
         for i in range(num_boxes):
             self.create_modbus_box(i)
 
@@ -86,34 +109,40 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(12 * SCALE_FACTOR), highlightthickness=0)
+        # 커스텀 스타일을 적용한 ttk.Entry 사용
+        entry = ttk.Entry(frame, textvariable=ip_var, width=int(15 * SCALE_FACTOR), style="TEntry")
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
+
+        def on_focus_in(event, e=entry, p=placeholder_text):
+            current_text = e.get()
+            if current_text == p:
+                e.delete(0, "end")
+                e.config(style="TEntry")
+
+        def on_focus_out(event, e=entry, p=placeholder_text):
+            if not e.get():
+                e.insert(0, p)
+                e.config(style="Placeholder.TEntry")
+
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
-            entry.config(fg="grey")
-        else:
-            entry.config(fg="black")
+            entry.config(style="Placeholder.TEntry")
 
-        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
-        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0)
+        entry.grid(row=0, column=0, padx=(0, 10), pady=5)  # 약간의 패딩 추가
         self.entries.append(entry)
 
-        action_button = Button(
+        # `ttk.Button` 사용 및 스타일 적용
+        action_button = ttk.Button(
             frame,
             image=self.connect_image,
             command=lambda i=index: self.toggle_connection(i),
-            width=int(60 * SCALE_FACTOR),
-            height=int(40 * SCALE_FACTOR),
-            bd=0,
-            highlightthickness=0,
-            borderwidth=0,
-            relief='flat',
-            bg='black',
-            activebackground='black'
+            style="TButton"
         )
-        action_button.grid(row=0, column=1)
+        action_button.image = self.connect_image  # 참조 유지
+        action_button.grid(row=0, column=1, pady=5)
         self.action_buttons.append(action_button)
 
     def show_virtual_keyboard(self, entry):
@@ -133,7 +162,9 @@ class ModbusUI:
     def on_entry_click(self, event, entry, placeholder):
         # 상태가 'normal'일 때만 가상 키보드 표시
         if entry['state'] == 'normal':
-            self.on_focus_in(event, entry, placeholder)
+            if entry.get() == placeholder:
+                entry.delete(0, "end")
+                entry.config(style="TEntry")
             self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
@@ -378,8 +409,8 @@ class ModbusUI:
                 self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
-                self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled", bg="#e0e0e0"))
+                self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, style="TButton"))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -403,8 +434,8 @@ class ModbusUI:
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
-        self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal", bg="white"))
+        self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, style="TButton"))
+        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -576,8 +607,8 @@ class ModbusUI:
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
-        self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", bg="white"))
+        self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, style="TButton"))
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -590,8 +621,8 @@ class ModbusUI:
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
-                self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", bg="#e0e0e0"))
+                self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, style="TButton"))
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
