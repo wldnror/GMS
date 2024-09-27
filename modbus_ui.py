@@ -124,11 +124,17 @@ class ModbusUI:
         if entry.get() == placeholder:
             entry.delete(0, "end")
             entry.config(fg="black")
+        # 강조 테두리 추가
+        box_index = self.entries.index(entry)
+        self.update_circle_state([True, True, True, True], box_index=box_index)
 
     def on_focus_out(self, event, entry, placeholder):
         if not entry.get():
             entry.insert(0, placeholder)
             entry.config(fg="grey")
+        # 테두리 원상복구
+        box_index = self.entries.index(entry)
+        self.update_circle_state([False, False, False, False], box_index=box_index)
 
     def on_entry_click(self, event, entry, placeholder):
         # 상태가 'normal'일 때만 가상 키보드 표시
@@ -380,7 +386,12 @@ class ModbusUI:
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[i].config(state="disabled", bg="#e0e0e0"))
-                self.update_circle_state([False, False, True, False], box_index=i)
+                
+                # 연결 성공 시 테두리 원상복구
+                self.update_circle_state([False, False, False, False], box_index=i)
+                # 포커스 해제
+                self.parent.focus_set()
+                
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
