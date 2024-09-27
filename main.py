@@ -413,7 +413,7 @@ if __name__ == "__main__":
 
     total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
-    if 0 <= total_boxes <= 4:
+    if 0 <= total_boxes <= 6:
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
