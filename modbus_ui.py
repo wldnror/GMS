@@ -323,6 +323,7 @@ class ModbusUI:
 
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
+        entry_state = self.entries[box_index].cget('state')
 
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -345,7 +346,11 @@ class ModbusUI:
         else:
             outline_color = outline_color_off
 
-        box_canvas.config(highlightbackground=outline_color)
+        # Entry가 활성화 상태일 때만 box_canvas의 highlightbackground 설정
+        if entry_state == 'normal':
+            box_canvas.config(highlightbackground=outline_color)
+        else:
+            box_canvas.config(highlightbackground=outline_color_off)
 
     def update_segment_display(self, value, box_index=0, blink=False):
         box_canvas = self.box_data[box_index][0]
@@ -399,8 +404,9 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
+                # Entry 비활성화 및 테두리 제거
                 self.parent.after(0, lambda: self.entries[i].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
-                # 포커스 이동: 연결 버튼으로 포커스 설정
+                # 포커스를 연결 버튼으로 이동
                 self.parent.after(0, lambda: self.action_buttons[i].focus_set())
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
@@ -426,8 +432,9 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
+        # Entry 활성화 및 초기 상태로 설정
         self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=0, bd=0, relief='flat'))
-        # 포커스 이동: 부모 위젯으로 포커스 설정
+        # 포커스를 부모 위젯으로 이동
         self.parent.after(0, lambda: self.parent.focus_set())
         self.save_ip_settings()
 
@@ -436,7 +443,7 @@ class ModbusUI:
         self.update_segment_display("    ", box_index=box_index)
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
-        # 포커스 이동: 부모 위젯으로 포커스 설정
+        # 포커스를 부모 위젯으로 이동
         self.parent.after(0, lambda: self.parent.focus_set())
 
     def cleanup_client(self, ip):
@@ -618,7 +625,7 @@ class ModbusUI:
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
-                # 포커스 이동: 연결 버튼으로 포커스 설정
+                # 포커스를 연결 버튼으로 이동
                 self.parent.after(0, lambda: self.action_buttons[box_index].focus_set())
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
