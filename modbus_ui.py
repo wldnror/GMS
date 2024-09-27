@@ -65,7 +65,7 @@ class ModbusUI:
             self.create_modbus_box(i)
 
         self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 200ms
+        self.blink_interval = int((self.communication_interval / 1) * 00)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -87,7 +87,7 @@ class ModbusUI:
 
     def add_ip_row(self, frame, ip_var, index):
         entry = Entry(frame, textvariable=ip_var, width=int(10 * SCALE_FACTOR), highlightthickness=0)
-        placeholder_text = f"{index + 1}. IP를 입력해주세요."
+        placeholder_text = f"{index + 2}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
             entry.config(fg="grey")
