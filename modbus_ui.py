@@ -65,7 +65,7 @@ class ModbusUI:
             self.create_modbus_box(i)
 
         self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 133ms
+        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -400,6 +400,8 @@ class ModbusUI:
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[i].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
+                # 포커스 이동: 연결 버튼으로 포커스 설정
+                self.parent.after(0, lambda: self.action_buttons[i].focus_set())
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -425,6 +427,8 @@ class ModbusUI:
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
         self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=0, bd=0, relief='flat'))
+        # 포커스 이동: 부모 위젯으로 포커스 설정
+        self.parent.after(0, lambda: self.parent.focus_set())
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -432,6 +436,8 @@ class ModbusUI:
         self.update_segment_display("    ", box_index=box_index)
         self.show_bar(box_index, show=False)
         self.console.print(f"Reset UI elements for box {box_index}")
+        # 포커스 이동: 부모 위젯으로 포커스 설정
+        self.parent.after(0, lambda: self.parent.focus_set())
 
     def cleanup_client(self, ip):
         del self.connected_clients[ip]
@@ -612,6 +618,8 @@ class ModbusUI:
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
+                # 포커스 이동: 연결 버튼으로 포커스 설정
+                self.parent.after(0, lambda: self.action_buttons[box_index].focus_set())
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
