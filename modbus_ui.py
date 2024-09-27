@@ -104,7 +104,7 @@ class ModbusUI:
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0)
+        entry.grid(row=0, column=0, padx=(0, 10), pady=5)
         self.entries.append(entry)
 
         action_button = Button(
