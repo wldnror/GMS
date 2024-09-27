@@ -4,6 +4,9 @@ import json
 import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
+import tkinter as tk
+from tkinter import ttk
+from tkinter import font
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
@@ -12,6 +15,15 @@ from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
 import queue
+
+# Optional: If you choose to use ttkbootstrap for enhanced themes
+# Install via pip: pip install ttkbootstrap
+try:
+    import ttkbootstrap as ttkb
+    from ttkbootstrap.constants import *
+    THEMED = True
+except ImportError:
+    THEMED = False
 
 SCALE_FACTOR = 1.65
 
@@ -86,34 +98,45 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(12 * SCALE_FACTOR), highlightthickness=0)
+        # Use ttk.Frame for better styling
+        ip_frame = ttk.Frame(frame)
+        ip_frame.grid(row=0, column=0, padx=(0, 10), pady=5, sticky='ew')
+
+        # Configure grid to expand
+        frame.columnconfigure(0, weight=1)
+
+        # Style for Entry
+        style = ttk.Style()
+        style.configure("TEntry",
+                        padding=(10, 5),
+                        font=('Helvetica', 12))
+        style.configure("Placeholder.TEntry",
+                        foreground='grey')
+
+        entry = ttk.Entry(ip_frame, textvariable=ip_var, font=('Helvetica', 12))
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
-            entry.config(fg="grey")
+            entry.config(foreground="grey")
         else:
-            entry.config(fg="black")
+            entry.config(foreground="black")
 
         entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
         entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
         entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0)
+        entry.pack(fill='x', expand=True)
         self.entries.append(entry)
 
-        action_button = Button(
+        # Use ttk.Button with modern styling
+        action_button = ttk.Button(
             frame,
             image=self.connect_image,
             command=lambda i=index: self.toggle_connection(i),
-            width=int(60 * SCALE_FACTOR),
-            height=int(40 * SCALE_FACTOR),
-            bd=0,
-            highlightthickness=0,
-            borderwidth=0,
-            relief='flat',
-            bg='black',
-            activebackground='black'
+            style="TButton"
         )
-        action_button.grid(row=0, column=1)
+        action_button.image = self.connect_image  # Keep a reference
+        action_button.grid(row=0, column=1, pady=5)
+
         self.action_buttons.append(action_button)
 
     def show_virtual_keyboard(self, entry):
@@ -123,12 +146,12 @@ class ModbusUI:
     def on_focus_in(self, event, entry, placeholder):
         if entry.get() == placeholder:
             entry.delete(0, "end")
-            entry.config(fg="black")
+            entry.config(foreground="black")
 
     def on_focus_out(self, event, entry, placeholder):
         if not entry.get():
             entry.insert(0, placeholder)
-            entry.config(fg="grey")
+            entry.config(foreground="grey")
 
     def on_entry_click(self, event, entry, placeholder):
         # 상태가 'normal'일 때만 가상 키보드 표시
@@ -140,7 +163,7 @@ class ModbusUI:
         box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
-        inner_frame.pack(padx=0, pady=0)
+        inner_frame.pack(padx=10, pady=10)
 
         box_canvas = Canvas(
             inner_frame,
@@ -148,12 +171,13 @@ class ModbusUI:
             height=int(300 * SCALE_FACTOR),
             highlightthickness=int(3 * SCALE_FACTOR),
             highlightbackground="#000000",
-            highlightcolor="#000000"
+            highlightcolor="#000000",
+            bg="#2e2e2e"  # Dark background for modern look
         )
         box_canvas.pack()
 
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(260 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='#4d4d4d', outline='#4d4d4d', tags='border')
+        box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(260 * SCALE_FACTOR), int(310 * SCALE_FACTOR), fill='#1c1c1c', outline='#4d4d4d', tags='border')
 
         create_segment_display(box_canvas)
         self.box_states.append({
@@ -172,76 +196,75 @@ class ModbusUI:
             lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx)
         )
 
-        control_frame = Frame(box_canvas, bg="black")
+        control_frame = Frame(box_canvas, bg="#1c1c1c")
         control_frame.place(x=int(10 * SCALE_FACTOR), y=int(205 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        circle_items = []
+        # Optional: Adjust circle positions and styles for a modern look
+        circle_radius = int(10 * SCALE_FACTOR)
+        circle_colors = ['#ff4d4d', '#ff4d4d', '#66ff66', '#ffff66']
 
-        circle_items.append(
-            box_canvas.create_oval(
-                int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
-        )
+        circle_items = []
+        # AL1
+        x1, y1 = int(133 * SCALE_FACTOR), int(200 * SCALE_FACTOR)
+        circle = box_canvas.create_oval(x1 - circle_radius, y1 - circle_radius,
+                                       x1 + circle_radius, y1 + circle_radius,
+                                       fill= '#fdc8c8', outline='#000000')
+        circle_items.append(circle)
         box_canvas.create_text(
-            int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR),
-            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            x1,
+            y1 + int(22 * SCALE_FACTOR),
             text="AL1",
             fill="#cccccc",
-            anchor="e"
-        )
-
-        circle_items.append(
-            box_canvas.create_oval(
-                int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
-        )
-        box_canvas.create_text(
-            int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR),
-            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-            text="AL2",
-            fill="#cccccc",
-            anchor="e"
-        )
-
-        circle_items.append(
-            box_canvas.create_oval(
-                int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
-        )
-        box_canvas.create_text(
-            int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
-            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-            text="PWR",
-            fill="#cccccc",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
             anchor="center"
         )
 
-        circle_items.append(
-            box_canvas.create_oval(
-                int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
-        )
+        # AL2
+        x2, y2 = int(77 * SCALE_FACTOR), int(200 * SCALE_FACTOR)
+        circle = box_canvas.create_oval(x2 - circle_radius, y2 - circle_radius,
+                                       x2 + circle_radius, y2 + circle_radius,
+                                       fill='#fdc8c8', outline='#000000')
+        circle_items.append(circle)
         box_canvas.create_text(
-            int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-            int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            x2,
+            y2 + int(22 * SCALE_FACTOR),
+            text="AL2",
+            fill="#cccccc",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
+            anchor="center"
+        )
+
+        # PWR
+        x3, y3 = int(30 * SCALE_FACTOR), int(200 * SCALE_FACTOR)
+        circle = box_canvas.create_oval(x3 - circle_radius, y3 - circle_radius,
+                                       x3 + circle_radius, y3 + circle_radius,
+                                       fill='#66ff66', outline='#000000')
+        circle_items.append(circle)
+        box_canvas.create_text(
+            x3,
+            y3 + int(22 * SCALE_FACTOR),
+            text="PWR",
+            fill="#cccccc",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
+            anchor="center"
+        )
+
+        # FUT
+        x4, y4 = int(171 * SCALE_FACTOR), int(200 * SCALE_FACTOR)
+        circle = box_canvas.create_oval(x4 - circle_radius, y4 - circle_radius,
+                                       x4 + circle_radius, y4 + circle_radius,
+                                       fill='#ffff66', outline='#000000')
+        circle_items.append(circle)
+        box_canvas.create_text(
+            x4,
+            y4 + int(17 * SCALE_FACTOR),
             text="FUT",
             fill="#cccccc",
-            anchor="n"
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
+            anchor="center"
         )
 
         gas_type_var = self.box_states[index]["gas_type_var"]
@@ -276,7 +299,7 @@ class ModbusUI:
             box_canvas,
             width=int(120 * SCALE_FACTOR),
             height=int(5 * SCALE_FACTOR),
-            bg="white",
+            bg="#4d4d4d",
             highlightthickness=0
         )
         bar_canvas.place(x=int(18.5 * SCALE_FACTOR), y=int(75 * SCALE_FACTOR))
@@ -305,13 +328,13 @@ class ModbusUI:
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
 
         colors_on = ['red', 'red', 'green', 'yellow']
-        colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+        colors_off = ['#fdc8c8', '#fdc8c8', '#66ff66', '#ffff66']
         outline_colors = ['#ff0000', '#ff0000', '#00ff00', '#ffff00']
         outline_color_off = '#000000'
 
         for i, state in enumerate(states):
             color = colors_on[i] if state else colors_off[i]
-            box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
+            box_canvas.itemconfig(circle_items[i], fill=color, outline=outline_color_off)
 
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active, f"modbus_{box_index}")
@@ -361,7 +384,7 @@ class ModbusUI:
         if self.ip_vars[i].get() in self.connected_clients:
             self.disconnect(i)
         else:
-            threading.Thread(target=self.connect, args=(i,)).start()
+            threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
@@ -373,13 +396,13 @@ class ModbusUI:
                 self.clients[ip] = client
                 self.connected_clients[ip] = threading.Thread(
                     target=self.read_modbus_data,
-                    args=(ip, client, stop_flag, i)
+                    args=(ip, client, stop_flag, i),
+                    daemon=True
                 )
-                self.connected_clients[ip].daemon = True
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
-                self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled", bg="#e0e0e0"))
+                self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -392,7 +415,7 @@ class ModbusUI:
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+            threading.Thread(target=self.disconnect_client, args=(ip, i), daemon=True).start()
 
     def disconnect_client(self, ip, i):
         self.stop_flags[ip].set()
@@ -403,8 +426,8 @@ class ModbusUI:
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
-        self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal", bg="white"))
+        self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image))
+        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -435,7 +458,7 @@ class ModbusUI:
                 result_40007 = client.read_holding_registers(address_40007, count)
                 result_40011 = client.read_holding_registers(address_40011, count)
 
-                if result_40001.isError():
+                if result_40001.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40001")
 
                 value_40001 = result_40001.registers[0]
@@ -457,13 +480,13 @@ class ModbusUI:
 
                 self.ui_update_queue.put(('circle_state', box_index, [top_blink, middle_blink, middle_fixed, False]))
 
-                if result_40005.isError():
+                if result_40005.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40005")
 
                 value_40005 = result_40005.registers[0]
                 self.box_states[box_index]["last_value_40005"] = value_40005
 
-                if result_40007.isError():
+                if result_40007.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40007")
 
                 value_40007 = result_40007.registers[0]
@@ -489,7 +512,7 @@ class ModbusUI:
                         self.data_queue.put((box_index, error_display, False))
                         self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
 
-                if result_40011.isError():
+                if result_40011.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40011")
 
                 value_40011 = result_40011.registers[0]
@@ -576,8 +599,8 @@ class ModbusUI:
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
-        self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", bg="white"))
+        self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image))
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -589,9 +612,9 @@ class ModbusUI:
             if client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
-                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
-                self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", bg="#e0e0e0"))
+                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index), daemon=True).start()
+                self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image))
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
@@ -614,9 +637,9 @@ class ModbusUI:
             box_canvas = self.box_data[box_index][0]
             circle_items = self.box_data[box_index][1]
             if self.box_states[box_index]["pwr_blink_state"]:
-                box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
+                box_canvas.itemconfig(circle_items[2], fill="#66ff66", outline="#00ff00")
             else:
-                box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
+                box_canvas.itemconfig(circle_items[2], fill="#4dff4d", outline="#00cc00")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
                 self.parent.after(self.blink_interval, toggle_color)
@@ -628,6 +651,7 @@ class ModbusUI:
 
 if __name__ == "__main__":
     import tkinter as tk
+    from tkinter import ttk
 
     def alarm_callback(active, source):
         if active:
@@ -635,8 +659,17 @@ if __name__ == "__main__":
         else:
             print(f"Alarm cleared from {source}")
 
-    root = tk.Tk()
+    # Optional: Initialize ttkbootstrap if available
+    if THEMED:
+        style = ttkb.Style('superhero')  # Choose a theme you like
+        root = ttkb.Window(themename="superhero")
+    else:
+        root = tk.Tk()
+        style = ttk.Style()
+        style.theme_use('clam')  # Use a modern theme
+
     root.title("Modbus UI")
+    root.configure(bg='#2e2e2e')  # Set a dark background for the main window
     num_boxes = 4
     gas_types = {
         "modbus_box_0": "ORG",
@@ -644,5 +677,10 @@ if __name__ == "__main__":
         "modbus_box_2": "HMDS",
         "modbus_box_3": "HC-100"
     }
-    app = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+
+    # Create a main frame with padding
+    main_frame = ttk.Frame(root, padding="10")
+    main_frame.pack(fill='both', expand=True)
+
+    app = ModbusUI(main_frame, num_boxes, gas_types, alarm_callback)
     root.mainloop()
