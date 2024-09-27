@@ -1,3 +1,5 @@
+# virtual_keyboard.py
+
 import tkinter as tk
 
 class VirtualKeyboard:
@@ -11,6 +13,10 @@ class VirtualKeyboard:
         self.num_boxes = num_boxes  # 상자의 수를 설정하는 메서드
 
     def show(self, entry):
+        # Entry가 disabled 상태인지 확인
+        if entry['state'] != 'normal':
+            return  # disabled 상태이면 가상 키보드를 표시하지 않음
+
         # 기존 키보드 창이 있으면 닫음
         if self.keyboard_window and self.keyboard_window.winfo_exists():
             self.keyboard_window.destroy()
@@ -70,7 +76,8 @@ class VirtualKeyboard:
 
         # Entry 위젯에 포커스 인 이벤트 추가
         entry.bind('<Key>', self.reset_hide_timer)
-        entry.bind('<Button-1>', lambda event, e=entry: self.show(e))
+        # '<Button-1>' 이벤트 바인딩 제거
+        # entry.bind('<Button-1>', lambda event, e=entry: self.show(e))
 
     def on_button_click(self, char, entry):
         if char == 'DEL':

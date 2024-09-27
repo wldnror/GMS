@@ -47,18 +47,11 @@ class ModbusUI:
         self.console = Console()
         self.box_states = []
         self.graph_windows = [None for _ in range(num_boxes)]
-        self.history_window = None
-        self.history_lock = threading.Lock()
         self.box_frames = []
         self.box_data = []
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
-        self.history_dir = "history_logs"
         self.gas_types = gas_types
 
-        if not os.path.exists(self.history_dir):
-            os.makedirs(self.history_dir)
-
-        # IP 설정 로드
         self.load_ip_settings(num_boxes)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -71,7 +64,9 @@ class ModbusUI:
         for i in range(num_boxes):
             self.create_modbus_box(i)
 
-        # 데이터 처리 및 UI 업데이트 스케줄링
+        self.communication_interval = 0.2  # 200ms
+        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 133ms
+
         self.start_data_processing_thread()
         self.schedule_ui_update()
         self.parent.bind("<Button-1>", self.check_click)
@@ -91,7 +86,7 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
-        entry = Entry(frame, textvariable=ip_var, width=int(12 * SCALE_FACTOR), highlightthickness=0)
+        entry = Entry(frame, textvariable=ip_var, width=int(11 * SCALE_FACTOR), highlightthickness=0)
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
@@ -140,8 +135,7 @@ class ModbusUI:
         self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
-        # 프레임 생성
-        box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
+        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
 
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
@@ -165,8 +159,6 @@ class ModbusUI:
             "blinking_error": False,
             "previous_value_40011": None,
             "previous_segment_display": None,
-            "last_history_time": None,
-            "last_history_value": None,
             "pwr_blink_state": False,
             "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
             "gas_type_text_id": None,
@@ -290,15 +282,11 @@ class ModbusUI:
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
-        # 필요한 데이터 저장
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, circle_items, bar_canvas, bar_image, bar_item))
 
         self.show_bar(index, show=False)
 
-        box_canvas.segment_canvas.bind("<Button-1>", lambda event, i=index: self.on_segment_click(i))
-
-        # 초기 상태 설정 추가
         self.update_circle_state([False, False, False, False], box_index=index)
 
     def update_full_scale(self, gas_type_var, box_index):
@@ -310,9 +298,6 @@ class ModbusUI:
         position = self.GAS_TYPE_POSITIONS[gas_type]
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
-
-    def on_segment_click(self, box_index):
-        threading.Thread(target=self.show_history_graph, args=(box_index,)).start()
 
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
@@ -342,14 +327,12 @@ class ModbusUI:
 
     def update_segment_display(self, value, box_index=0, blink=False):
         box_canvas = self.box_data[box_index][0]
-        value = value.zfill(4)  # 네 자리로 맞추기
+        value = value.zfill(4)
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
         if value != previous_segment_display:
-            self.record_history(box_index, value)
             self.box_states[box_index]["previous_segment_display"] = value
 
-        # 각 자리의 숫자를 순차적으로 업데이트
         leading_zero = True
         for index in range(len(value)):
             digit = value[index]
@@ -370,75 +353,7 @@ class ModbusUI:
                 if box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
-        # 블링크 상태 업데이트
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
-
-    def record_history(self, box_index, value):
-        if value.strip():
-            timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
-            log_line = f"{timestamp},{value}\n"
-            log_file_index = self.get_log_file_index(box_index)
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{log_file_index}.log")
-
-            threading.Thread(target=self.async_write_log, args=(log_file, log_line)).start()
-
-    def async_write_log(self, log_file, log_line):
-        try:
-            with open(log_file, 'a') as file:
-                file.write(log_line)
-        except IOError as e:
-            self.console.print(f"Error writing log file: {e}")
-
-    def get_log_file_index(self, box_index):
-        index = 0
-        while True:
-            log_file = os.path.join(self.history_dir, f"box_{box_index}_{index}.log")
-            if not os.path.exists(log_file):
-                return index
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                if len(lines) < self.LOGS_PER_FILE:
-                    return index
-            index += 1
-
-    def load_log_files(self, box_index, file_index):
-        log_entries = []
-        log_file = os.path.join(self.history_dir, f"box_{box_index}_{file_index}.log")
-        if os.path.exists(log_file):
-            with open(log_file, 'r') as file:
-                lines = file.readlines()
-                for line in lines:
-                    timestamp, value = line.strip().split(',')
-                    log_entries.append((timestamp, value))
-        return log_entries
-
-    def show_history_graph(self, box_index):
-        with self.history_lock:
-            if self.history_window and self.history_window.winfo_exists():
-                self.history_window.destroy()
-
-            self.history_window = Toplevel(self.parent)
-            self.history_window.title(f"History - Box {box_index}")
-            self.history_window.geometry(f"{int(1200 * SCALE_FACTOR)}x{int(800 * SCALE_FACTOR)}")
-            self.history_window.attributes("-topmost", True)
-
-            self.current_file_index = self.get_log_file_index(box_index) - 1
-            self.update_history_graph(box_index, self.current_file_index)
-
-    def update_history_graph(self, box_index, file_index):
-        log_entries = self.load_log_files(box_index, file_index)
-        times, values = zip(*log_entries) if log_entries else ([], [])
-
-        # 그래프 그리기 코드는 생략합니다. 필요 시 추가하세요.
-
-    def navigate_logs(self, box_index, direction):
-        self.current_file_index += direction
-        if self.current_file_index < 0:
-            self.current_file_index = 0
-        elif self.current_file_index >= self.get_log_file_index(box_index):
-            self.current_file_index = self.get_log_file_index(box_index) - 1
-
-        self.update_history_graph(box_index, self.current_file_index)
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
@@ -449,7 +364,7 @@ class ModbusUI:
     def connect(self, i):
         ip = self.ip_vars[i].get()
         if ip and ip not in self.connected_clients:
-            client = ModbusTcpClient(ip, port=502, timeout=3)  # 타임아웃 설정
+            client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
@@ -502,7 +417,6 @@ class ModbusUI:
         del self.stop_flags[ip]
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        interval = 0.2  # 200ms 폴링 주기
         while not stop_flag.is_set():
             try:
                 if client is None or not client.is_socket_open():
@@ -530,12 +444,10 @@ class ModbusUI:
                     top_blink = True
                     middle_blink = False
                     middle_fixed = True
-                    self.record_history(box_index, 'A2')
                 elif bit_6_on:
                     top_blink = False
                     middle_blink = True
                     middle_fixed = True
-                    self.record_history(box_index, 'A1')
                 else:
                     top_blink = False
                     middle_blink = False
@@ -563,7 +475,6 @@ class ModbusUI:
                     for i, bit in enumerate(bits):
                         if bit:
                             error_display = BIT_TO_SEGMENT[i]
-                            self.record_history(box_index, error_display)
                             break
 
                     error_display = error_display.ljust(4)
@@ -582,7 +493,7 @@ class ModbusUI:
                 value_40011 = result_40011.registers[0]
                 self.ui_update_queue.put(('bar', box_index, value_40011))
 
-                time.sleep(interval)
+                time.sleep(self.communication_interval)
 
             except (ConnectionException, ModbusIOException) as e:
                 self.console.print(f"Connection to {ip} lost: {e}")
@@ -596,16 +507,14 @@ class ModbusUI:
                 break
 
     def update_bar(self, value, box_index):
-        # 수정된 부분: 올바른 인덱스로 bar_canvas와 bar_item을 가져옵니다.
         _, _, bar_canvas, _, bar_item = self.box_data[box_index]
         percentage = value / 100.0
         bar_length = int(153 * SCALE_FACTOR * percentage)
 
-        # Gradient bar의 크기를 조정합니다.
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, int(5 * SCALE_FACTOR)))
         bar_image = ImageTk.PhotoImage(cropped_image)
         bar_canvas.itemconfig(bar_item, image=bar_image)
-        bar_canvas.bar_image = bar_image  # 이미지 참조 유지
+        bar_canvas.bar_image = bar_image
 
     def show_bar(self, box_index, show):
         bar_canvas = self.box_data[box_index][2]
@@ -659,10 +568,7 @@ class ModbusUI:
             self.schedule_ui_update()
 
     def check_click(self, event):
-        if hasattr(self, 'history_frame') and self.history_frame.winfo_exists():
-            widget = event.widget
-            if widget != self.history_frame and not self.history_frame.winfo_containing(event.x_root, event.y_root):
-                self.hide_history(event)
+        pass
 
     def handle_disconnection(self, box_index):
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
@@ -706,11 +612,35 @@ class ModbusUI:
             box_canvas = self.box_data[box_index][0]
             circle_items = self.box_data[box_index][1]
             if self.box_states[box_index]["pwr_blink_state"]:
-                box_canvas.itemconfig(circle_items[2], fill="blue", outline="blue")
+                box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
             else:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
-                self.parent.after(600, toggle_color)
+                self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
+
+# 추가적으로 main 실행 부분이 필요할 수 있습니다.
+# 예를 들어, 아래와 같은 코드로 실행할 수 있습니다.
+
+if __name__ == "__main__":
+    import tkinter as tk
+
+    def alarm_callback(active, source):
+        if active:
+            print(f"Alarm active from {source}")
+        else:
+            print(f"Alarm cleared from {source}")
+
+    root = tk.Tk()
+    root.title("Modbus UI")
+    num_boxes = 4
+    gas_types = {
+        "modbus_box_0": "ORG",
+        "modbus_box_1": "ARF-T",
+        "modbus_box_2": "HMDS",
+        "modbus_box_3": "HC-100"
+    }
+    app = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+    root.mainloop()
