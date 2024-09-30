@@ -575,7 +575,7 @@ class ModbusUI:
                 continue
 
     def schedule_ui_update(self):
-        self.parent.after(100, self.update_ui_from_queue)
+        self.parent.after(200, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
