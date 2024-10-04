@@ -27,7 +27,7 @@ pip install kiwisolver
 pip install pyparsing
 pip install fonttools
 pip install packaging
-pip install contourpy
+pip install contourpy --prefer-binary
 pip install matplotlib
 pip install mplcursors
 
