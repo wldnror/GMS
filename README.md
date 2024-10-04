@@ -28,6 +28,7 @@ pip install pyparsing
 pip install fonttools
 pip install packaging
 pip install contourpy --prefer-binary
+pip install adafruit-circuitpython-ina219
 pip install matplotlib
 pip install mplcursors
 
