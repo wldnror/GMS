@@ -18,11 +18,18 @@ source myenv/bin/activate
 pip install pymodbus
 pip install rich
 pip install Pillow
-pip install matplotlib
-pip install mplcursors
 pip install adafruit-ads1x15
 pip install psutil
 pip install cryptography
+pip install numpy
+pip install cycler
+pip install kiwisolver
+pip install pyparsing
+pip install fonttools
+pip install packaging
+pip install contourpy
+pip install matplotlib
+pip install mplcursors
 
 ```
 
