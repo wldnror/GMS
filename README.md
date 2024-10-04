@@ -32,6 +32,7 @@ pip install adafruit-circuitpython-ina219
 pip install pygame
 pip install matplotlib
 pip install mplcursors
+sudo apt-get install plymouth plymouth-themes
 
 ```
 
