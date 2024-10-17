@@ -4,8 +4,8 @@ import time
 # GAIN 설정: ±6.144V 범위
 GAIN = 2/3  # GAIN 값 조정 가능
 
-# ADC1115 초기화 (I2C busnum=1 명시적으로 지정)
-adc = Adafruit_ADS1x15.ADS1115(busnum=1)
+# ADC1115 초기화 (I2C 주소 0x4A와 busnum=1 설정)
+adc = Adafruit_ADS1x15.ADS1115(address=0x4A, busnum=1)
 
 # 전류 변환 함수 (250옴 저항 기반)
 def convert_to_current(voltage):
