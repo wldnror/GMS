@@ -13,6 +13,10 @@ python3 -m venv myenv
 source myenv/bin/activate
 ```
 
+### 한국어 설정 
+```bash
+sudo locale-gen ko_KR.UTF-8
+```
 ## 필요 라이브러리
 ```bash
 pip install pymodbus
