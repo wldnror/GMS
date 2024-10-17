@@ -1,13 +1,21 @@
-import Adafruit_ADS1x15
+import smbus
+import time
 
-adc = Adafruit_ADS1x15.ADS1115(address=0x48, busnum=1)  # busnum=1 추가
-GAIN = 1  # 게인 설정
+# I2C 버스 및 ADS1115 주소
+bus = smbus.SMBus(1)
+address = 0x48
 
-# 채널 0에서 값 읽기
+# ADS1115 설정 레지스터 (0x01)에 데이터를 쓰기
+config = [0xC2, 0x83]  # 적절한 설정값
+bus.write_i2c_block_data(address, 0x01, config)
 
-value_ch1 = adc.read_adc(1, gain=GAIN)
-value_ch2 = adc.read_adc(2, gain=GAIN)
-value_ch3 = adc.read_adc(3, gain=GAIN)
-print(f'Channel 1: {value_ch1}')
-print(f'Channel 2: {value_ch2}')
-print(f'Channel 3: {value_ch3}')
+# 컨버전 레지스터 (0x00)에서 데이터를 읽기
+time.sleep(0.5)  # 변환 대기 시간
+data = bus.read_i2c_block_data(address, 0x00, 2)
+
+# 데이터 변환
+raw_adc = (data[0] << 8) | data[1]
+if raw_adc > 32767:
+    raw_adc -= 65535
+
+print(f"ADC Value: {raw_adc}")
