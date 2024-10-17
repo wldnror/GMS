@@ -17,7 +17,7 @@ def read_and_display_adc():
     try:
         while True:
             for channel in range(4):
-                # 각 채널의 ADC 값 읽기
+                # 각 채널의 ADC 값 읽기 (단일 엔디드 모드)
                 adc_value = adc.read_adc(channel, gain=GAIN)
 
                 # ADC 값을 전압으로 변환 (±6.144V)
