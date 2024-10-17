@@ -18,7 +18,6 @@ source myenv/bin/activate
 sudo apt remove ibus ibus-hangul
 sudo apt install fcitx-hangul
 sudo apt-get install -y fonts-nanum
-sudo locale-gen ko_KR.UTF-8
 ```
 ## 필요 라이브러리
 ```bash
