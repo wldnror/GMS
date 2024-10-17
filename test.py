@@ -16,7 +16,7 @@ def convert_to_current(voltage):
 def read_single_channel(channel):
     try:
         while True:
-            # 채널의 ADC 값 읽기 (예: 채널 0)
+            # 채널의 ADC 값 읽기 (이번에는 채널 1)
             adc_value = adc.read_adc(channel, gain=GAIN)
 
             # ADC 값을 전압으로 변환 (±6.144V)
@@ -33,5 +33,5 @@ def read_single_channel(channel):
     except KeyboardInterrupt:
         print("실시간 모니터링 중단")
 
-# 채널 0에서만 값을 읽음
-read_single_channel(0)
+# 이번에는 채널 1에서만 값을 읽음
+read_single_channel(1)
