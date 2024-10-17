@@ -33,10 +33,15 @@ def read_adc(channel):
 
     return raw_adc
 
-# 4~20mA 변환 함수
-def convert_to_current(adc_value):
-    # ADC 값을 4~20mA로 변환 (예시로 0~32767을 4~20mA로 매핑)
-    current = (adc_value / 32767.0) * (20 - 4) + 4
+# ADC 값을 전압(V)으로 변환하는 함수 (GAIN = 1 설정 기준)
+def convert_to_voltage(adc_value):
+    # ADS1115의 최대 입력 전압 범위는 ±6.144V이므로 32767 -> 6.144V로 변환
+    voltage = (adc_value / 32767.0) * 6.144
+    return voltage
+
+# 전압을 전류(mA)로 변환하는 함수 (250옴 저항 사용)
+def convert_voltage_to_current(voltage):
+    current = voltage / 250.0 * 1000  # Ohm's law를 적용하여 전류 계산
     return current
 
 # 실시간 모니터링
@@ -44,8 +49,9 @@ try:
     while True:
         for channel in range(4):
             adc_value = read_adc(channel)
-            current_value = convert_to_current(adc_value)
-            print(f"Channel {channel} ADC: {adc_value}, Current: {current_value:.2f} mA")
+            voltage = convert_to_voltage(adc_value)
+            current_value = convert_voltage_to_current(voltage)
+            print(f"Channel {channel} ADC: {adc_value}, Voltage: {voltage:.2f} V, Current: {current_value:.2f} mA")
 
         time.sleep(1)  # 1초 간격으로 업데이트
 
