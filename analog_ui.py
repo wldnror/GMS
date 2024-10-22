@@ -13,7 +13,7 @@ from common import SEGMENTS, create_segment_display, SCALE
 
 # I2C 버스를 강제로 1번 버스로 지정
 i2c_bus = 1  # 라즈베리 파이 4에서는 /dev/i2c-1 사용
-adc = Adafruit_ADS1x15.ADS1115(address=0x48, busnum=1)  # I2C 버스 명시적으로 지정
+
 
 # 전역 변수로 설정
 GAIN = 2 / 3
@@ -301,7 +301,7 @@ class AnalogUI:
 
         for addr in adc_addresses:
             try:
-                adc = Adafruit_ADS1x15.ADS1115(address=addr)
+                adc = Adafruit_ADS1x15.ADS1115(address=0x48, busnum=1)  # I2C 버스 명시적으로 지정
                 adc.read_adc(0, gain=GAIN)
                 adcs.append(adc)
                 print(f"ADC at address {hex(addr)} initialized successfully.")
