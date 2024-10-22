@@ -68,7 +68,7 @@ def main():
         while True:
             for channel in ['AIN0', 'AIN1', 'AIN2', 'AIN3']:
                 write_config(channel)  # 해당 채널로 설정을 쓰기
-                time.sleep(0.01)  # 변환 대기 (약 10ms)
+                time.sleep(0.05)  # 변환 대기 시간을 늘림 (50ms)
                 raw_value = read_conversion()  # 변환된 값 읽기
                 milliamp = calculate_current(raw_value)  # mA로 변환
                 print(f"Channel {channel} Current: {milliamp:.2f} mA")
