@@ -12,7 +12,7 @@ import tkinter as tk
 from common import SEGMENTS, create_segment_display, SCALE
 
 # i2c-1 버스 사용
-i2c_bus_number = 20
+i2c_bus_number = 21
 
 # 전역 변수로 설정
 GAIN = 2 / 3
