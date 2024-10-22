@@ -290,7 +290,10 @@ class AnalogUI:
     def async_write_log(self, log_file, log_line):
         with open(log_file, 'a') as file:
             file.write(log_line)
-
+    
+    # i2c-1 버스 사용
+    i2c_bus_number = 1
+    
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = []
