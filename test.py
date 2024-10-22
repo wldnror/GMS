@@ -11,7 +11,6 @@ ADS1115_CONFIG_REG = 0x01
 
 # ADS1115 설정 값
 CONFIG_START_SINGLE = 0x8000
-CONFIG_MUX_AIN0 = 0x4000  # AIN0 단일 채널 설정
 CONFIG_GAIN_2_3 = 0x0000  # ±6.144V 범위
 CONFIG_MODE_SINGLE = 0x0100
 CONFIG_DR_1600SPS = 0x0080  # 1600 샘플링 속도
@@ -20,21 +19,27 @@ CONFIG_COMP_POL_LOW = 0x0000
 CONFIG_COMP_LAT_NON = 0x0000
 CONFIG_COMP_QUE_DISABLE = 0x0003
 
-# CONFIG 레지스터 설정
-config = (
-    CONFIG_START_SINGLE |
-    CONFIG_MUX_AIN0 |
-    CONFIG_GAIN_2_3 |
-    CONFIG_MODE_SINGLE |
-    CONFIG_DR_1600SPS |
-    CONFIG_COMP_MODE_TRAD |
-    CONFIG_COMP_POL_LOW |
-    CONFIG_COMP_LAT_NON |
-    CONFIG_COMP_QUE_DISABLE
-)
+# 각 채널에 대한 MUX 설정 값
+CONFIG_MUX = {
+    'AIN0': 0x4000,  # AIN0 입력
+    'AIN1': 0x5000,  # AIN1 입력
+    'AIN2': 0x6000,  # AIN2 입력
+    'AIN3': 0x7000   # AIN3 입력
+}
 
 # CONFIG 레지스터에 설정 값을 쓰기
-def write_config():
+def write_config(channel):
+    config = (
+        CONFIG_START_SINGLE |
+        CONFIG_MUX[channel] |
+        CONFIG_GAIN_2_3 |
+        CONFIG_MODE_SINGLE |
+        CONFIG_DR_1600SPS |
+        CONFIG_COMP_MODE_TRAD |
+        CONFIG_COMP_POL_LOW |
+        CONFIG_COMP_LAT_NON |
+        CONFIG_COMP_QUE_DISABLE
+    )
     config_high = (config >> 8) & 0xFF
     config_low = config & 0xFF
     bus.write_i2c_block_data(ADS1115_ADDRESS, ADS1115_CONFIG_REG, [config_high, config_low])
@@ -57,15 +62,16 @@ def calculate_current(raw_value):
     milliamp = current * 1000  # mA 단위로 변환
     return milliamp
 
-# 테스트 루프
+# 테스트 루프 (4개의 채널)
 def main():
     try:
         while True:
-            write_config()  # 설정을 ADS1115에 쓰기
-            time.sleep(0.01)  # 변환 대기 (약 10ms)
-            raw_value = read_conversion()  # 변환된 값 읽기
-            milliamp = calculate_current(raw_value)  # mA로 변환
-            print(f"Current: {milliamp:.2f} mA")
+            for channel in ['AIN0', 'AIN1', 'AIN2', 'AIN3']:
+                write_config(channel)  # 해당 채널로 설정을 쓰기
+                time.sleep(0.01)  # 변환 대기 (약 10ms)
+                raw_value = read_conversion()  # 변환된 값 읽기
+                milliamp = calculate_current(raw_value)  # mA로 변환
+                print(f"Channel {channel} Current: {milliamp:.2f} mA")
             time.sleep(1)  # 1초 대기 후 다음 샘플링
     except KeyboardInterrupt:
         print("테스트 종료")
