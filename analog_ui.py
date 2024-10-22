@@ -9,15 +9,15 @@ import tkinter as tk
 
 from common import SEGMENTS, create_segment_display, SCALE
 
-# Global Variables
+# 전역 변수로 설정
 GAIN = 2 / 3
-SCALE_FACTOR = 1.65  # Increase by 20%
+SCALE_FACTOR = 1.65  # 20% 키우기
 
 class AnalogUI:
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
-        "HMDS": 3000.0,  # Restored: 300.0 -> 3000.0
+        "HMDS": 3000.0,  # 복원: 300.0 -> 3000.0
         "HC-100": 5000
     }
 
@@ -31,7 +31,7 @@ class AnalogUI:
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
         "ARF-T": {"AL1": 2000, "AL2": 4000},
-        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},  # Restored: 264.0 -> 2640.0, 300.0 -> 3000.0
+        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},  # 복원: 264.0 -> 2640.0, 300.0 -> 3000.0
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
@@ -44,8 +44,8 @@ class AnalogUI:
         self.box_frames = []
         self.box_data = []
 
-        # Reduced filter size and applied weighted filter
-        self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # Keep the last 3 values for filtering
+        # 필터 크기 축소 및 가중치 필터 적용
+        self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
 
         for i in range(num_boxes):
             self.create_analog_box(i, gas_types)
@@ -163,7 +163,7 @@ class AnalogUI:
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
     def update_circle_state(self, states, box_index=0):
-        box_canvas, circle_items = self.box_data[box_index]
+        box_canvas, circle_items = self.box_data[box_index]  # led1, led2 제거
 
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -173,7 +173,7 @@ class AnalogUI:
         if states[1]:
             states[0] = True
 
-        for i, state in enumerate(states[:4]):
+        for i, state in enumerate(states[:4]):  # 필요에 따라 조정
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
@@ -231,8 +231,8 @@ class AnalogUI:
         if '.' in value:
             dot_index = value.find('.')
             digits = list(value.replace('.', ''))
-            digits = [' '] * (4 - len(digits)) + digits
-            adjusted_dot_index = dot_index - (len(value) - 4)
+            digits = [' '] * (4 - len(digits)) + digits  # 왼쪽에 공백 추가하여 길이 4로 맞춤
+            adjusted_dot_index = dot_index - (len(value) - 4)  # 수정된 부분
             if 0 <= adjusted_dot_index < 4:
                 decimal_positions[adjusted_dot_index] = True
         else:
@@ -265,6 +265,10 @@ class AnalogUI:
                 box_canvas.segment_canvas.itemconfig(f'segment_{index}_dot', fill='#424242')
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+
+    def async_write_log(self, log_file, log_line):
+        with open(log_file, 'a') as file:
+            file.write(log_line)
 
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
@@ -303,6 +307,7 @@ class AnalogUI:
                 if box_index >= self.num_boxes:
                     continue
 
+                # 가중치 필터 적용
                 if len(self.adc_values[box_index]) == 0:
                     filtered_value = milliamp
                 else:
@@ -357,9 +362,10 @@ class AnalogUI:
             curr_value = self.box_states[box_index]["current_value"]
 
             change = abs(curr_value - prev_value)
-            SOME_THRESHOLD = 5.0
+            SOME_THRESHOLD = 5.0  # 예시로 5mA 이상의 변화 시
 
             if change > SOME_THRESHOLD:
+                # 큰 변화 시 인터폴레이션 생략하고 즉시 업데이트
                 self.box_states[box_index]["interpolating"] = False
                 self.update_display_immediately(box_index, curr_value, full_scale, alarm_levels)
             else:
