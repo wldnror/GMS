@@ -1,3 +1,5 @@
+# analog_ui.py
+
 import os
 import threading
 from collections import deque
@@ -149,9 +151,23 @@ class AnalogUI:
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
+        # AL1 및 AL2에 반응하는 사각 박스 제거
+        # led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR),
+        #                                    int(215 * SCALE_FACTOR), fill='black', outline='white')
+        # led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
+        #                                    int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR),
+        #                                    fill='black', outline='white')
+        # box_canvas.lift(led1)
+        # box_canvas.lift(led2)
+
+        box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD",
+                               font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
+
+        # 수정: led1과 led2를 box_data에서 제외
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, circle_items))
 
+     
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
@@ -162,6 +178,7 @@ class AnalogUI:
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
+    
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items = self.box_data[box_index]  # led1, led2 제거
 
@@ -190,6 +207,10 @@ class AnalogUI:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
+
+        # led1과 led2 업데이트 제거
+        # box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
+        # box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
@@ -460,6 +481,10 @@ class AnalogUI:
                                               False, True, False], box_index=box_index)
 
                 self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
+
+                if self.box_states[box_index]["current_value"] is not None:
+                    self.update_segment_display(str(self.box_states[box_index]["current_value"]),
+                                                self.box_data[box_index][0], blink=False, box_index=box_index)
 
                 if not self.box_states[box_index]["stop_blinking"].is_set():
                     self.parent.after(1000, toggle_color) if is_second_alarm else self.parent.after(600, toggle_color)
