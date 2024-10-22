@@ -6,6 +6,7 @@ from collections import deque
 from tkinter import Frame, Canvas, StringVar
 import Adafruit_ADS1x15
 import queue
+import smbus2
 import asyncio
 import tkinter as tk
 
