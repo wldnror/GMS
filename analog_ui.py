@@ -1,83 +1,25 @@
+# analog_ui.py
+
 import os
 import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar
-import smbus2
+import Adafruit_ADS1x15
 import queue
 import asyncio
 import tkinter as tk
 
 from common import SEGMENTS, create_segment_display, SCALE
 
-# 전역 변수 설정
+# 전역 변수로 설정
 GAIN = 2 / 3
 SCALE_FACTOR = 1.65  # 20% 키우기
-ADS1115_ADDRESSES = [0x48, 0x4A, 0x4B]  # 3개의 ADS1115 모듈 주소
-ADS1115_CONVERSION_REG = 0x00
-ADS1115_CONFIG_REG = 0x01
-
-# 각 채널에 대한 MUX 설정 값
-CONFIG_MUX = {
-    'AIN0': 0x4000,  # AIN0 입력
-    'AIN1': 0x5000,  # AIN1 입력
-    'AIN2': 0x6000,  # AIN2 입력
-    'AIN3': 0x7000   # AIN3 입력
-}
-
-CONFIG_GAIN_2_3 = 0x0000  # ±6.144V 범위
-CONFIG_MODE_SINGLE = 0x0100
-CONFIG_DR_1600SPS = 0x0080  # 1600 샘플링 속도
-CONFIG_COMP_MODE_TRAD = 0x0000
-CONFIG_COMP_POL_LOW = 0x0000
-CONFIG_COMP_LAT_NON = 0x0000
-CONFIG_COMP_QUE_DISABLE = 0x0003
-
-class ADS1115:
-    def __init__(self, address):
-        self.address = address
-        self.bus = smbus2.SMBus(1)  # I2C 버스 초기화
-
-    def write_config(self, channel):
-        config = (
-            0x8000 |  # 시작 비트
-            CONFIG_MUX[channel] |
-            CONFIG_GAIN_2_3 |
-            CONFIG_MODE_SINGLE |
-            CONFIG_DR_1600SPS |
-            CONFIG_COMP_MODE_TRAD |
-            CONFIG_COMP_POL_LOW |
-            CONFIG_COMP_LAT_NON |
-            CONFIG_COMP_QUE_DISABLE
-        )
-        config_high = (config >> 8) & 0xFF
-        config_low = config & 0xFF
-        self.bus.write_i2c_block_data(self.address, ADS1115_CONFIG_REG, [config_high, config_low])
-
-    def read_conversion(self):
-        data = self.bus.read_i2c_block_data(self.address, ADS1115_CONVERSION_REG, 2)
-        raw_value = (data[0] << 8) | data[1]
-        if raw_value > 0x7FFF:
-            raw_value -= 0x10000
-        return raw_value
-
-    def read_adc(self, channel):
-        self.write_config(channel)
-        # 비동기 컨텍스트 내에서 호출되므로 asyncio.sleep을 사용
-        return asyncio.create_task(self.async_read_adc(channel))
-
-    async def async_read_adc(self, channel):
-        await asyncio.sleep(0.05)  # 변환 대기 (50ms)
-        raw_value = self.read_conversion()
-        voltage = raw_value * 6.144 / 32767  # ±6.144V 범위로 변환
-        current = voltage / 250  # 250옴 저항 사용 시 전류 계산
-        milliamp = current * 1000  # mA 단위로 변환
-        return milliamp
 
 class AnalogUI:
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
-        "HMDS": 3000.0,
+        "HMDS": 3000.0,  # 복원: 300.0 -> 3000.0
         "HC-100": 5000
     }
 
@@ -91,30 +33,29 @@ class AnalogUI:
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
         "ARF-T": {"AL1": 2000, "AL2": 4000},
-        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},
+        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},  # 복원: 264.0 -> 2640.0, 300.0 -> 3000.0
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
     def __init__(self, parent, num_boxes, gas_types, alarm_callback):
         self.parent = parent
         self.alarm_callback = alarm_callback
-        self.num_boxes = num_boxes
         self.gas_types = {}
+        self.num_boxes = num_boxes
         self.box_states = []
         self.box_frames = []
         self.box_data = []
-        self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
-        self.adc_modules = [ADS1115(address) for address in ADS1115_ADDRESSES]  # 3개의 ADS1115 모듈 초기화
-        self.adc_queue = queue.Queue()
 
-        # UI 생성
+        # 필터 크기 축소 및 가중치 필터 적용
+        self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
+
         for i in range(num_boxes):
             self.create_analog_box(i, gas_types)
 
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        # ADC 스레드 시작
+        self.adc_queue = queue.Queue()
         self.start_adc_thread()
         self.schedule_ui_update()
 
@@ -159,9 +100,7 @@ class AnalogUI:
             "stop_blinking": threading.Event(),
             "blink_lock": threading.Lock(),
             "alarm1_on": False,
-            "alarm2_on": False,
-            "milliamp_var": None,
-            "milliamp_text_id": None
+            "alarm2_on": False
         })
 
         create_segment_display(box_canvas)
@@ -212,12 +151,23 @@ class AnalogUI:
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
+        # AL1 및 AL2에 반응하는 사각 박스 제거
+        # led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR),
+        #                                    int(215 * SCALE_FACTOR), fill='black', outline='white')
+        # led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
+        #                                    int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR),
+        #                                    fill='black', outline='white')
+        # box_canvas.lift(led1)
+        # box_canvas.lift(led2)
+
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD",
                                font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
+        # 수정: led1과 led2를 box_data에서 제외
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, circle_items))
 
+     
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
@@ -228,8 +178,9 @@ class AnalogUI:
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
+    
     def update_circle_state(self, states, box_index=0):
-        box_canvas, circle_items = self.box_data[box_index]
+        box_canvas, circle_items = self.box_data[box_index]  # led1, led2 제거
 
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -239,7 +190,7 @@ class AnalogUI:
         if states[1]:
             states[0] = True
 
-        for i, state in enumerate(states[:4]):
+        for i, state in enumerate(states[:4]):  # 필요에 따라 조정
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
@@ -256,6 +207,10 @@ class AnalogUI:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
+
+        # led1과 led2 업데이트 제거
+        # box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
+        # box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
@@ -337,31 +292,63 @@ class AnalogUI:
             file.write(log_line)
 
     async def read_adc_data(self):
+        adc_addresses = [0x48, 0x4A, 0x4B]
+        adcs = []
+
+        for addr in adc_addresses:
+            try:
+                adc = Adafruit_ADS1x15.ADS1115(address=addr)
+                adc.read_adc(0, gain=GAIN)
+                adcs.append(adc)
+                print(f"ADC at address {hex(addr)} initialized successfully.")
+            except Exception as e:
+                print(f"ADC at address {hex(addr)} is not available: {e}")
+
         while True:
             tasks = []
-            for adc_index, adc in enumerate(self.adc_modules):
-                for channel in ['AIN0', 'AIN1', 'AIN2', 'AIN3']:
-                    task = self.read_adc_values(adc, adc_index, channel)
-                    tasks.append(task)
+            for adc_index, adc in enumerate(adcs):
+                task = self.read_adc_values(adc, adc_index)
+                tasks.append(task)
             await asyncio.gather(*tasks)
             await asyncio.sleep(0.1)
 
-    async def read_adc_values(self, adc, adc_index, channel):
+    async def read_adc_values(self, adc, adc_index):
         try:
-            milliamp = await adc.read_adc(channel)
-            box_index = adc_index * 4 + list(CONFIG_MUX.keys()).index(channel)
+            values = []
+            for channel in range(4):
+                value = adc.read_adc(channel, gain=GAIN)
+                voltage = value * 6.144 / 32767
+                current = voltage / 250
+                milliamp = current * 1000
 
-            # 필터링 적용
-            if len(self.adc_values[box_index]) == 0:
-                filtered_value = milliamp
-            else:
-                filtered_value = (0.7 * milliamp) + (0.3 * self.adc_values[box_index][-1])
+                values.append(milliamp)
 
-            self.adc_values[box_index].append(filtered_value)
-            print(f"ADC {adc_index} Channel {channel} Current: {filtered_value:.2f} mA")
-            self.adc_queue.put(box_index)
+            for channel, milliamp in enumerate(values):
+                box_index = adc_index * 4 + channel
+                if box_index >= self.num_boxes:
+                    continue
+
+                # 가중치 필터 적용
+                if len(self.adc_values[box_index]) == 0:
+                    filtered_value = milliamp
+                else:
+                    filtered_value = (0.7 * milliamp) + (0.3 * self.adc_values[box_index][-1])
+
+                self.adc_values[box_index].append(filtered_value)
+
+                print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
+                previous_value = self.box_states[box_index]["current_value"]
+                current_value = filtered_value
+
+                self.box_states[box_index]["previous_value"] = previous_value
+                self.box_states[box_index]["current_value"] = current_value
+                self.box_states[box_index]["interpolating"] = True
+
+                self.adc_queue.put(box_index)
+        except OSError as e:
+            print(f"Error reading ADC data: {e}")
         except Exception as e:
-            print(f"Error reading ADC data from ADC {adc_index} Channel {channel}: {e}")
+            print(f"Unexpected error reading ADC data: {e}")
 
     def start_adc_thread(self):
         adc_thread = threading.Thread(target=self.run_async_adc)
@@ -372,7 +359,7 @@ class AnalogUI:
         asyncio.run(self.read_adc_data())
 
     def schedule_ui_update(self):
-        self.parent.after(100, self.update_ui_from_queue)
+        self.parent.after(10, self.update_ui_from_queue)
 
     def update_ui_from_queue(self):
         try:
@@ -503,18 +490,3 @@ class AnalogUI:
                     self.parent.after(1000, toggle_color) if is_second_alarm else self.parent.after(600, toggle_color)
 
         toggle_color()
-
-# 애플리케이션 실행
-if __name__ == "__main__":
-    def alarm_callback(active, identifier):
-        if active:
-            print(f"Alarm active on {identifier}")
-        else:
-            print(f"Alarm cleared on {identifier}")
-
-    root = tk.Tk()
-    root.title("Analog UI")
-    num_boxes = 12  # 3개 모듈 × 4채널
-    gas_types = {f"analog_box_{i}": "ORG" for i in range(num_boxes)}  # 초기 가스 타입 설정
-    analog_ui = AnalogUI(root, num_boxes, gas_types, alarm_callback)
-    root.mainloop()
