@@ -4,7 +4,7 @@ import os
 import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar
-import smbus
+import smbus2 as smbus  # smbus 대신 smbus2 사용
 import Adafruit_ADS1x15
 import queue
 import asyncio
