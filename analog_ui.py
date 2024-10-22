@@ -4,6 +4,7 @@ import os
 import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar
+import smbus
 import Adafruit_ADS1x15
 import queue
 import asyncio
@@ -12,7 +13,7 @@ import tkinter as tk
 from common import SEGMENTS, create_segment_display, SCALE
 
 # i2c-1 버스 사용
-i2c_bus_number = 21
+i2c_bus_number = 1
 
 # 전역 변수로 설정
 GAIN = 2 / 3
