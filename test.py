@@ -1,82 +1,53 @@
-import smbus2
+# Simple demo of reading each analog input from the ADS1x15 and printing it to
+# the screen.
+# Author: Tony DiCola
+# License: Public Domain
 import time
 
-# I2C 버스 초기화 (Raspberry Pi에서는 bus 1 사용)
-bus = smbus2.SMBus(1)
+# Import the ADS1x15 module.
+import Adafruit_ADS1x15
 
-# ADS1115 기본 주소
-ADS1115_ADDRESS = 0x48
-ADS1115_CONVERSION_REG = 0x00
-ADS1115_CONFIG_REG = 0x01
 
-# ADS1115 설정 값
-CONFIG_START_SINGLE = 0x8000
-CONFIG_GAIN_2_3 = 0x0000  # ±6.144V 범위
-CONFIG_MODE_SINGLE = 0x0100
-CONFIG_DR_1600SPS = 0x0080  # 1600 샘플링 속도
-CONFIG_COMP_MODE_TRAD = 0x0000
-CONFIG_COMP_POL_LOW = 0x0000
-CONFIG_COMP_LAT_NON = 0x0000
-CONFIG_COMP_QUE_DISABLE = 0x0003
+# Create an ADS1115 ADC (16-bit) instance.
+adc = Adafruit_ADS1x15.ADS1115()
 
-# 각 채널에 대한 MUX 설정 값
-CONFIG_MUX = {
-    'AIN0': 0x4000,  # AIN0 입력
-    'AIN1': 0x5000,  # AIN1 입력
-    'AIN2': 0x6000,  # AIN2 입력
-    'AIN3': 0x7000   # AIN3 입력
-}
+# Or create an ADS1015 ADC (12-bit) instance.
+#adc = Adafruit_ADS1x15.ADS1015()
 
-# CONFIG 레지스터에 설정 값을 쓰기
-def write_config(channel):
-    config = (
-        CONFIG_START_SINGLE |
-        CONFIG_MUX[channel] |
-        CONFIG_GAIN_2_3 |
-        CONFIG_MODE_SINGLE |
-        CONFIG_DR_1600SPS |
-        CONFIG_COMP_MODE_TRAD |
-        CONFIG_COMP_POL_LOW |
-        CONFIG_COMP_LAT_NON |
-        CONFIG_COMP_QUE_DISABLE
-    )
-    config_high = (config >> 8) & 0xFF
-    config_low = config & 0xFF
-    bus.write_i2c_block_data(ADS1115_ADDRESS, ADS1115_CONFIG_REG, [config_high, config_low])
+# Note you can change the I2C address from its default (0x48), and/or the I2C
+# bus by passing in these optional parameters:
+#adc = Adafruit_ADS1x15.ADS1015(address=0x49, busnum=1)
 
-# 변환된 값을 읽기
-def read_conversion():
-    data = bus.read_i2c_block_data(ADS1115_ADDRESS, ADS1115_CONVERSION_REG, 2)
-    raw_value = (data[0] << 8) | data[1]
-    
-    # 음수 값 처리 (2의 보수 표현)
-    if raw_value > 0x7FFF:
-        raw_value -= 0x10000
-    
-    return raw_value
+# Choose a gain of 1 for reading voltages from 0 to 4.09V.
+# Or pick a different gain to change the range of voltages that are read:
+#  - 2/3 = +/-6.144V
+#  -   1 = +/-4.096V
+#  -   2 = +/-2.048V
+#  -   4 = +/-1.024V
+#  -   8 = +/-0.512V
+#  -  16 = +/-0.256V
+# See table 3 in the ADS1015/ADS1115 datasheet for more info on gain.
+GAIN = 1
 
-# 전류 값 계산 (4-20mA 변환)
-def calculate_current(raw_value):
-    voltage = raw_value * 6.144 / 32767  # ±6.144V 범위로 변환
-    current = voltage / 250  # 250옴 저항 사용 시 전류 계산
-    milliamp = current * 1000  # mA 단위로 변환
-    return milliamp
-
-# 테스트 루프 (4개의 채널)
-def main():
-    try:
-        while True:
-            for channel in ['AIN0', 'AIN1', 'AIN2', 'AIN3']:
-                write_config(channel)  # 해당 채널로 설정을 쓰기
-                time.sleep(0.05)  # 변환 대기 시간을 늘림 (50ms)
-                raw_value = read_conversion()  # 변환된 값 읽기
-                milliamp = calculate_current(raw_value)  # mA로 변환
-                print(f"Channel {channel} Current: {milliamp:.2f} mA")
-            time.sleep(1)  # 1초 대기 후 다음 샘플링
-    except KeyboardInterrupt:
-        print("테스트 종료")
-    finally:
-        bus.close()
-
-if __name__ == "__main__":
-    main()
+print('Reading ADS1x15 values, press Ctrl-C to quit...')
+# Print nice channel column headers.
+print('| {0:>6} | {1:>6} | {2:>6} | {3:>6} |'.format(*range(4)))
+print('-' * 37)
+# Main loop.
+while True:
+    # Read all the ADC channel values in a list.
+    values = [0]*4
+    for i in range(4):
+        # Read the specified ADC channel using the previously set gain value.
+        values[i] = adc.read_adc(i, gain=GAIN)
+        # Note you can also pass in an optional data_rate parameter that controls
+        # the ADC conversion time (in samples/second). Each chip has a different
+        # set of allowed data rate values, see datasheet Table 9 config register
+        # DR bit values.
+        #values[i] = adc.read_adc(i, gain=GAIN, data_rate=128)
+        # Each value will be a 12 or 16 bit signed integer value depending on the
+        # ADC (ADS1015 = 12-bit, ADS1115 = 16-bit).
+    # Print the ADC values.
+    print('| {0:>6`enter code here`} | {1:>6} | {2:>6} | {3:>6} |'.format(*values))
+    # Pause for half a second.
+    time.sleep(0.5) 
