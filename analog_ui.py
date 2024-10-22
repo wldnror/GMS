@@ -4,16 +4,12 @@ import os
 import threading
 from collections import deque
 from tkinter import Frame, Canvas, StringVar
-import smbus2 as smbus  # smbus 대신 smbus2 사용
 import Adafruit_ADS1x15
 import queue
 import asyncio
 import tkinter as tk
 
 from common import SEGMENTS, create_segment_display, SCALE
-
-# i2c-1 버스 사용
-i2c_bus_number = 1
 
 # 전역 변수로 설정
 GAIN = 2 / 3
@@ -295,7 +291,6 @@ class AnalogUI:
         with open(log_file, 'a') as file:
             file.write(log_line)
 
-    
     async def read_adc_data(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = []
