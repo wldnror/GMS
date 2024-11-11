@@ -27,6 +27,8 @@ try:
 except ImportError:
     GPIO = None  # GPIO를 사용할 수 없는 경우 처리
 
+import webbrowser  # 웹 브라우저 모듈 임포트
+
 os.environ['DISPLAY'] = ':0'
 
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
@@ -311,13 +313,6 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
-# tkinterweb 임포트
-try:
-    from tkinterweb import HtmlFrame
-except ImportError:
-    messagebox.showerror("Import Error", "Please install tkinterweb module:\n\npip install tkinterweb")
-    sys.exit(1)
-
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -360,27 +355,14 @@ if __name__ == "__main__":
 
     total_boxes = len(modbus_boxes) + len(analog_boxes) + (1 if settings.get("battery_box_enabled", 0) else 0)
 
+    # total_boxes 값에 따라 웹 브라우저 열기 또는 레이아웃 조정
     if total_boxes <= 3:
-        # 좌측과 우측 프레임 생성
-        left_frame = tk.Frame(root)
-        right_frame = tk.Frame(root)
-        left_frame.grid(row=0, column=0, sticky="nsew")
-        right_frame.grid(row=0, column=1, sticky="nsew")
-        # 그리드 가중치 설정
-        root.grid_columnconfigure(0, weight=1)
-        root.grid_columnconfigure(1, weight=3)
-        root.grid_rowconfigure(0, weight=1)
-        # main_frame을 right_frame에 배치
-        main_frame = tk.Frame(right_frame)
-        main_frame.pack(fill="both", expand=True)
-        # 브라우저를 left_frame에 배치
-        browser_frame = HtmlFrame(left_frame)
-        browser_frame.load_website("http://img.79webhard.com/gds")
-        browser_frame.pack(fill="both", expand=True)
-    else:
-        # 기존 레이아웃 사용
-        main_frame = tk.Frame(root)
-        main_frame.grid(row=0, column=0, sticky="nsew")
+        # 시스템 기본 웹 브라우저로 URL 열기
+        webbrowser.open('http://img.79webhard.com/gds')
+
+    # 메인 프레임 생성
+    main_frame = tk.Frame(root)
+    main_frame.grid(row=0, column=0, sticky="nsew")
 
     # 클래스 인스턴스 생성 (프레임 배치 없음)
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
@@ -438,13 +420,7 @@ if __name__ == "__main__":
         frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    # 설정 버튼과 상태 라벨을 배치
-    if total_boxes <= 3:
-        parent_frame = right_frame
-    else:
-        parent_frame = root
-
-    settings_button = tk.Button(parent_frame, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
@@ -457,14 +433,14 @@ if __name__ == "__main__":
 
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
-    status_label = tk.Label(parent_frame, text="", font=("Arial", 10))
+    status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
     if 0 <= total_boxes <= 6:
-        clock_label = tk.Label(parent_frame, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
-        date_label = tk.Label(parent_frame, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
+        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
         stop_event = threading.Event()
