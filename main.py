@@ -466,7 +466,7 @@ if __name__ == "__main__":
     if 0 <= total_boxes <= 6:
         clock_label = tk.Label(
             root,
-            font=("Helvetica", 100, "bold"),
+            font=("Helvetica", 60, "bold"),
             fg="white",
             bg="black",
             anchor='center',
