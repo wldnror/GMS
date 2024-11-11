@@ -3,7 +3,6 @@
 import json
 import os
 import time
-import tkinter as tk
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 from modbus_ui import ModbusUI
@@ -17,28 +16,46 @@ import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
+import tkinter as tk
 import pygame
 import datetime
 import locale
-import RPi.GPIO as GPIO
-from cefpython3 import cefpython as cef
 
-# 초기 설정
+# Raspberry Pi에서 실행하는 경우 GPIO 라이브러리 임포트
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    GPIO = None  # GPIO를 사용할 수 없는 경우 처리
+
 os.environ['DISPLAY'] = ':0'
+
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
+
 SETTINGS_FILE = "settings.json"
+
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
 
-# GPIO 설정
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-RED_PIN = 20  # 빨강 LED 핀
-YELLOW_PIN = 21  # 노랑 LED 핀
-GPIO.setup(RED_PIN, GPIO.OUT)
-GPIO.setup(YELLOW_PIN, GPIO.OUT)
-GPIO.output(RED_PIN, GPIO.LOW)
-GPIO.output(YELLOW_PIN, GPIO.LOW)
+# GPIO 설정 (Raspberry Pi에서 실행되는 경우에만)
+if GPIO:
+    # GPIO 설정
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+
+    # 사용할 핀 번호 설정
+    RED_PIN = 20  # 빨강 LED에 대응하는 핀
+    YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
+
+    # 출력 핀으로 설정
+    GPIO.setup(RED_PIN, GPIO.OUT)
+    GPIO.setup(YELLOW_PIN, GPIO.OUT)
+
+    # 초기값 설정
+    GPIO.output(RED_PIN, GPIO.LOW)
+    GPIO.output(YELLOW_PIN, GPIO.LOW)
+else:
+    RED_PIN = None
+    YELLOW_PIN = None
 
 def encrypt_data(data):
     return utils.encrypt_data(data)
@@ -48,6 +65,7 @@ def decrypt_data(data):
 
 settings = load_settings()
 admin_password = settings.get("admin_password")
+
 ignore_commit = None
 update_notification_frame = None
 checking_updates = True
@@ -137,8 +155,9 @@ def stop_all_alarms():
     global alarm_blinking, fut_blinking
     alarm_blinking = False
     fut_blinking = False
-    GPIO.output(RED_PIN, GPIO.LOW)
-    GPIO.output(YELLOW_PIN, GPIO.LOW)
+    if GPIO:
+        GPIO.output(RED_PIN, GPIO.LOW)
+        GPIO.output(YELLOW_PIN, GPIO.LOW)
     root.config(background=default_background)
     stop_alarm_sound()
 
@@ -153,11 +172,13 @@ def alarm_blink():
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            if GPIO:
+                GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
             toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            GPIO.output(RED_PIN, GPIO.LOW)
+            if GPIO:
+                GPIO.output(RED_PIN, GPIO.LOW)
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -174,11 +195,13 @@ def fut_blink():
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
-            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            if GPIO:
+                GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
             toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            GPIO.output(YELLOW_PIN, GPIO.LOW)
+            if GPIO:
+                GPIO.output(YELLOW_PIN, GPIO.LOW)
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -288,36 +311,23 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
-def on_closing():
-    if 0 <= total_boxes <= 4:
-        stop_event.set()
-        clock_thread.join()
-    GPIO.cleanup()
-    root.destroy()
+# tkinterweb 임포트
+try:
+    from tkinterweb import HtmlFrame
+except ImportError:
+    messagebox.showerror("Import Error", "Please install tkinterweb module:\n\npip install tkinterweb")
+    sys.exit(1)
 
-def system_info_thread():
-    while True:
-        update_status_label()
-        time.sleep(1)
-
-def main():
-    global root, default_background, stop_event, clock_thread, status_label, total_boxes
-
-    # CEF 초기화
-    sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
-    cef.Initialize()
-
-    # tkinter 창 생성
+if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
-    root.geometry("1200x800")  # 창의 기본 크기 설정 (필요에 따라 조정)
 
     default_background = root.cget("background")
 
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
-        GPIO.cleanup()  # GPIO 핀 초기화
-        cef.Shutdown()
+        if GPIO:
+            GPIO.cleanup()  # GPIO 핀 초기화
         root.destroy()
         sys.exit(0)
 
@@ -330,9 +340,6 @@ def main():
 
     root.attributes("-fullscreen", True)
     root.attributes("-topmost", True)
-
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=1)
 
     root.bind("<Escape>", exit_fullscreen)
 
@@ -351,37 +358,29 @@ def main():
     if not isinstance(analog_boxes, list):
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
-    # 전체 레이아웃을 좌우로 나누기 위한 메인 컨테이너 생성
-    main_container = tk.Frame(root)
-    main_container.grid(row=0, column=0, sticky="nsew")
-    main_container.grid_rowconfigure(0, weight=1)
-    main_container.grid_columnconfigure(1, weight=1)  # 오른쪽 영역에 가중치 부여
+    total_boxes = len(modbus_boxes) + len(analog_boxes) + (1 if settings.get("battery_box_enabled", 0) else 0)
 
-    # 왼쪽 프레임: 웹 페이지 고정
-    left_frame = tk.Frame(main_container, width=800)  # 왼쪽 프레임의 너비 설정 (필요에 따라 조정)
-    left_frame.grid(row=0, column=0, sticky="nsew")
-    left_frame.grid_propagate(False)  # 프레임 크기 고정
-    left_frame.grid_rowconfigure(0, weight=1)
-    left_frame.grid_columnconfigure(0, weight=1)
-
-    # Chromium 브라우저 임베딩
-    window_info = cef.WindowInfo()
-    window_info.SetAsChild(left_frame.winfo_id(), [0, 0, 800, 800])  # 프레임 크기에 맞게 조정
-
-    browser = cef.CreateBrowserSync(window_info,
-                                    url="http://img.79webhard.com/gds/",
-                                    window_title="Embedded Browser")
-
-    cef.MessageLoopWork()
-
-    # 오른쪽 프레임: 기존의 상자들이 배치될 영역
-    right_frame = tk.Frame(main_container)
-    right_frame.grid(row=0, column=1, sticky="nsew")
-    right_frame.grid_rowconfigure(0, weight=1)
-    right_frame.grid_columnconfigure(0, weight=1)
-
-    main_frame = tk.Frame(right_frame)
-    main_frame.grid(row=0, column=0, sticky="nsew")
+    if total_boxes <= 3:
+        # 좌측과 우측 프레임 생성
+        left_frame = tk.Frame(root)
+        right_frame = tk.Frame(root)
+        left_frame.grid(row=0, column=0, sticky="nsew")
+        right_frame.grid(row=0, column=1, sticky="nsew")
+        # 그리드 가중치 설정
+        root.grid_columnconfigure(0, weight=1)
+        root.grid_columnconfigure(1, weight=3)
+        root.grid_rowconfigure(0, weight=1)
+        # main_frame을 right_frame에 배치
+        main_frame = tk.Frame(right_frame)
+        main_frame.pack(fill="both", expand=True)
+        # 브라우저를 left_frame에 배치
+        browser_frame = HtmlFrame(left_frame)
+        browser_frame.load_website("http://img.79webhard.com/gds")
+        browser_frame.pack(fill="both", expand=True)
+    else:
+        # 기존 레이아웃 사용
+        main_frame = tk.Frame(root)
+        main_frame.grid(row=0, column=0, sticky="nsew")
 
     # 클래스 인스턴스 생성 (프레임 배치 없음)
     modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
@@ -408,11 +407,8 @@ def main():
     for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
-    # 상자의 개수가 2개일 때, 최대 열의 수을 2로 설정
-    if len(all_boxes) == 2:
-        max_columns = 2
-    else:
-        max_columns = 6  # 기본 값
+    # 최대 열의 수 설정
+    max_columns = 6
 
     # 총 행의 수 계산
     num_rows = (len(all_boxes) + max_columns - 1) // max_columns
@@ -433,22 +429,22 @@ def main():
     row_index = 1
     column_index = 1
 
-    # 프레임 배치 시 왼쪽 정렬을 위해 sticky='w' 추가
+    # 프레임 배치
     for frame, idx in all_boxes:
         if column_index > max_columns:
             column_index = 1
             row_index += 1
 
-        frame.grid(row=row_index, column=column_index, padx=2, pady=2, sticky='w')
+        frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    # 설정 버튼 추가
-    settings_button = tk.Button(
-        root,
-        text="⚙",
-        command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings),
-        font=("Arial", 20)
-    )
+    # 설정 버튼과 상태 라벨을 배치
+    if total_boxes <= 3:
+        parent_frame = right_frame
+    else:
+        parent_frame = root
+
+    settings_button = tk.Button(parent_frame, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
@@ -456,47 +452,39 @@ def main():
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
-    # 버튼에 마우스 오버 효과 바인딩
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
 
-    # 버튼 배치 (오른쪽 하단)
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
-    # 상태 라벨 추가
-    status_label = tk.Label(root, text="", font=("Arial", 10))
+    status_label = tk.Label(parent_frame, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
-
     if 0 <= total_boxes <= 6:
-        clock_label = tk.Label(
-            root,
-            font=("Helvetica", 60, "bold"),
-            fg="white",
-            bg="black",
-            anchor='center',
-            padx=10,
-            pady=10
-        )
+        clock_label = tk.Label(parent_frame, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
-        date_label = tk.Label(
-            root,
-            font=("Helvetica", 25),
-            fg="white",
-            bg="black",
-            anchor='center',
-            padx=5,
-            pady=5
-        )
+        date_label = tk.Label(parent_frame, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
         stop_event = threading.Event()
         clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
         clock_thread.start()
 
+    def on_closing():
+        if 0 <= total_boxes <= 6:
+            stop_event.set()
+            clock_thread.join()
+        if GPIO:
+            GPIO.cleanup()
+        root.destroy()
+
     root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    def system_info_thread():
+        while True:
+            update_status_label()
+            time.sleep(1)
 
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
         with open(utils.IGNORE_COMMIT_FILE, "r") as file:
@@ -507,19 +495,7 @@ def main():
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
-    # CEF와 tkinter의 이벤트 루프를 통합하기 위한 별도의 스레드 실행
-    def cef_loop():
-        while True:
-            cef.MessageLoopWork()
-            time.sleep(0.01)
-
-    threading.Thread(target=cef_loop, daemon=True).start()
-
     root.mainloop()
 
     for _, client in modbus_ui.clients.items():
         client.close()
-    cef.Shutdown()
-
-if __name__ == "__main__":
-    main()
