@@ -21,7 +21,8 @@ import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
-import webbrowser  # 웹 브라우저 모듈 추가
+import webbrowser  # 기존 웹 브라우저 모듈
+from tkinterweb import HtmlFrame  # 웹 페이지 임베딩을 위한 라이브러리 추가
 
 os.environ['DISPLAY'] = ':0'
 
@@ -300,13 +301,14 @@ def update_clock_thread(clock_label, date_label, stop_event):
 def open_web_url():
     url = "http://img.79webhard.com/gds/"
     try:
-        webbrowser.open(url)
+        web_frame.load_website(url)  # tkinterweb의 HtmlFrame을 사용하여 웹 페이지 로드
     except Exception as e:
         messagebox.showerror("오류", f"웹 페이지를 여는 중 오류가 발생했습니다: {e}")
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
+    root.geometry("1200x800")  # 창의 기본 크기 설정 (필요에 따라 조정)
 
     default_background = root.cget("background")
 
@@ -346,7 +348,31 @@ if __name__ == "__main__":
     if not isinstance(analog_boxes, list):
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
-    main_frame = tk.Frame(root)
+    # 전체 레이아웃을 좌우로 나누기 위한 메인 프레임 생성
+    main_container = tk.Frame(root)
+    main_container.grid(row=0, column=0, sticky="nsew")
+    main_container.grid_rowconfigure(0, weight=1)
+    main_container.grid_columnconfigure(1, weight=1)  # 오른쪽 영역에 가중치 부여
+
+    # 왼쪽 프레임: 웹 페이지 고정
+    left_frame = tk.Frame(main_container, width=400)  # 왼쪽 프레임의 너비 설정 (필요에 따라 조정)
+    left_frame.grid(row=0, column=0, sticky="nsew")
+    left_frame.grid_propagate(False)  # 프레임 크기 고정
+    left_frame.grid_rowconfigure(0, weight=1)
+    left_frame.grid_columnconfigure(0, weight=1)
+
+    # 웹 페이지 임베딩 (tkinterweb의 HtmlFrame 사용)
+    web_frame = HtmlFrame(left_frame, horizontal_scrollbar="auto")
+    web_frame.grid(row=0, column=0, sticky="nsew")
+    web_frame.load_website("http://img.79webhard.com/gds/")  # 초기 웹 페이지 로드
+
+    # 오른쪽 프레임: 기존의 상자들이 배치될 영역
+    right_frame = tk.Frame(main_container)
+    right_frame.grid(row=0, column=1, sticky="nsew")
+    right_frame.grid_rowconfigure(0, weight=1)
+    right_frame.grid_columnconfigure(0, weight=1)
+
+    main_frame = tk.Frame(right_frame)
     main_frame.grid(row=0, column=0, sticky="nsew")
 
     # 클래스 인스턴스 생성 (프레임 배치 없음)
@@ -416,13 +442,7 @@ if __name__ == "__main__":
         font=("Arial", 20)
     )
 
-    # 웹 접속 버튼 추가
-    web_button = tk.Button(
-        root,
-        text="웹 열기",
-        command=open_web_url,
-        font=("Arial", 12)
-    )
+    # 웹 접속 버튼 제거 (더 이상 필요 없음)
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
@@ -433,12 +453,9 @@ if __name__ == "__main__":
     # 버튼에 마우스 오버 효과 바인딩
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
-    web_button.bind("<Enter>", on_enter)
-    web_button.bind("<Leave>", on_leave)
 
     # 버튼 배치 (오른쪽 하단)
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
-    web_button.place(relx=0.95, rely=1.0, anchor='se')  # 위치 조정 가능
 
     # 상태 라벨 추가
     status_label = tk.Label(root, text="", font=("Arial", 10))
