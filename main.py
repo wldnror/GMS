@@ -308,7 +308,7 @@ def open_web_url():
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
-    root.geometry("1200x800")  # 창의 기본 크기 설정 (필요에 따라 조정)
+    root.geometry("1920x1080")  # 창의 기본 크기 설정 (필요에 따라 조정)
 
     default_background = root.cget("background")
 
@@ -355,7 +355,7 @@ if __name__ == "__main__":
     main_container.grid_columnconfigure(1, weight=1)  # 오른쪽 영역에 가중치 부여
 
     # 왼쪽 프레임: 웹 페이지 고정
-    left_frame = tk.Frame(main_container, width=800)  # 왼쪽 프레임의 너비 설정 (필요에 따라 조정)
+    left_frame = tk.Frame(main_container, width=600)  # 왼쪽 프레임의 너비 설정 (필요에 따라 조정)
     left_frame.grid(row=0, column=0, sticky="nsew")
     left_frame.grid_propagate(False)  # 프레임 크기 고정
     left_frame.grid_rowconfigure(0, weight=1)
