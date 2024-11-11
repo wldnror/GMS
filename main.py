@@ -21,6 +21,7 @@ import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
+import webbrowser  # 웹 브라우저 모듈 추가
 
 os.environ['DISPLAY'] = ':0'
 
@@ -296,6 +297,13 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
+def open_web_url():
+    url = "http://img.79webhard.com/gds/"
+    try:
+        webbrowser.open(url)
+    except Exception as e:
+        messagebox.showerror("오류", f"웹 페이지를 여는 중 오류가 발생했습니다: {e}")
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -366,8 +374,11 @@ if __name__ == "__main__":
     for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
-    # 최대 열의 수 설정
-    max_columns = 6
+    # 상자의 개수가 2개일 때, 최대 열의 수을 2로 설정
+    if len(all_boxes) == 2:
+        max_columns = 2
+    else:
+        max_columns = 6  # 기본 값
 
     # 총 행의 수 계산
     num_rows = (len(all_boxes) + max_columns - 1) // max_columns
@@ -388,16 +399,30 @@ if __name__ == "__main__":
     row_index = 1
     column_index = 1
 
-    # 프레임 배치
+    # 프레임 배치 시 왼쪽 정렬을 위해 sticky='w' 추가
     for frame, idx in all_boxes:
         if column_index > max_columns:
             column_index = 1
             row_index += 1
 
-        frame.grid(row=row_index, column=column_index, padx=2, pady=2)
+        frame.grid(row=row_index, column=column_index, padx=2, pady=2, sticky='w')
         column_index += 1
 
-    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    # 설정 버튼 추가
+    settings_button = tk.Button(
+        root,
+        text="⚙",
+        command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings),
+        font=("Arial", 20)
+    )
+
+    # 웹 접속 버튼 추가
+    web_button = tk.Button(
+        root,
+        text="웹 열기",
+        command=open_web_url,
+        font=("Arial", 12)
+    )
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
@@ -405,21 +430,43 @@ if __name__ == "__main__":
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
+    # 버튼에 마우스 오버 효과 바인딩
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
+    web_button.bind("<Enter>", on_enter)
+    web_button.bind("<Leave>", on_leave)
 
+    # 버튼 배치 (오른쪽 하단)
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
+    web_button.place(relx=0.95, rely=1.0, anchor='se')  # 위치 조정 가능
 
+    # 상태 라벨 추가
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
     total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
     if 0 <= total_boxes <= 6:
-        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
+        clock_label = tk.Label(
+            root,
+            font=("Helvetica", 60, "bold"),
+            fg="white",
+            bg="black",
+            anchor='center',
+            padx=10,
+            pady=10
+        )
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
-        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
+        date_label = tk.Label(
+            root,
+            font=("Helvetica", 25),
+            fg="white",
+            bg="black",
+            anchor='center',
+            padx=5,
+            pady=5
+        )
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
         stop_event = threading.Event()
