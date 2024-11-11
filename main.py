@@ -3,6 +3,7 @@
 import json
 import os
 import time
+import tkinter as tk
 from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
 from tkinter import ttk
 from modbus_ui import ModbusUI
@@ -16,36 +17,26 @@ import subprocess
 import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
-import tkinter as tk
 import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
-import webbrowser  # 기존 웹 브라우저 모듈
-from tkinterweb import HtmlFrame  # 웹 페이지 임베딩을 위한 라이브러리 추가
+from cefpython3 import cefpython as cef
 
+# 초기 설정
 os.environ['DISPLAY'] = ':0'
-
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
-
 SETTINGS_FILE = "settings.json"
-
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
 
 # GPIO 설정
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
-
-# 사용할 핀 번호 설정
-RED_PIN = 20  # 빨강 LED에 대응하는 핀
-YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
-
-# 출력 핀으로 설정
+RED_PIN = 20  # 빨강 LED 핀
+YELLOW_PIN = 21  # 노랑 LED 핀
 GPIO.setup(RED_PIN, GPIO.OUT)
 GPIO.setup(YELLOW_PIN, GPIO.OUT)
-
-# 초기값 설정
 GPIO.output(RED_PIN, GPIO.LOW)
 GPIO.output(YELLOW_PIN, GPIO.LOW)
 
@@ -57,7 +48,6 @@ def decrypt_data(data):
 
 settings = load_settings()
 admin_password = settings.get("admin_password")
-
 ignore_commit = None
 update_notification_frame = None
 checking_updates = True
@@ -298,23 +288,36 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
-def open_web_url():
-    url = "http://img.79webhard.com/gds/"
-    try:
-        web_frame.load_website(url)  # tkinterweb의 HtmlFrame을 사용하여 웹 페이지 로드
-    except Exception as e:
-        messagebox.showerror("오류", f"웹 페이지를 여는 중 오류가 발생했습니다: {e}")
+def on_closing():
+    if 0 <= total_boxes <= 4:
+        stop_event.set()
+        clock_thread.join()
+    GPIO.cleanup()
+    root.destroy()
 
-if __name__ == "__main__":
+def system_info_thread():
+    while True:
+        update_status_label()
+        time.sleep(1)
+
+def main():
+    global root, default_background, stop_event, clock_thread, status_label, total_boxes
+
+    # CEF 초기화
+    sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
+    cef.Initialize()
+
+    # tkinter 창 생성
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
-    root.geometry("1920x1080")  # 창의 기본 크기 설정 (필요에 따라 조정)
+    root.geometry("1200x800")  # 창의 기본 크기 설정 (필요에 따라 조정)
 
     default_background = root.cget("background")
 
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
         GPIO.cleanup()  # GPIO 핀 초기화
+        cef.Shutdown()
         root.destroy()
         sys.exit(0)
 
@@ -348,23 +351,28 @@ if __name__ == "__main__":
     if not isinstance(analog_boxes, list):
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
-    # 전체 레이아웃을 좌우로 나누기 위한 메인 프레임 생성
+    # 전체 레이아웃을 좌우로 나누기 위한 메인 컨테이너 생성
     main_container = tk.Frame(root)
     main_container.grid(row=0, column=0, sticky="nsew")
     main_container.grid_rowconfigure(0, weight=1)
     main_container.grid_columnconfigure(1, weight=1)  # 오른쪽 영역에 가중치 부여
 
     # 왼쪽 프레임: 웹 페이지 고정
-    left_frame = tk.Frame(main_container, width=600)  # 왼쪽 프레임의 너비 설정 (필요에 따라 조정)
+    left_frame = tk.Frame(main_container, width=800)  # 왼쪽 프레임의 너비 설정 (필요에 따라 조정)
     left_frame.grid(row=0, column=0, sticky="nsew")
     left_frame.grid_propagate(False)  # 프레임 크기 고정
     left_frame.grid_rowconfigure(0, weight=1)
     left_frame.grid_columnconfigure(0, weight=1)
 
-    # 웹 페이지 임베딩 (tkinterweb의 HtmlFrame 사용)
-    web_frame = HtmlFrame(left_frame, horizontal_scrollbar="auto")
-    web_frame.grid(row=0, column=0, sticky="nsew")
-    web_frame.load_website("http://img.79webhard.com/gds/")  # 초기 웹 페이지 로드
+    # Chromium 브라우저 임베딩
+    window_info = cef.WindowInfo()
+    window_info.SetAsChild(left_frame.winfo_id(), [0, 0, 800, 800])  # 프레임 크기에 맞게 조정
+
+    browser = cef.CreateBrowserSync(window_info,
+                                    url="http://img.79webhard.com/gds/",
+                                    window_title="Embedded Browser")
+
+    cef.MessageLoopWork()
 
     # 오른쪽 프레임: 기존의 상자들이 배치될 영역
     right_frame = tk.Frame(main_container)
@@ -442,8 +450,6 @@ if __name__ == "__main__":
         font=("Arial", 20)
     )
 
-    # 웹 접속 버튼 제거 (더 이상 필요 없음)
-
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
@@ -490,19 +496,7 @@ if __name__ == "__main__":
         clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
         clock_thread.start()
 
-    def on_closing():
-        if 0 <= total_boxes <= 4:
-            stop_event.set()
-            clock_thread.join()
-        GPIO.cleanup()
-        root.destroy()
-
     root.protocol("WM_DELETE_WINDOW", on_closing)
-
-    def system_info_thread():
-        while True:
-            update_status_label()
-            time.sleep(1)
 
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
         with open(utils.IGNORE_COMMIT_FILE, "r") as file:
@@ -513,7 +507,19 @@ if __name__ == "__main__":
     threading.Thread(target=system_info_thread, daemon=True).start()
     threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
 
+    # CEF와 tkinter의 이벤트 루프를 통합하기 위한 별도의 스레드 실행
+    def cef_loop():
+        while True:
+            cef.MessageLoopWork()
+            time.sleep(0.01)
+
+    threading.Thread(target=cef_loop, daemon=True).start()
+
     root.mainloop()
 
     for _, client in modbus_ui.clients.items():
         client.close()
+    cef.Shutdown()
+
+if __name__ == "__main__":
+    main()
