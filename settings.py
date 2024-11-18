@@ -571,6 +571,5 @@ def main():
 
     # 메인 루프 시작
     root.mainloop()
-
 if __name__ == "__main__":
     main()
