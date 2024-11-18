@@ -22,6 +22,8 @@ import datetime
 import locale
 import RPi.GPIO as GPIO
 
+os.environ['DISPLAY'] = ':0'
+
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
 SETTINGS_FILE = "settings.json"
