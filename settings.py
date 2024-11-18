@@ -7,7 +7,7 @@ import threading
 import subprocess
 import time
 import utils
-import pygame  # 오디오 재생을 위한 pygame 모듈 추가
+# import pygame  # 오디오 재생을 위한 pygame 모듈 추가
 
 SETTINGS_FILE = "settings.json"
 
