@@ -17,7 +17,7 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
-import pygame
+# import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
