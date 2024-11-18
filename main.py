@@ -1,410 +1,455 @@
-import tkinter as tk
-from datetime import datetime
-import threading
-import time
+# main.py
+
+import json
 import os
+import time
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import ttk
+from modbus_ui import ModbusUI
+from analog_ui import AnalogUI
+from ups_monitor_ui import UPSMonitorUI
+import threading
+import psutil
+import signal
 import sys
-import socket
 import subprocess
-from playsound import playsound  # playsound 임포트
+import socket
+from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
+import utils
+import tkinter as tk
+# import pygame
+import datetime
+import locale
+import RPi.GPIO as GPIO
 
 os.environ['DISPLAY'] = ':0'
 
-# 사운드 파일 경로 설정
-script_dir = os.path.dirname(os.path.abspath(__file__))
-SUCCESS_SOUND_PATH = os.path.join(script_dir, 'gms_k1.mp3')
-FAILURE_SOUND_PATH = os.path.join(script_dir, 'gms_k1.mp3')
+locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
-# 사운드 재생 함수 정의
-def play_success_sound():
-    if os.path.isfile(SUCCESS_SOUND_PATH):
-        try:
-            threading.Thread(target=lambda: playsound(SUCCESS_SOUND_PATH), daemon=True).start()
-        except Exception as e:
-            print(f"성공 사운드 재생 중 오류 발생: {e}")
+SETTINGS_FILE = "settings.json"
+
+key = utils.load_key()
+cipher_suite = utils.cipher_suite
+
+# GPIO 설정
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+# 사용할 핀 번호 설정
+RED_PIN = 20  # 빨강 LED에 대응하는 핀
+YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
+
+# 출력 핀으로 설정
+GPIO.setup(RED_PIN, GPIO.OUT)
+GPIO.setup(YELLOW_PIN, GPIO.OUT)
+
+# 초기값 설정
+GPIO.output(RED_PIN, GPIO.LOW)
+GPIO.output(YELLOW_PIN, GPIO.LOW)
+
+def encrypt_data(data):
+    return utils.encrypt_data(data)
+
+def decrypt_data(data):
+    return utils.decrypt_data(data)
+
+settings = load_settings()
+admin_password = settings.get("admin_password")
+
+ignore_commit = None
+update_notification_frame = None
+checking_updates = True
+branch_window = None
+
+# 전역 알람 상태 변수
+global_alarm_active = False
+global_fut_active = False
+alarm_blinking = False
+fut_blinking = False
+
+selected_audio_file = settings.get("audio_file")
+audio_playing = False
+
+# 각 상자의 알람 상태를 저장하는 딕셔너리
+box_alarm_states = {}
+
+# pygame.mixer.init()
+
+def play_alarm_sound():
+    global selected_audio_file, audio_playing
+    if selected_audio_file is None:
+        print("No audio file selected. Skipping alarm sound.")
+        return
+
+    if not audio_playing:
+        if os.path.isfile(selected_audio_file):
+            try:
+                pygame.mixer.music.load(selected_audio_file)
+                pygame.mixer.music.play(loops=-1)
+                audio_playing = True
+            except pygame.error as e:
+                print(f"Pygame error: {e}")
+        else:
+            print(f"File not found: {selected_audio_file}")
+
+def stop_alarm_sound():
+    global audio_playing
+    if audio_playing:
+        pygame.mixer.music.stop()
+        audio_playing = False
+
+def set_alarm_status(active, box_id, fut=False):
+    global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
+    # 이전 상태 저장
+    prev_state = box_alarm_states.get(box_id, {'active': False, 'fut': False})
+    prev_global_alarm_active = global_alarm_active
+    prev_global_fut_active = global_fut_active
+
+    # 새로운 상태 저장
+    box_alarm_states[box_id] = {'active': active, 'fut': fut}
+
+    # 전체 알람 상태 업데이트
+    global_alarm_active = any(state['active'] for state in box_alarm_states.values())
+    global_fut_active = any(state['fut'] for state in box_alarm_states.values())
+
+    # 상태 변경 여부 확인
+    state_changed = (prev_state['active'] != active) or (prev_state['fut'] != fut)
+    global_state_changed = (prev_global_alarm_active != global_alarm_active) or (prev_global_fut_active != global_fut_active)
+
+    if global_fut_active:
+        if not prev_global_fut_active:
+            stop_alarm_sound()
+            alarm_blinking = False
+            start_fut_blinking()
+    elif global_alarm_active:
+        if not prev_global_alarm_active:
+            play_alarm_sound()
+            start_alarm_blinking()
     else:
-        print(f"성공 사운드 파일을 찾을 수 없습니다: {SUCCESS_SOUND_PATH}")
+        if prev_global_alarm_active or prev_global_fut_active:
+            stop_all_alarms()
 
-def play_failure_sound():
-    if os.path.isfile(FAILURE_SOUND_PATH):
-        try:
-            threading.Thread(target=lambda: playsound(FAILURE_SOUND_PATH), daemon=True).start()
-        except Exception as e:
-            print(f"실패 사운드 재생 중 오류 발생: {e}")
-    else:
-        print(f"실패 사운드 파일을 찾을 수 없습니다: {FAILURE_SOUND_PATH}")
+def start_alarm_blinking():
+    global alarm_blinking
+    if not alarm_blinking:
+        alarm_blinking = True
+        alarm_blink()
 
-# 전역 변수 설정
-is_auto_mode = True
-current_command_index = 0
-commands = [
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/ORG.bin verify reset exit 0x08000000\"",
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/HMDS.bin verify reset exit 0x08000000\"",
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/ARF-T.bin verify reset exit 0x08000000\"",
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/HC100.bin verify reset exit 0x08000000\"",
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/SAT4010.bin verify reset exit 0x08000000\"",
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/IPA.bin verify reset exit 0x08000000\"",
-    "sudo openocd -f /usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg -f /usr/local/share/openocd/scripts/target/stm32f1x.cfg -c \"program /home/user/stm32/Program/ASGD3000-V352PNP_0X009D2B7C.bin verify reset exit 0x08000000\"",
-    "git_pull",  # 이 함수는 나중에 execute_command 함수에서 호출됩니다.
-]
-command_names = ["ORG","HMDS","ARF-T","HC100", "SAT4010","IPA", "ASGD S PNP", "시스템 업데이트"]
+def start_fut_blinking():
+    global fut_blinking
+    if not fut_blinking:
+        fut_blinking = True
+        fut_blink()
 
-# 상태 메시지 및 실행 상태
-status_message = ""
-is_executing = False
-need_update = False
-connection_success = False
-connection_failed_since_last_success = False
+def stop_all_alarms():
+    global alarm_blinking, fut_blinking
+    alarm_blinking = False
+    fut_blinking = False
+    GPIO.output(RED_PIN, GPIO.LOW)
+    GPIO.output(YELLOW_PIN, GPIO.LOW)
+    root.config(background=default_background)
+    stop_alarm_sound()
 
-# Tkinter GUI 설정
-root = tk.Tk()
-root.title("업데이트 관리자")
-root.geometry("510x350")  # 필요에 따라 크기 조정
-root.attributes("-topmost", True)  # 창을 항상 최상위에 유지
-root.lift()  # 창을 최상위로 올리기 (필요한 경우)
+def alarm_blink():
+    red_duration = 1000
+    off_duration = 1000
+    toggle_color_id = None
 
-mode_label = tk.Label(root, text="", font=("Helvetica", 17))
-mode_label.pack(pady=10)
-current_command_label = tk.Label(root, text=f"현재 명령어: {command_names[current_command_index]}", font=("Helvetica", 14))
-current_command_label.pack(pady=5)
+    def toggle_color():
+        nonlocal toggle_color_id
+        if global_alarm_active and alarm_blinking:
+            current_color = root.cget("background")
+            new_color = "red" if current_color != "red" else default_background
+            root.config(background=new_color)
+            GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            GPIO.output(RED_PIN, GPIO.LOW)
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
 
-status_label = tk.Label(root, text="상태: 대기 중", font=("Helvetica", 14), fg="blue")
-status_label.pack(pady=5)
+    toggle_color()
 
-ip_label = tk.Label(root, text=f"IP 주소: 로딩 중...", font=("Helvetica", 12))
-ip_label.pack(pady=5)
+def fut_blink():
+    yellow_duration = 1000
+    off_duration = 1000
+    toggle_color_id = None
 
-# LED 상태 표시기 (GUI 내에서 색상으로 대체)
-led_frame = tk.Frame(root)
-led_frame.pack(pady=10)
+    def toggle_color():
+        nonlocal toggle_color_id
+        if global_fut_active and fut_blinking:
+            current_color = root.cget("background")
+            new_color = "yellow" if current_color != "yellow" else default_background
+            root.config(background=new_color)
+            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
+        else:
+            root.config(background=default_background)
+            GPIO.output(YELLOW_PIN, GPIO.LOW)
+            if toggle_color_id:
+                root.after_cancel(toggle_color_id)
 
-led_success = tk.Label(led_frame, text="성공 LED", bg="grey", width=10, height=2)
-led_success.grid(row=0, column=0, padx=5)
+    toggle_color()
 
-led_error = tk.Label(led_frame, text="오류 LED1", bg="grey", width=10, height=2)
-led_error.grid(row=0, column=1, padx=5)
+def exit_fullscreen(event=None):
+    utils.exit_fullscreen(root, event)
 
-led_error1 = tk.Label(led_frame, text="오류 LED2", bg="grey", width=10, height=2)
-led_error1.grid(row=0, column=2, padx=5)
+def enter_fullscreen(event=None):
+    utils.enter_fullscreen(root, event)
 
-# 버튼 프레임
-button_frame = tk.Frame(root)
-button_frame.pack(pady=20)
+def exit_application():
+    utils.exit_application(root)
 
-def update_led(led_label, status):
-    if status:
-        led_label.config(bg="green")
-    else:
-        led_label.config(bg="grey")
+def update_system():
+    utils.update_system(root)
 
-# 버튼 콜백 함수
-def toggle_mode_gui():
-    global is_auto_mode
-    if is_executing:
-        show_notification("현재 명령이 실행 중입니다.", "red")
-        return
-    is_auto_mode = not is_auto_mode
-    mode_label.config(text=f"모드: {'자동' if is_auto_mode else '수동'}")
+def check_for_updates():
+    utils.check_for_updates(root)
 
-def next_command_gui():
-    global current_command_index
-    if is_executing:
-        show_notification("현재 명령이 실행 중입니다.", "red")
-        return
-    current_command_index = (current_command_index + 1) % len(commands)
-    current_command_label.config(text=f"현재 명령어: {command_names[current_command_index]}")
+def show_update_notification(remote_commit):
+    utils.show_update_notification(root, remote_commit)
 
-def previous_command_gui():
-    global current_command_index
-    if is_executing:
-        show_notification("현재 명령이 실행 중입니다.", "red")
-        return
-    current_command_index = (current_command_index - 1) % len(commands)
-    current_command_label.config(text=f"현재 명령어: {command_names[current_command_index]}")
+def start_update(remote_commit):
+    utils.start_update(root, remote_commit)
 
-def execute_command_gui():
-    global is_executing
-    if is_executing:
-        show_notification("이미 명령이 실행 중입니다.", "red")
-        return
-    threading.Thread(target=execute_command, args=(current_command_index,), daemon=True).start()
+def ignore_update(remote_commit):
+    utils.ignore_update(root, remote_commit)
 
-# 버튼 생성 (이전, 다음, 확인)
-previous_button = tk.Button(button_frame, text="이전", command=previous_command_gui, width=10, height=2)
-previous_button.grid(row=0, column=0, padx=10)
+def restart_application():
+    utils.restart_application()
 
-next_button = tk.Button(button_frame, text="다음", command=next_command_gui, width=10, height=2)
-next_button.grid(row=0, column=1, padx=10)
+def get_system_info():
+    try:
+        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+    except subprocess.CalledProcessError:
+        current_branch = "N/A"
 
-execute_button = tk.Button(button_frame, text="확인", command=execute_command_gui, width=10, height=2)
-execute_button.grid(row=0, column=2, padx=10)
+    try:
+        cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
+        cpu_usage = psutil.cpu_percent(interval=1)
+        memory_usage = psutil.virtual_memory().percent
+        disk_usage = psutil.disk_usage('/').percent
+        net_io = psutil.net_io_counters()
+        network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
+        return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
+    except Exception as e:
+        return f"System info could not be retrieved: {str(e)}"
 
-# IP 주소 업데이트 함수
 def get_ip_address():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(0)
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception as e:
-        return "0.0.0.0"
-
-def update_ip_label():
-    ip = get_ip_address()
-    ip_label.config(text=f"IP 주소: {ip}")
-    root.after(5000, update_ip_label)  # 5초마다 업데이트
-
-# Git Pull 함수
-def git_pull():
-    shell_script_path = '/home/user/stm32/git-pull.sh'
-    if not os.path.isfile(shell_script_path):
-        with open(shell_script_path, 'w') as script_file:
-            script_file.write("#!/bin/bash\n")
-            script_file.write("cd /home/user/stm32\n")
-            script_file.write("git remote update\n")  # 원격 저장소 정보 업데이트
-            script_file.write("if git status -uno | grep -q 'Your branch is up to date'; then\n")
-            script_file.write("   echo '이미 최신 상태입니다.'\n")
-            script_file.write("   exit 0\n")
-            script_file.write("fi\n")
-            script_file.write("git stash\n")  # 임시로 변경사항을 저장
-            script_file.write("git pull\n")  # 원격 저장소의 변경사항을 가져옴
-            script_file.write("git stash pop\n")  # 저장했던 변경사항을 다시 적용
-            script_file.flush()
-            os.fsync(script_file.fileno())
-
-    os.chmod(shell_script_path, 0o755)
-
-    update_status("시스템 업데이트 중...", "orange")
-    try:
-        result = subprocess.run([shell_script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        update_led(led_success, False)
-        update_led(led_error, False)
-        update_led(led_error1, False)
-        
-        if result.returncode == 0:
-            if "이미 최신 상태" in result.stdout:
-                update_status("이미 최신 상태", "blue")
-                show_notification("시스템이 이미 최신 상태입니다.", "blue")
-            else:
-                update_status("업데이트 성공!", "green")
-                show_notification("시스템 업데이트에 성공했습니다.", "green")
-                play_success_sound()  # 성공 사운드 재생
-                restart_script()
-        else:
-            update_status("업데이트 실패", "red")
-            show_notification(f"GitHub 업데이트 실패.\n오류 메시지: {result.stderr}", "red")
-            play_failure_sound()  # 실패 사운드 재생
-            update_led(led_error, True)
-            update_led(led_error1, True)
-    except Exception as e:
-        update_status("업데이트 오류", "red")
-        show_notification(f"업데이트 중 오류 발생:\n{str(e)}", "red")
-        play_failure_sound()  # 실패 사운드 재생
-        update_led(led_error, True)
-        update_led(led_error1, True)
-
-def restart_script():
-    update_status("스크립트 재시작 중...", "orange")
-    def restart():
-        time.sleep(3)  # 3초 후 재시작
-        os.execv(sys.executable, [sys.executable] + sys.argv)
-    threading.Thread(target=restart, daemon=True).start()
-
-# 메모리 잠금 해제 및 잠금 함수
-def unlock_memory():
-    update_status("메모리 잠금 해제 중...", "orange")
-    openocd_command = [
-        "sudo", "openocd",
-        "-f", "/usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg",
-        "-f", "/usr/local/share/openocd/scripts/target/stm32f1x.cfg",
-        "-c", "init",
-        "-c", "reset halt",
-        "-c", "stm32f1x unlock 0",
-        "-c", "reset run",
-        "-c", "shutdown"
-    ]
-    try:
-        result = subprocess.run(openocd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.returncode == 0:
-            update_status("메모리 잠금 해제 성공!", "green")
-            show_notification("메모리 잠금 해제에 성공했습니다.", "green")
-            return True
-        else:
-            update_status("메모리 잠금 해제 실패", "red")
-            show_notification(f"메모리 잠금 해제 실패: {result.stderr}", "red")
-            play_failure_sound()  # 실패 사운드 재생
-            return False
-    except Exception as e:
-        update_status("오류 발생", "red")
-        show_notification(f"메모리 잠금 해제 중 오류 발생: {str(e)}", "red")
-        play_failure_sound()  # 실패 사운드 재생
-        return False
-
-def lock_memory_procedure():
-    update_status("메모리 잠금 중...", "orange")
-    openocd_command = [
-        "sudo",
-        "openocd",
-        "-f", "/usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg",
-        "-f", "/usr/local/share/openocd/scripts/target/stm32f1x.cfg",
-        "-c", "init",
-        "-c", "reset halt",
-        "-c", "stm32f1x lock 0",
-        "-c", "reset run",
-        "-c", "shutdown",
-    ]
-    try:
-        result = subprocess.run(openocd_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.returncode == 0:
-            update_status("메모리 잠금 성공", "green")
-            show_notification("메모리 잠금에 성공했습니다.", "green")
-            play_success_sound()  # 최종 성공 사운드 재생
-            update_led(led_success, True)
-        else:
-            update_status("메모리 잠금 실패", "red")
-            show_notification(f"메모리 잠금 실패: {result.stderr}", "red")
-            play_failure_sound()  # 실패 사운드 재생
-            update_led(led_error, True)
-            update_led(led_error1, True)
-    except Exception as e:
-        update_status("오류 발생", "red")
-        show_notification(f"메모리 잠금 중 오류 발생: {str(e)}", "red")
-        play_failure_sound()  # 실패 사운드 재생
-
-# 상태 업데이트 함수
-def update_status(message, color):
-    status_label.config(text=f"상태: {message}", fg=color)
-
-# 알림 메시지 레이블 (상태 레이블 아래에 추가)
-notification_label = tk.Label(root, text="", font=("Helvetica", 12), fg="green")
-notification_label.pack(pady=5)
-
-def show_notification(message, color="green", duration=3000):
-    notification_label.config(text=message, fg=color)
-    root.after(duration, lambda: notification_label.config(text=""))
-
-def execute_command(command_index):
-    global is_executing, connection_success, connection_failed_since_last_success
-    is_executing = True
-    update_status("명령 실행 중...", "orange")
-    update_led(led_success, False)
-    update_led(led_error, False)
-    update_led(led_error1, False)
-
-    if command_index == len(commands) - 1:
-        git_pull()
-        is_executing = False
-        return
-
-    if command_index == 7:   # 시스템 업데이트
-        lock_memory_procedure()
-        is_executing = False
-        return
-
-    if not unlock_memory():
-        update_status("메모리 잠금 해제 실패", "red")
-        show_notification("메모리 잠금 해제 실패", "red")
-        play_failure_sound()  # 실패 사운드 재생
-        is_executing = False
-        return
-
-    update_status("업데이트 중...", "orange")
-    try:
-        process = subprocess.Popen(commands[command_index], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        start_time = time.time()
-        max_duration = 6
-        progress_increment = 20 / max_duration
-
-        while process.poll() is None:
-            elapsed = time.time() - start_time
-            current_progress = 30 + (elapsed * progress_increment)
-            current_progress = min(current_progress, 80)
-            update_status(f"업데이트 중... {int(current_progress)}%", "orange")
-            time.sleep(0.5)
-
-        result = process.returncode
-        if result == 0:
-            update_status("업데이트 성공!", "green")
-            show_notification("업데이트에 성공했습니다.", "green")
-            # 성공 사운드 재생을 제거
-            update_led(led_success, True)
-            lock_memory_procedure()
-        else:
-            update_status("업데이트 실패", "red")
-            show_notification(f"'{commands[command_index]}' 업데이트 실패!", "red")
-            play_failure_sound()  # 실패 사운드 재생
-            update_led(led_error, True)
-            update_led(led_error1, True)
-    except Exception as e:
-        update_status("업데이트 오류", "red")
-        show_notification(f"업데이트 중 오류 발생:\n{str(e)}", "red")
-        play_failure_sound()  # 실패 사운드 재생
+        s.connect(('10.254.254.254', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = 'N/A'
     finally:
-        is_executing = False
+        s.close()
+    return IP
 
-# STM32 연결 상태 확인 함수
-def check_stm32_connection():
-    global connection_success, connection_failed_since_last_success
+def update_status_label():
+    status_label.config(text=get_system_info())
+
+def change_branch():
+    global branch_window
+    if branch_window and branch_window.winfo_exists():
+        branch_window.focus()
+        return
+
+    branch_window = Toplevel(root)
+    branch_window.title("브랜치 변경")
+    branch_window.attributes("-topmost", True)
+
     try:
-        command = [
-            "sudo", "openocd",
-            "-f", "/usr/local/share/openocd/scripts/interface/raspberrypi-native.cfg",
-            "-f", "/usr/local/share/openocd/scripts/target/stm32f1x.cfg",
-            "-c", "init",
-            "-c", "exit"
-        ]
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+        Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
 
-        if result.returncode == 0:
-            if connection_failed_since_last_success:
-                print("STM32 재연결 성공")
-                connection_success = True
-                connection_failed_since_last_success = False
-            else:
-                print("STM32 연결 성공")
-                connection_success = False  # 연속적인 성공을 방지
-            return True
-        else:
-            print("STM32 연결 실패:", result.stderr)
-            connection_failed_since_last_success = True
-            return False
+        branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
+        branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
+
+        selected_branch = StringVar(branch_window)
+        selected_branch.set(branches[0])
+        ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
+
+        def switch_branch():
+            new_branch = selected_branch.get()
+            try:
+                subprocess.check_output(['git', 'checkout', new_branch])
+                messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
+                branch_window.destroy()
+                restart_application()
+            except subprocess.CalledProcessError as e:
+                messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
+
+        Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
     except Exception as e:
-        print(f"오류 발생: {e}")
-        connection_failed_since_last_success = True
-        return False
+        messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
+        branch_window.destroy()
 
-# 실시간 업데이트를 위한 함수
-def realtime_update():
-    while True:
-        if not is_executing:
-            # STM32 연결 상태 확인 및 자동 모드일 때 명령 실행
-            if is_auto_mode and check_stm32_connection() and connection_success:
-                execute_command(current_command_index)
+def update_clock_thread(clock_label, date_label, stop_event):
+    while not stop_event.is_set():
+        now = datetime.datetime.now()
+        current_time = now.strftime("%H:%M:%S")
+        current_date = now.strftime("%Y-%m-%d %A")
+        clock_label.config(text=current_time)
+        date_label.config(text=current_date)
         time.sleep(1)
 
-# 백그라운드 스레드 시작
-threading.Thread(target=realtime_update, daemon=True).start()
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("GDSENG - 스마트 모니터링 시스템")
 
-# IP 주소 초기 업데이트
-update_ip_label()
+    default_background = root.cget("background")
 
-# 창이 다른 창에 의해 가려졌을 때 다시 최상위로 올리는 함수
-def keep_on_top():
+    def signal_handler(sig, frame):
+        print("Exiting gracefully...")
+        GPIO.cleanup()  # GPIO 핀 초기화
+        root.destroy()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    initialize_globals(root, change_branch)
+
+    if not admin_password:
+        prompt_new_password()
+
+    root.attributes("-fullscreen", True)
     root.attributes("-topmost", True)
-    root.lift()
-    root.after(1000, keep_on_top)  # 1초마다 이 함수 재실행
 
-# 포커스 이벤트 핸들러
-def on_focus_out(event):
-    # 창이 포커스를 잃었을 때 최상위로 다시 올리기
-    root.after(100, lambda: root.attributes("-topmost", True))
-    root.after(100, lambda: root.lift())
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
 
-root.bind("<FocusOut>", on_focus_out)
+    root.bind("<Escape>", exit_fullscreen)
 
-# 최상위 유지 함수 시작
-keep_on_top()
+    settings = load_settings()
+    modbus_boxes = settings.get("modbus_boxes", [])
+    if isinstance(modbus_boxes, int):
+        modbus_boxes = [None] * modbus_boxes
 
-# Tkinter 메인 루프 실행
-root.mainloop()
+    analog_boxes = settings.get("analog_boxes", [])
+    if isinstance(analog_boxes, int):
+        analog_boxes = [None] * analog_boxes
+
+    if not isinstance(modbus_boxes, list):
+        raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
+
+    if not isinstance(analog_boxes, list):
+        raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
+
+    main_frame = tk.Frame(root)
+    main_frame.grid(row=0, column=0, sticky="nsew")
+
+    # 클래스 인스턴스 생성 (프레임 배치 없음)
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
+
+    ups_ui = None
+    if settings.get("battery_box_enabled", 0):
+        ups_ui = UPSMonitorUI(main_frame, 1)
+
+    all_boxes = []
+
+    # 클래스에서 프레임 수집
+    if ups_ui:
+        for i, frame in enumerate(ups_ui.box_frames):
+            all_boxes.append((frame, f"ups_{i}"))
+
+    for i, frame in enumerate(modbus_ui.box_frames):
+        all_boxes.append((frame, f"modbus_{i}"))
+
+    for i, frame in enumerate(analog_ui.box_frames):
+        all_boxes.append((frame, f"analog_{i}"))
+
+    # 각 상자의 알람 상태 초기화
+    for _, idx in all_boxes:
+        box_alarm_states[idx] = {'active': False, 'fut': False}
+
+    # 최대 열의 수 설정
+    max_columns = 6
+
+    # 총 행의 수 계산
+    num_rows = (len(all_boxes) + max_columns - 1) // max_columns
+
+    # 그리드 행과 열의 가중치 설정
+    main_frame.grid_rowconfigure(0, weight=1)  # 상단 여백
+    main_frame.grid_rowconfigure(num_rows + 1, weight=1)  # 하단 여백
+    main_frame.grid_columnconfigure(0, weight=1)  # 좌측 여백
+    main_frame.grid_columnconfigure(max_columns + 1, weight=1)  # 우측 여백
+
+    # 상자들이 위치하는 행과 열의 가중치를 0으로 설정
+    for i in range(1, num_rows + 1):
+        main_frame.grid_rowconfigure(i, weight=0)
+    for i in range(1, max_columns + 1):
+        main_frame.grid_columnconfigure(i, weight=0)
+
+    # 상자 배치 시작 인덱스를 1로 변경
+    row_index = 1
+    column_index = 1
+
+    # 프레임 배치
+    for frame, idx in all_boxes:
+        if column_index > max_columns:
+            column_index = 1
+            row_index += 1
+
+        frame.grid(row=row_index, column=column_index, padx=2, pady=2)
+        column_index += 1
+
+    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+
+    def on_enter(event):
+        event.widget.config(background="#b2b2b2", foreground="black")
+
+    def on_leave(event):
+        event.widget.config(background="#b2b2b2", foreground="black")
+
+    settings_button.bind("<Enter>", on_enter)
+    settings_button.bind("<Leave>", on_leave)
+
+    settings_button.place(relx=1.0, rely=1.0, anchor='se')
+
+    status_label = tk.Label(root, text="", font=("Arial", 10))
+    status_label.place(relx=0.0, rely=1.0, anchor='sw')
+
+    total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
+
+    if 0 <= total_boxes <= 6:
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
+        clock_label.place(relx=0.5, rely=0.1, anchor='n')
+
+        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
+        date_label.place(relx=0.5, rely=0.20, anchor='n')
+
+        stop_event = threading.Event()
+        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
+        clock_thread.start()
+
+    def on_closing():
+        if 0 <= total_boxes <= 4:
+            stop_event.set()
+            clock_thread.join()
+        GPIO.cleanup()
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    def system_info_thread():
+        while True:
+            update_status_label()
+            time.sleep(1)
+
+    if os.path.exists(utils.IGNORE_COMMIT_FILE):
+        with open(utils.IGNORE_COMMIT_FILE, "r") as file:
+            ignore_commit = file.read().strip().encode()
+        utils.ignore_commit = ignore_commit
+
+    utils.checking_updates = True
+    threading.Thread(target=system_info_thread, daemon=True).start()
+    threading.Thread(target=utils.check_for_updates, args=(root,), daemon=True).start()
+
+    root.mainloop()
+
+    for _, client in modbus_ui.clients.items():
+        client.close()
