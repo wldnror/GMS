@@ -17,7 +17,7 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
-import pygame
+# import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
@@ -73,7 +73,7 @@ audio_playing = False
 # 각 상자의 알람 상태를 저장하는 딕셔너리
 box_alarm_states = {}
 
-pygame.mixer.init()
+# pygame.mixer.init()
 
 def play_alarm_sound():
     global selected_audio_file, audio_playing
