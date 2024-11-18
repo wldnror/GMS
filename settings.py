@@ -6,8 +6,8 @@ import sys
 import threading
 import subprocess
 import time
-import utils
 import pygame  # 오디오 재생을 위한 pygame 모듈 추가
+import utils  # 사용자 정의 유틸리티 모듈
 
 SETTINGS_FILE = "settings.json"
 
@@ -232,6 +232,10 @@ def show_settings():
             return
 
         audio_folder = "audio"
+        if not os.path.exists(audio_folder):
+            messagebox.showerror("오류", f"'{audio_folder}' 폴더가 존재하지 않습니다.")
+            return
+
         audio_files = [f for f in os.listdir(audio_folder) if f.endswith(('.mp3', '.wav'))]
         if not audio_files:
             messagebox.showerror("오류", "audio 폴더에 mp3 또는 wav 파일이 없습니다.")
@@ -244,6 +248,10 @@ def show_settings():
             save_settings(settings)
             selected_audio_label.config(text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file)}")
             messagebox.showinfo("오디오 파일 선택", f"선택된 오디오 파일: {selected_audio_file}")
+
+            # 오디오 재생
+            play_audio_thread(selected_audio_file)
+
             audio_selection_window.destroy()
 
         audio_selection_window = Toplevel(settings_window)
@@ -420,3 +428,149 @@ def show_box_settings():
             messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
+
+# =======================
+# 오디오 재생 관련 함수
+# =======================
+
+def play_audio(file_path):
+    """
+    pygame을 사용하여 오디오 파일을 재생합니다.
+    오디오 재생이 완료되면 pygame을 종료하여 리소스를 해제합니다.
+    """
+    try:
+        pygame.mixer.init()
+        pygame.mixer.music.load(file_path)
+        pygame.mixer.music.play()
+
+        # 음악이 재생되는 동안 대기
+        while pygame.mixer.music.get_busy():
+            pygame.time.Clock().tick(10)
+    except Exception as e:
+        print(f"오디오 재생 중 오류 발생: {e}")
+    finally:
+        pygame.mixer.music.stop()
+        pygame.mixer.quit()
+
+def play_audio_thread(file_path):
+    """
+    오디오 재생을 별도 스레드에서 실행하여 GUI의 응답성을 유지합니다.
+    """
+    audio_thread = threading.Thread(target=play_audio, args=(file_path,), daemon=True)
+    audio_thread.start()
+
+# =======================
+# PulseAudio 설정 (선택 사항)
+# =======================
+
+def setup_pulseaudio():
+    """
+    PulseAudio를 설치하고 설정하여 여러 프로세스가 오디오 장치를 공유할 수 있도록 합니다.
+    """
+    try:
+        subprocess.run(['sudo', 'apt', 'update'], check=True)
+        subprocess.run(['sudo', 'apt', 'install', '-y', 'pulseaudio', 'pulseaudio-utils', 'pavucontrol'], check=True)
+        subprocess.run(['pulseaudio', '--start'], check=True)
+        # PulseAudio가 자동 시작되도록 설정
+        pulse_config_path = os.path.expanduser("~/.config/pulse/client.conf")
+        os.makedirs(os.path.dirname(pulse_config_path), exist_ok=True)
+        with open(pulse_config_path, 'a') as f:
+            f.write("autospawn = yes\n")
+    except subprocess.CalledProcessError as e:
+        print(f"PulseAudio 설정 중 오류 발생: {e}")
+
+# =======================
+# 오디오 재생 함수 통합
+# =======================
+
+def select_audio_file():
+    global selected_audio_file, audio_selection_window
+
+    if audio_selection_window and audio_selection_window.winfo_exists():
+        audio_selection_window.focus()
+        return
+
+    audio_folder = "audio"
+    if not os.path.exists(audio_folder):
+        messagebox.showerror("오류", f"'{audio_folder}' 폴더가 존재하지 않습니다.")
+        return
+
+    audio_files = [f for f in os.listdir(audio_folder) if f.endswith(('.mp3', '.wav'))]
+    if not audio_files:
+        messagebox.showerror("오류", "audio 폴더에 mp3 또는 wav 파일이 없습니다.")
+        return
+
+    def on_audio_select(event):
+        global selected_audio_file
+        selected_audio_file = os.path.join(audio_folder, audio_combo.get())
+        settings["audio_file"] = selected_audio_file
+        save_settings(settings)
+        selected_audio_label.config(text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file)}")
+        messagebox.showinfo("오디오 파일 선택", f"선택된 오디오 파일: {selected_audio_file}")
+
+        # 오디오 재생
+        play_audio_thread(selected_audio_file)
+
+        audio_selection_window.destroy()
+
+    audio_selection_window = Toplevel(settings_window)
+    audio_selection_window.title("오디오 파일 선택")
+    audio_selection_window.attributes("-topmost", True)
+    Label(audio_selection_window, text="오디오 파일을 선택하세요", font=("Arial", 12)).pack(pady=10)
+    audio_combo = ttk.Combobox(audio_selection_window, values=audio_files, font=("Arial", 12))
+    audio_combo.pack(pady=5)
+    audio_combo.bind("<<ComboboxSelected>>", on_audio_select)
+
+# =======================
+# ALSA/PulseAudio 충돌 방지 설정 (선택 사항)
+# =======================
+
+def configure_audio():
+    """
+    ALSA와 PulseAudio 간의 충돌을 방지하기 위한 설정을 적용합니다.
+    """
+    # 예를 들어, PulseAudio를 기본 사운드 서버로 설정할 수 있습니다.
+    os.environ["SDL_AUDIODRIVER"] = "pulse"
+
+# =======================
+# 메인 애플리케이션
+# =======================
+
+def main():
+    global root
+
+    # PulseAudio 설정 (필요 시 주석 해제)
+    # setup_pulseaudio()
+
+    # 오디오 장치 충돌 방지 설정 (필요 시 주석 해제)
+    # configure_audio()
+
+    # Tkinter 메인 윈도우 생성
+    import tkinter as tk
+    root = tk.Tk()
+    root.title("GMS-1000")
+    root.geometry("800x600")  # 초기 창 크기 설정
+
+    # 초기화 함수 호출 (필요 시)
+    initialize_globals(root, change_branch_func=utils.change_branch)
+
+    # 기본 설정 적용 (예: 오디오 재생 설정)
+    selected_audio_file = settings.get("audio_file")
+
+    # 메인 윈도우 UI 구성
+    main_frame = Frame(root)
+    main_frame.pack(expand=True, fill="both")
+
+    # 설정 버튼
+    settings_button = Button(main_frame, text="설정", command=show_settings, font=("Arial", 14), width=10, height=2)
+    settings_button.pack(pady=20)
+
+    # 오디오 파일 재생 버튼 (선택 사항)
+    play_button = Button(main_frame, text="오디오 재생", command=lambda: play_audio_thread(selected_audio_file) if selected_audio_file else messagebox.showerror("오류", "선택된 오디오 파일이 없습니다."), font=("Arial", 14), width=15, height=2)
+    play_button.pack(pady=20)
+
+    # 메인 루프 시작
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
