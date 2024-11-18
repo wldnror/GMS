@@ -73,7 +73,7 @@ audio_playing = False
 # 각 상자의 알람 상태를 저장하는 딕셔너리
 box_alarm_states = {}
 
-pygame.mixer.init()
+# pygame.mixer.init()
 
 def play_alarm_sound():
     global selected_audio_file, audio_playing
