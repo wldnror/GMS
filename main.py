@@ -6,50 +6,33 @@ import os
 import sys
 import socket
 import subprocess
-import pygame  # pygame 임포트
+from playsound import playsound  # playsound 임포트
 
-# DISPLAY 환경 변수 설정 (Linux 환경에서 GUI를 사용할 경우 필요할 수 있습니다)
 os.environ['DISPLAY'] = ':0'
-
-# pygame 초기화
-pygame.mixer.init()
 
 # 사운드 파일 경로 설정
 script_dir = os.path.dirname(os.path.abspath(__file__))
-SUCCESS_SOUND_PATH = os.path.join(script_dir, 'gms_k1.wav')  # WAV 파일로 변환 권장
-FAILURE_SOUND_PATH = os.path.join(script_dir, 'gms_k1.wav')  # WAV 파일로 변환 권장
-
-# 사운드 로드
-try:
-    success_sound = pygame.mixer.Sound(SUCCESS_SOUND_PATH)
-except pygame.error as e:
-    success_sound = None
-    print(f"성공 사운드 파일을 로드하는 중 오류 발생: {e}")
-
-try:
-    failure_sound = pygame.mixer.Sound(FAILURE_SOUND_PATH)
-except pygame.error as e:
-    failure_sound = None
-    print(f"실패 사운드 파일을 로드하는 중 오류 발생: {e}")
+SUCCESS_SOUND_PATH = os.path.join(script_dir, 'gms_k1.mp3')
+FAILURE_SOUND_PATH = os.path.join(script_dir, 'gms_k1.mp3')
 
 # 사운드 재생 함수 정의
 def play_success_sound():
-    if success_sound:
+    if os.path.isfile(SUCCESS_SOUND_PATH):
         try:
-            success_sound.play()
+            threading.Thread(target=lambda: playsound(SUCCESS_SOUND_PATH), daemon=True).start()
         except Exception as e:
             print(f"성공 사운드 재생 중 오류 발생: {e}")
     else:
-        print(f"성공 사운드 파일을 사용할 수 없습니다: {SUCCESS_SOUND_PATH}")
+        print(f"성공 사운드 파일을 찾을 수 없습니다: {SUCCESS_SOUND_PATH}")
 
 def play_failure_sound():
-    if failure_sound:
+    if os.path.isfile(FAILURE_SOUND_PATH):
         try:
-            failure_sound.play()
+            threading.Thread(target=lambda: playsound(FAILURE_SOUND_PATH), daemon=True).start()
         except Exception as e:
             print(f"실패 사운드 재생 중 오류 발생: {e}")
     else:
-        print(f"실패 사운드 파일을 사용할 수 없습니다: {FAILURE_SOUND_PATH}")
+        print(f"실패 사운드 파일을 찾을 수 없습니다: {FAILURE_SOUND_PATH}")
 
 # 전역 변수 설정
 is_auto_mode = True
@@ -344,7 +327,7 @@ def execute_command(command_index):
         if result == 0:
             update_status("업데이트 성공!", "green")
             show_notification("업데이트에 성공했습니다.", "green")
-            play_success_sound()  # 성공 사운드 재생
+            # 성공 사운드 재생을 제거
             update_led(led_success, True)
             lock_memory_procedure()
         else:
