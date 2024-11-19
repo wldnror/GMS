@@ -12,7 +12,7 @@ import tkinter as tk
 from common import SEGMENTS, create_segment_display, SCALE
 
 # 전역 변수로 설정
-GAIN = 2 / 3
+GAIN = 2 / 3  # 필요에 따라 1, 2, 4, 8 등으로 변경 가능
 SCALE_FACTOR = 1.65  # 20% 키우기
 
 class AnalogUI:
@@ -300,20 +300,22 @@ class AnalogUI:
             try:
                 adc = Adafruit_ADS1x15.ADS1115(address=addr, busnum=1)
                 adc.read_adc(0, gain=GAIN)  # 초기화 확인
-                adcs.append(adc)
+                adcs.append({'adc': adc, 'addr': addr})
                 print(f"ADC at address {hex(addr)} initialized successfully.")
             except Exception as e:
                 print(f"ADC at address {hex(addr)} is not available: {e}")
 
         while True:
             tasks = []
-            for adc_index, adc in enumerate(adcs):
-                task = self.read_adc_values(adc, adc_index)
+            for adc_index, adc_info in enumerate(adcs):
+                adc = adc_info['adc']
+                addr = adc_info['addr']
+                task = self.read_adc_values(adc, addr, adc_index)
                 tasks.append(task)
             await asyncio.gather(*tasks)
             await asyncio.sleep(0.1)
 
-    async def read_adc_values(self, adc, adc_index):
+    async def read_adc_values(self, adc, addr, adc_index):
         try:
             values = []
             raw_values = []  # 디버깅용 원시 값 저장
@@ -331,7 +333,7 @@ class AnalogUI:
                 box_index = adc_index * 4 + channel
                 if box_index >= self.num_boxes:
                     continue
-                print(f"ADC {hex(adc.address)} Channel {channel} Raw: {raw}, Current: {milliamp:.2f} mA")
+                print(f"ADC {hex(addr)} Channel {channel} Raw: {raw}, Current: {milliamp:.2f} mA")
 
             for channel, milliamp in enumerate(values):
                 box_index = adc_index * 4 + channel
@@ -356,9 +358,9 @@ class AnalogUI:
 
                 self.adc_queue.put(box_index)
         except OSError as e:
-            print(f"Error reading ADC data: {e}")
+            print(f"Error reading ADC data from {hex(addr)}: {e}")
         except Exception as e:
-            print(f"Unexpected error reading ADC data: {e}")
+            print(f"Unexpected error reading ADC data from {hex(addr)}: {e}")
 
     def start_adc_thread(self):
         adc_thread = threading.Thread(target=self.run_async_adc)
