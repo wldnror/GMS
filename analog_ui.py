@@ -297,7 +297,7 @@ class AnalogUI:
 
         for addr in adc_addresses:
             try:
-                adc = Adafruit_ADS1x15.ADS1115(address=addr)
+                adc = Adafruit_ADS1x15.ADS1115(address=addr, busnum=1)
                 adc.read_adc(0, gain=GAIN)
                 adcs.append(adc)
                 print(f"ADC at address {hex(addr)} initialized successfully.")
