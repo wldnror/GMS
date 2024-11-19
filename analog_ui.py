@@ -212,6 +212,7 @@ class AnalogUI:
         # box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
         # box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
 
+
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
 
@@ -298,7 +299,7 @@ class AnalogUI:
         for addr in adc_addresses:
             try:
                 adc = Adafruit_ADS1x15.ADS1115(address=addr, busnum=1)
-                adc.read_adc(0, gain=GAIN)
+                adc.read_adc(0, gain=GAIN)  # 초기화 확인
                 adcs.append(adc)
                 print(f"ADC at address {hex(addr)} initialized successfully.")
             except Exception as e:
@@ -315,13 +316,22 @@ class AnalogUI:
     async def read_adc_values(self, adc, adc_index):
         try:
             values = []
+            raw_values = []  # 디버깅용 원시 값 저장
             for channel in range(4):
                 value = adc.read_adc(channel, gain=GAIN)
+                raw_values.append(value)  # 원시 값 저장
                 voltage = value * 6.144 / 32767
                 current = voltage / 250
                 milliamp = current * 1000
 
                 values.append(milliamp)
+
+            # 디버깅: 원시 값과 변환된 값 출력
+            for channel, (raw, milliamp) in enumerate(zip(raw_values, values)):
+                box_index = adc_index * 4 + channel
+                if box_index >= self.num_boxes:
+                    continue
+                print(f"ADC {hex(adc.address)} Channel {channel} Raw: {raw}, Current: {milliamp:.2f} mA")
 
             for channel, milliamp in enumerate(values):
                 box_index = adc_index * 4 + channel
@@ -336,7 +346,7 @@ class AnalogUI:
 
                 self.adc_values[box_index].append(filtered_value)
 
-                print(f"Channel {box_index} Current: {filtered_value:.6f} mA")
+                print(f"Box {box_index} Filtered Current: {filtered_value:.2f} mA")
                 previous_value = self.box_states[box_index]["current_value"]
                 current_value = filtered_value
 
@@ -486,7 +496,4 @@ class AnalogUI:
                     self.update_segment_display(str(self.box_states[box_index]["current_value"]),
                                                 self.box_data[box_index][0], blink=False, box_index=box_index)
 
-                if not self.box_states[box_index]["stop_blinking"].is_set():
-                    self.parent.after(1000, toggle_color) if is_second_alarm else self.parent.after(600, toggle_color)
-
-        toggle_color()
+                if not self.box_states[
