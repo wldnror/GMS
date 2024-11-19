@@ -496,4 +496,7 @@ class AnalogUI:
                     self.update_segment_display(str(self.box_states[box_index]["current_value"]),
                                                 self.box_data[box_index][0], blink=False, box_index=box_index)
 
-                if not self.box_states[
+                if not self.box_states[box_index]["stop_blinking"].is_set():
+                    self.parent.after(1000, toggle_color) if is_second_alarm else self.parent.after(600, toggle_color)
+
+        toggle_color()
