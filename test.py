@@ -1,7 +1,8 @@
 import Adafruit_ADS1x15
 
 GAIN = 2/3
-adc = Adafruit_ADS1x15.ADS1115(address=0x48, busnum=1)
+adc = Adafruit_ADS1x15.ADS1115(address=0x4A, busnum=1)
+ # 0x4A, 0x4B
 
 for channel in range(4):
     value = adc.read_adc(channel, gain=GAIN)
