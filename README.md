@@ -21,6 +21,8 @@ sudo apt-get install -y fonts-nanum
 ```
 ## 필요 라이브러리
 ```bash
+sudo apt update
+sudo apt install locales
 pip install pymodbus
 pip install rich
 pip install Pillow
