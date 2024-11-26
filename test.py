@@ -11,4 +11,4 @@ i2c = busio.I2C(board.SCL, board.SDA)
 ads = ADS1015(i2c)
 
 # 채널 설정 (AIN0에 연결)
-chan = AnalogIn(ads, ADS1015.P0)  # ADS1015.P0 → ads.P0으로 수정 필요 없음
+chan = AnalogIn(ads, ADS1015.P0)  # ADS1015.P0 → ads1015.P0 으로 올바르게 업데이트를 하면서 ->  analog P1.
