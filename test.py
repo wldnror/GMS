@@ -34,7 +34,7 @@ def voltage_to_percentage(voltage, min_v=0.35, max_v=5):
         return (voltage - min_v) / (max_v - min_v) * 100.0
 
 # 여러 번 측정하여 평균을 구하는 함수
-def get_average_voltage(channel, samples=30000, delay=0.01):
+def get_average_voltage(channel, samples=10, delay=0.01):
     total = 0.0
     for _ in range(samples):
         total += channel.voltage
@@ -80,14 +80,25 @@ class PressureMonitorApp:
         self.animation_steps = 20  # 애니메이션 단계를 조정하여 속도 변경 가능
         self.animation_delay = 20  # 애니메이션 각 단계의 지연 시간 (ms)
 
+        # 지수 이동 평균 필터 관련 변수
+        self.alpha = 0.1  # 필터 계수 (0 < alpha < 1)
+        self.smoothed_voltage = None  # 초기 smoothed_voltage 설정
+
         # 업데이트 시작
         self.update_readings()
 
     def update_readings(self):
         try:
             voltage = get_average_voltage(chan, samples=10, delay=0.01)
-            pressure = convert_to_pressure(voltage)
-            percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)
+            
+            # 지수 이동 평균(EMA) 필터 적용
+            if self.smoothed_voltage is None:
+                self.smoothed_voltage = voltage
+            else:
+                self.smoothed_voltage = self.alpha * voltage + (1 - self.alpha) * self.smoothed_voltage
+
+            pressure = convert_to_pressure(self.smoothed_voltage)
+            percentage = voltage_to_percentage(self.smoothed_voltage, min_v=0.4, max_v=1.0)
 
             # 목표 퍼센트 업데이트
             self.target_percentage = percentage
@@ -97,7 +108,7 @@ class PressureMonitorApp:
 
             # 레이블 업데이트
             self.percent_label.config(text=f"{percentage:.2f} %")
-            self.voltage_label.config(text=f"Voltage: {voltage:.2f} V")
+            self.voltage_label.config(text=f"Voltage: {self.smoothed_voltage:.2f} V")
             self.pressure_label.config(text=f"Pressure: {pressure:.2f} Pa")
         except Exception as e:
             # GUI에서 오류를 표시
