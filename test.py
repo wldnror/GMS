@@ -7,16 +7,15 @@ from adafruit_ads1x15.analog_in import AnalogIn
 # I2C 설정
 i2c = busio.I2C(board.SCL, board.SDA)
 
-# ADS1015 객체 생성
-ads = ADS.ADS1015(i2c)
+# ADS1015 객체 생성 및 PGA 설정 (예: gain=1 => +/-4.096V)
+ads = ADS.ADS1015(i2c, gain=1)
 
 # 채널 설정 (AIN0에 연결)
 chan = AnalogIn(ads, ADS.P0)  # ADS.P0 사용
 
-# 변환 공식 (센서 데이터시트 참조)
+# 변환 공식 (0V ~ 5V => 0 kPa ~ 2.5 kPa)
 def convert_to_pressure(voltage):
-    # 예: 전압을 공기압으로 변환 (수식은 센서 스펙에 따라 조정 필요)
-    return voltage * 10  # 임시 수식
+    return voltage * 500  # V당 500 Pa
 
 # 무한 루프
 try:
