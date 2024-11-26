@@ -5,6 +5,7 @@ import adafruit_ads1x15.ads1015 as ADS  # 모듈을 ADS로 임포트
 from adafruit_ads1x15.analog_in import AnalogIn
 import tkinter as tk
 from tkinter import ttk
+import threading
 
 # I2C 설정
 i2c = busio.I2C(board.SCL, board.SDA)
@@ -33,14 +34,9 @@ def voltage_to_percentage(voltage, min_v=0.35, max_v=5):
     else:
         return (voltage - min_v) / (max_v - min_v) * 100.0
 
-# 여러 번 측정하여 평균을 구하는 함수
-def get_average_voltage(channel, samples=10, delay=0.01):
-    total = 0.0
-    for _ in range(samples):
-        total += channel.voltage
-        time.sleep(delay)  # 각 샘플 사이의 지연 (초)
-    average = total / samples
-    return average
+# 실시간으로 단일 샘플을 읽는 함수
+def get_single_voltage(channel):
+    return channel.voltage
 
 # GUI 클래스 정의
 class PressureMonitorApp:
@@ -81,24 +77,43 @@ class PressureMonitorApp:
         self.animation_delay = 20  # 애니메이션 각 단계의 지연 시간 (ms)
 
         # 지수 이동 평균 필터 관련 변수
-        self.alpha = 0.1  # 필터 계수 (0 < alpha < 1)
+        self.alpha = 0.2  # 필터 계수 (0 < alpha < 1). 값이 클수록 빠르게 반응
         self.smoothed_voltage = None  # 초기 smoothed_voltage 설정
+
+        # 스레드 제어 변수
+        self.running = True
+        self.lock = threading.Lock()
+
+        # 샘플링 스레드 시작
+        self.sampling_thread = threading.Thread(target=self.sample_voltage)
+        self.sampling_thread.start()
 
         # 업데이트 시작
         self.update_readings()
 
+    def sample_voltage(self):
+        while self.running:
+            try:
+                voltage = get_single_voltage(chan)
+                with self.lock:
+                    if self.smoothed_voltage is None:
+                        self.smoothed_voltage = voltage
+                    else:
+                        self.smoothed_voltage = self.alpha * voltage + (1 - self.alpha) * self.smoothed_voltage
+            except Exception as e:
+                print(f"샘플링 오류 발생: {e}")
+            time.sleep(0.01)  # 샘플링 주기: 10ms (100Hz)
+
     def update_readings(self):
         try:
-            voltage = get_average_voltage(chan, samples=10, delay=0.01)
-            
-            # 지수 이동 평균(EMA) 필터 적용
-            if self.smoothed_voltage is None:
-                self.smoothed_voltage = voltage
-            else:
-                self.smoothed_voltage = self.alpha * voltage + (1 - self.alpha) * self.smoothed_voltage
+            with self.lock:
+                if self.smoothed_voltage is not None:
+                    smoothed_voltage = self.smoothed_voltage
+                else:
+                    smoothed_voltage = 0.0
 
-            pressure = convert_to_pressure(self.smoothed_voltage)
-            percentage = voltage_to_percentage(self.smoothed_voltage, min_v=0.4, max_v=1.0)
+            pressure = convert_to_pressure(smoothed_voltage)
+            percentage = voltage_to_percentage(smoothed_voltage, min_v=0.4, max_v=1.0)
 
             # 목표 퍼센트 업데이트
             self.target_percentage = percentage
@@ -108,7 +123,7 @@ class PressureMonitorApp:
 
             # 레이블 업데이트
             self.percent_label.config(text=f"{percentage:.2f} %")
-            self.voltage_label.config(text=f"Voltage: {self.smoothed_voltage:.2f} V")
+            self.voltage_label.config(text=f"Voltage: {smoothed_voltage:.2f} V")
             self.pressure_label.config(text=f"Pressure: {pressure:.2f} Pa")
         except Exception as e:
             # GUI에서 오류를 표시
@@ -139,10 +154,16 @@ class PressureMonitorApp:
             self.current_percentage = self.target_percentage
             self.progress['value'] = self.current_percentage
 
+    def on_close(self):
+        self.running = False
+        self.sampling_thread.join()
+        self.root.destroy()
+
 # 메인 함수
 def main():
     root = tk.Tk()
     app = PressureMonitorApp(root)
+    root.protocol("WM_DELETE_WINDOW", app.on_close)
     root.mainloop()
 
 if __name__ == "__main__":
