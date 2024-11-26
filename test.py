@@ -34,7 +34,7 @@ def voltage_to_percentage(voltage, min_v=0.4, max_v=1.3):
         return (voltage - min_v) / (max_v - min_v) * 100.0
 
 # 여러 번 측정하여 평균을 구하는 함수
-def get_average_voltage(channel, samples=300, delay=0.01):
+def get_average_voltage(channel, samples=3, delay=0.01):
     total = 0.0
     for _ in range(samples):
         total += channel.voltage
