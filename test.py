@@ -20,7 +20,7 @@ def convert_to_pressure(voltage):
     return voltage * 500  # V당 500 Pa
 
 # 전압을 퍼센트로 변환하는 함수
-def voltage_to_percentage(voltage, min_v=0.4, max_v=1.0):
+def voltage_to_percentage(voltage, min_v=0.4, max_v=1.3):
     """
     주어진 전압을 0~100%로 매핑합니다.
     min_v: 0%에 해당하는 전압
