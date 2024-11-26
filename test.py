@@ -11,7 +11,7 @@ i2c = busio.I2C(board.SCL, board.SDA)
 ads = ADS1015(i2c)
 
 # 채널 설정 (AIN0에 연결)
-chan = AnalogIn(ads, ADS1015.P0)
+chan = AnalogIn(ads, ADS.P0)  # ADS.P0로 수정
 
 # 변환 공식 (센서 데이터시트 참조)
 def convert_to_pressure(voltage):
