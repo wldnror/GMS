@@ -3,6 +3,9 @@ import board
 import busio
 import adafruit_ads1x15.ads1015 as ADS  # 모듈을 ADS로 임포트
 from adafruit_ads1x15.analog_in import AnalogIn
+import tkinter as tk
+from tkinter import ttk
+import threading
 
 # I2C 설정
 i2c = busio.I2C(board.SCL, board.SDA)
@@ -40,17 +43,79 @@ def get_average_voltage(channel, samples=10, delay=0.01):
     average = total / samples
     return average
 
-# 무한 루프
-try:
-    print("프로그램을 시작합니다. 종료하려면 Ctrl+C를 누르세요.")
-    while True:
-        raw_adc = chan.value  # 원시 ADC 값
-        voltage = get_average_voltage(chan, samples=10, delay=0.01)  # 평균 전압 계산
-        pressure = convert_to_pressure(voltage)  # 전압을 공기압으로 변환
-        percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)  # 전압을 퍼센트로 변환
-        print(f"Raw ADC: {raw_adc}, Voltage: {voltage:.2f} V, Pressure: {pressure:.2f} Pa, Percentage: {percentage:.2f} %")
-        time.sleep(1)
-except KeyboardInterrupt:
-    print("\n프로그램을 종료합니다.")
-except Exception as e:
-    print(f"오류 발생: {e}")
+# GUI 클래스 정의
+class PressureMonitorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Pressure Monitor")
+        self.root.geometry("400x200")
+        
+        # 스타일 설정
+        self.style = ttk.Style()
+        self.style.theme_use('default')
+        self.style.configure("green.Horizontal.TProgressbar", foreground='green', background='green')
+
+        # 프로그레스 바
+        self.progress = ttk.Progressbar(root, style="green.Horizontal.TProgressbar", orient="horizontal",
+                                        length=300, mode="determinate", maximum=100)
+        self.progress.pack(pady=20)
+
+        # 퍼센트 레이블
+        self.percent_label = ttk.Label(root, text="0.00 %", font=("Helvetica", 16))
+        self.percent_label.pack()
+
+        # 전압 레이블
+        self.voltage_label = ttk.Label(root, text="Voltage: 0.00 V", font=("Helvetica", 12))
+        self.voltage_label.pack()
+
+        # 압력 레이블
+        self.pressure_label = ttk.Label(root, text="Pressure: 0.00 Pa", font=("Helvetica", 12))
+        self.pressure_label.pack()
+
+        # 업데이트 주기 설정 (ms 단위)
+        self.update_interval = 1000  # 1초
+
+        # 업데이트 시작
+        self.update_readings()
+
+    def update_readings(self):
+        try:
+            voltage = get_average_voltage(chan, samples=10, delay=0.01)
+            pressure = convert_to_pressure(voltage)
+            percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)
+
+            # UI 업데이트
+            self.progress['value'] = percentage
+            self.percent_label.config(text=f"{percentage:.2f} %")
+            self.voltage_label.config(text=f"Voltage: {voltage:.2f} V")
+            self.pressure_label.config(text=f"Pressure: {pressure:.2f} Pa")
+        except Exception as e:
+            print(f"오류 발생: {e}")
+        
+        # 다음 업데이트 예약
+        self.root.after(self.update_interval, self.update_readings)
+
+# 메인 함수
+def main():
+    root = tk.Tk()
+    app = PressureMonitorApp(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    # GUI를 별도의 스레드에서 실행하여 메인 스레드가 막히지 않도록 함
+    gui_thread = threading.Thread(target=main, daemon=True)
+    gui_thread.start()
+
+    # 터미널에도 로그 출력
+    try:
+        while True:
+            raw_adc = chan.value  # 원시 ADC 값
+            voltage = get_average_voltage(chan, samples=10, delay=0.01)  # 평균 전압 계산
+            pressure = convert_to_pressure(voltage)  # 전압을 공기압으로 변환
+            percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)  # 전압을 퍼센트로 변환
+            print(f"Raw ADC: {raw_adc}, Voltage: {voltage:.2f} V, Pressure: {pressure:.2f} Pa, Percentage: {percentage:.2f} %")
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n프로그램을 종료합니다.")
+    except Exception as e:
+        print(f"오류 발생: {e}")
