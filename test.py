@@ -5,7 +5,6 @@ import adafruit_ads1x15.ads1015 as ADS  # 모듈을 ADS로 임포트
 from adafruit_ads1x15.analog_in import AnalogIn
 import tkinter as tk
 from tkinter import ttk
-import threading
 
 # I2C 설정
 i2c = busio.I2C(board.SCL, board.SDA)
@@ -90,6 +89,10 @@ class PressureMonitorApp:
             self.voltage_label.config(text=f"Voltage: {voltage:.2f} V")
             self.pressure_label.config(text=f"Pressure: {pressure:.2f} Pa")
         except Exception as e:
+            # GUI에서 오류를 표시
+            self.percent_label.config(text="오류 발생")
+            self.voltage_label.config(text=f"Voltage: N/A")
+            self.pressure_label.config(text=f"Pressure: N/A")
             print(f"오류 발생: {e}")
         
         # 다음 업데이트 예약
@@ -102,20 +105,4 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    # GUI를 별도의 스레드에서 실행하여 메인 스레드가 막히지 않도록 함
-    gui_thread = threading.Thread(target=main, daemon=True)
-    gui_thread.start()
-
-    # 터미널에도 로그 출력
-    try:
-        while True:
-            raw_adc = chan.value  # 원시 ADC 값
-            voltage = get_average_voltage(chan, samples=10, delay=0.01)  # 평균 전압 계산
-            pressure = convert_to_pressure(voltage)  # 전압을 공기압으로 변환
-            percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)  # 전압을 퍼센트로 변환
-            print(f"Raw ADC: {raw_adc}, Voltage: {voltage:.2f} V, Pressure: {pressure:.2f} Pa, Percentage: {percentage:.2f} %")
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n프로그램을 종료합니다.")
-    except Exception as e:
-        print(f"오류 발생: {e}")
+    main()
