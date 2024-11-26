@@ -8,7 +8,7 @@ from adafruit_ads1x15.analog_in import AnalogIn
 i2c = busio.I2C(board.SCL, board.SDA)
 
 # ADS1015 객체 생성 및 PGA 설정 (예: gain=2/3 => +/-6.144V)
-ads = ADS.ADS1015(i2c, gain=2/3)
+ads = ADS.ADS1015(i2c, gain=1)
 
 # 채널 설정 (AIN0에 연결)
 chan = AnalogIn(ads, ADS.P0)  # ADS.P0 사용
