@@ -81,7 +81,7 @@ class PressureMonitorApp:
         self.animation_delay = 20  # 애니메이션 각 단계의 지연 시간 (ms)
 
         # 지수 이동 평균 필터 관련 변수
-        self.alpha = 0.5  # 필터 계수 (0 < alpha < 1)
+        self.alpha = 0.8  # 필터 계수 (0 < alpha < 1)
         self.smoothed_voltage = None  # 초기 smoothed_voltage 설정
 
         # 업데이트 시작
