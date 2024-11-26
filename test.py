@@ -34,7 +34,7 @@ def voltage_to_percentage(voltage, min_v=0.35, max_v=5):
         return (voltage - min_v) / (max_v - min_v) * 100.0
 
 # 여러 번 측정하여 평균을 구하는 함수
-def get_average_voltage(channel, samples=10, delay=0.005):
+def get_average_voltage(channel, samples=10, delay=0.01):
     total = 0.0
     for _ in range(samples):
         total += channel.voltage
@@ -72,7 +72,7 @@ class PressureMonitorApp:
         self.pressure_label.pack()
 
         # 업데이트 주기 설정 (ms 단위)
-        self.update_interval = 500  # 0.5초로 줄임
+        self.update_interval = 1000  # 1초
 
         # 애니메이션 관련 변수
         self.current_percentage = 0.0
@@ -80,34 +80,22 @@ class PressureMonitorApp:
         self.animation_steps = 20  # 애니메이션 단계를 조정하여 속도 변경 가능
         self.animation_delay = 20  # 애니메이션 각 단계의 지연 시간 (ms)
 
-        # 동적 지수 이동 평균 필터 관련 변수
-        self.base_alpha = 0.1  # 기본 필터 계수 (0 < alpha < 1)
-        self.max_alpha = 0.5   # 최대 필터 계수
+        # 지수 이동 평균 필터 관련 변수
+        self.alpha = 0.1  # 필터 계수 (0 < alpha < 1)
         self.smoothed_voltage = None  # 초기 smoothed_voltage 설정
-        self.change_threshold = 0.5   # 변화 감지 임계값 (V 단위)
 
         # 업데이트 시작
         self.update_readings()
 
     def update_readings(self):
         try:
-            voltage = get_average_voltage(chan, samples=10, delay=0.005)
+            voltage = get_average_voltage(chan, samples=10, delay=0.01)
             
-            # 변화량 계산
-            if self.smoothed_voltage is not None:
-                delta = abs(voltage - self.smoothed_voltage)
-                if delta > self.change_threshold:
-                    alpha = self.max_alpha
-                else:
-                    alpha = self.base_alpha
-            else:
-                alpha = self.base_alpha
-
-            # 동적 지수 이동 평균(EMA) 필터 적용
+            # 지수 이동 평균(EMA) 필터 적용
             if self.smoothed_voltage is None:
                 self.smoothed_voltage = voltage
             else:
-                self.smoothed_voltage = alpha * voltage + (1 - alpha) * self.smoothed_voltage
+                self.smoothed_voltage = self.alpha * voltage + (1 - self.alpha) * self.smoothed_voltage
 
             pressure = convert_to_pressure(self.smoothed_voltage)
             percentage = voltage_to_percentage(self.smoothed_voltage, min_v=0.4, max_v=1.0)
