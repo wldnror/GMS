@@ -25,6 +25,21 @@ class MovingAverage:
             return 0.0
         return self.total / len(self.buffer)
 
+# 지수 이동 평균 클래스 정의 (선택 사항)
+class ExponentialMovingAverage:
+    def __init__(self, alpha=0.2):
+        self.alpha = alpha
+        self.ema = None
+
+    def add_sample(self, sample):
+        if self.ema is None:
+            self.ema = sample
+        else:
+            self.ema = self.alpha * sample + (1 - self.alpha) * self.ema
+
+    def get_average(self):
+        return self.ema if self.ema is not None else 0.0
+
 # I2C 설정
 i2c = busio.I2C(board.SCL, board.SDA)
 
@@ -38,8 +53,8 @@ chan = AnalogIn(ads, ADS.P0)  # ADS.P0 사용
 def convert_to_pressure(voltage):
     return voltage * 500  # V당 500 Pa
 
-# 전압을 퍼센트로 변환하는 함수
-def voltage_to_percentage(voltage, min_v=0.4, max_v=1.0):
+# 전압을 퍼센트로 변환하는 함수 (범위 조정)
+def voltage_to_percentage(voltage, min_v=0.35, max_v=0.7):
     """
     주어진 전압을 0~100%로 매핑합니다.
     min_v: 0%에 해당하는 전압
@@ -55,12 +70,23 @@ def voltage_to_percentage(voltage, min_v=0.4, max_v=1.0):
 # 이동 평균 객체 생성
 moving_average = MovingAverage(size=20)  # 샘플 수를 늘려 평균의 정확도 향상
 
+# 지수 이동 평균 객체 생성 (선택 사항)
+# ema = ExponentialMovingAverage(alpha=0.2)
+
 # 여러 번 측정하여 평균을 구하는 함수
 def get_average_voltage(channel, delay=0.01):
     voltage = channel.voltage
     moving_average.add_sample(voltage)
     average = moving_average.get_average()
+    print(f"Average Voltage: {average:.2f} V")  # 디버깅용 출력
     return average
+
+    # 지수 이동 평균을 사용할 경우:
+    # voltage = channel.voltage
+    # ema.add_sample(voltage)
+    # average = ema.get_average()
+    # print(f"Average Voltage (EMA): {average:.2f} V")  # 디버깅용 출력
+    # return average
 
 # GUI 클래스 정의
 class PressureMonitorApp:
@@ -107,7 +133,7 @@ class PressureMonitorApp:
         try:
             average_voltage = get_average_voltage(chan, delay=0.01)
             pressure = convert_to_pressure(average_voltage)
-            self.target_percentage = voltage_to_percentage(average_voltage, min_v=0.4, max_v=1.0)
+            self.target_percentage = voltage_to_percentage(average_voltage, min_v=0.35, max_v=0.7)
 
             # UI 업데이트 (애니메이션을 통해 부드럽게)
             self.animate_progress()
