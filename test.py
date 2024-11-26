@@ -5,6 +5,25 @@ import adafruit_ads1x15.ads1015 as ADS  # 모듈을 ADS로 임포트
 from adafruit_ads1x15.analog_in import AnalogIn
 import tkinter as tk
 from tkinter import ttk
+from collections import deque
+
+# 이동 평균 클래스 정의
+class MovingAverage:
+    def __init__(self, size=20):
+        self.size = size
+        self.buffer = deque(maxlen=size)
+        self.total = 0.0
+
+    def add_sample(self, sample):
+        if len(self.buffer) == self.size:
+            self.total -= self.buffer[0]
+        self.buffer.append(sample)
+        self.total += sample
+
+    def get_average(self):
+        if not self.buffer:
+            return 0.0
+        return self.total / len(self.buffer)
 
 # I2C 설정
 i2c = busio.I2C(board.SCL, board.SDA)
@@ -33,17 +52,14 @@ def voltage_to_percentage(voltage, min_v=0.4, max_v=1.0):
     else:
         return (voltage - min_v) / (max_v - min_v) * 100.0
 
+# 이동 평균 객체 생성
+moving_average = MovingAverage(size=20)  # 샘플 수를 늘려 평균의 정확도 향상
+
 # 여러 번 측정하여 평균을 구하는 함수
-def get_average_voltage(channel, samples=10, delay=0.01):
-    total = 0.0
-    readings = []
-    for _ in range(samples):
-        voltage = channel.voltage
-        readings.append(voltage)
-        total += voltage
-        time.sleep(delay)  # 각 샘플 사이의 지연 (초)
-    average = total / samples
-    print(f"Sample readings: {readings}, Average: {average}")
+def get_average_voltage(channel, delay=0.01):
+    voltage = channel.voltage
+    moving_average.add_sample(voltage)
+    average = moving_average.get_average()
     return average
 
 # GUI 클래스 정의
@@ -89,15 +105,15 @@ class PressureMonitorApp:
 
     def update_readings(self):
         try:
-            voltage = get_average_voltage(chan, samples=10, delay=0.01)
-            pressure = convert_to_pressure(voltage)
-            self.target_percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)
+            average_voltage = get_average_voltage(chan, delay=0.01)
+            pressure = convert_to_pressure(average_voltage)
+            self.target_percentage = voltage_to_percentage(average_voltage, min_v=0.4, max_v=1.0)
 
             # UI 업데이트 (애니메이션을 통해 부드럽게)
             self.animate_progress()
 
-            # 레이블 업데이트
-            self.voltage_label.config(text=f"Voltage: {voltage:.2f} V")
+            # 레이블 업데이트 (current_percentage 기준)
+            self.voltage_label.config(text=f"Voltage: {average_voltage:.2f} V")
             self.pressure_label.config(text=f"Pressure: {pressure:.2f} Pa")
             self.percent_label.config(text=f"{self.current_percentage:.2f} %")
         except Exception as e:
