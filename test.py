@@ -13,8 +13,7 @@ ads = ADS.ADS1015(i2c, gain=4)
 # 채널 설정 (AIN0에 연결)
 chan = AnalogIn(ads, ADS.P0)
 
-# 변환 공식 (0.5V ~ 1V => 0 kPa ~ 2.5 kPa)
-# 센서의 출력 범위가 0.5V ~ 1V일 경우, 이를 0 ~ 2500 Pa로 변환
+# 변환 공식 (0.5V ~ 1V => 0 kPa ~ 2500 Pa)
 def convert_to_pressure(voltage):
     # 선형 변환: (V - 0.5) / (1 - 0.5) = 0 ~ 1
     # 0 ~ 2500 Pa로 변환
