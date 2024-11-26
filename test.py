@@ -25,8 +25,13 @@ chan = AnalogIn(ads, ADS.P0)
 
 # 변환 함수: 전압을 공기압으로 변환 (센서 데이터시트에 맞게 조정 필요)
 def convert_to_pressure(voltage):
-    # 예시 변환 공식, 실제 센서에 맞게 수정하세요
-    return voltage * 10  # 임시 수식
+    # 예시 변환 공식: 0.5V -> 0%, 4.5V -> 100%
+    if voltage < 0.5:
+        voltage = 0.5
+    elif voltage > 4.5:
+        voltage = 4.5
+    pressure_percent = ((voltage - 0.5) / 4.0) * 100
+    return pressure_percent
 
 # Tkinter GUI 클래스 정의
 class PressureMonitorApp:
@@ -43,28 +48,29 @@ class PressureMonitorApp:
         style.configure("TButton", font=("Helvetica", 14))
 
         # 공기압 표시 레이블
-        self.pressure_label = ttk.Label(root, text="공기압: -- Pa", foreground="blue")
+        self.pressure_label = ttk.Label(root, text="공기압: -- %", foreground="blue")
         self.pressure_label.pack(pady=20)
 
         # Matplotlib 그래프 설정
-        self.fig, self.ax = plt.subplots(figsize=(7, 4))
+        self.fig, self.ax = plt.subplots(figsize=(6, 4))
         self.ax.set_title("공기압 실시간 그래프")
         self.ax.set_xlabel("시간 (초)")
-        self.ax.set_ylabel("압력 (Pa)")
-        self.ax.set_ylim(0, 100)  # 예상 압력 범위에 맞게 조정
+        self.ax.set_ylabel("압력 (%)")
+        self.ax.set_ylim(0, 100)  # 0~100% 범위 설정
+        self.ax.set_xlim(0, 10)  # 10초 동안의 데이터 표시
 
         # 데이터 리스트 초기화
         self.data_x = []
         self.data_y = []
         self.start_time = time.time()
 
-        # 그래프의 선 객체 초기화
-        self.line, = self.ax.plot([], [], color='red')
+        # 그래프의 막대 객체 초기화
+        self.bar = self.ax.bar(['공기압'], [0], color='green')
 
         # 그래프를 Tkinter에 삽입
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
         self.canvas.draw()
-        self.canvas.get_tk_widget().pack()
+        self.canvas.get_tk_widget().pack(pady=20)
 
         # 데이터 업데이트 스레드 시작
         self.running = True
@@ -88,32 +94,25 @@ class PressureMonitorApp:
                 self.data_x.append(current_time)
                 self.data_y.append(pressure)
 
-                # 데이터 포인트 수 제한 (예: 100개)
-                if len(self.data_x) > 100:
-                    self.data_x = self.data_x[-100:]
-                    self.data_y = self.data_y[-100:]
+                # 데이터 포인트 수 제한 (예: 최근 10초)
+                while self.data_x and (current_time - self.data_x[0] > 10):
+                    self.data_x.pop(0)
+                    self.data_y.pop(0)
 
                 # GUI 스레드에서 그래프 업데이트
-                self.root.after(0, self.update_graph)
+                self.root.after(0, self.update_graph, pressure)
 
-                time.sleep(1)  # 1초 간격으로 업데이트
+                time.sleep(0.2)  # 200ms 간격으로 업데이트
             except Exception as e:
                 print(f"오류 발생: {e}")
                 self.running = False
 
     def update_label(self, pressure):
-        self.pressure_label.config(text=f"공기압: {pressure:.2f} Pa")
+        self.pressure_label.config(text=f"공기압: {pressure:.2f} %")
 
-    def update_graph(self):
-        # 그래프의 데이터 업데이트
-        self.line.set_data(self.data_x, self.data_y)
-        self.ax.set_xlim(max(0, self.data_x[-1] - 100), self.data_x[-1] + 1)
-
-        # y축 범위 동적 조정
-        if self.data_y:
-            current_max = max(self.data_y)
-            if current_max + 10 > self.ax.get_ylim()[1]:
-                self.ax.set_ylim(0, current_max + 10)
+    def update_graph(self, pressure):
+        # 막대 그래프 업데이트
+        self.bar[0].set_height(pressure)
 
         # 그래프 리프레시
         self.ax.figure.canvas.draw()
