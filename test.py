@@ -34,12 +34,16 @@ def voltage_to_percentage(voltage, min_v=0.4, max_v=1.0):
         return (voltage - min_v) / (max_v - min_v) * 100.0
 
 # 여러 번 측정하여 평균을 구하는 함수
-def get_average_voltage(channel, samples=5, delay=0.005):
+def get_average_voltage(channel, samples=10, delay=0.01):
     total = 0.0
+    readings = []
     for _ in range(samples):
-        total += channel.voltage
+        voltage = channel.voltage
+        readings.append(voltage)
+        total += voltage
         time.sleep(delay)  # 각 샘플 사이의 지연 (초)
     average = total / samples
+    print(f"Sample readings: {readings}, Average: {average}")
     return average
 
 # GUI 클래스 정의
@@ -72,14 +76,14 @@ class PressureMonitorApp:
         self.pressure_label.pack()
 
         # 업데이트 주기 설정 (ms 단위)
-        self.update_interval = 100  # 0.1초
+        self.update_interval = 200  # 0.2초
 
         # 업데이트 시작
         self.update_readings()
 
     def update_readings(self):
         try:
-            voltage = get_average_voltage(chan, samples=5, delay=0.005)
+            voltage = get_average_voltage(chan, samples=10, delay=0.01)
             pressure = convert_to_pressure(voltage)
             percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)
 
