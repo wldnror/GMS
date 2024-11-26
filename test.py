@@ -78,6 +78,12 @@ class PressureMonitorApp:
         # 업데이트 주기 설정 (ms 단위)
         self.update_interval = 200  # 0.2초
 
+        # 애니메이션 설정
+        self.animation_step = 1  # 프로그레스 바 업데이트 스텝
+        self.animation_delay = 10  # 각 스텝 사이의 지연 (ms)
+        self.current_percentage = 0.0  # 현재 표시되는 퍼센트
+        self.target_percentage = 0.0   # 목표 퍼센트
+
         # 업데이트 시작
         self.update_readings()
 
@@ -85,13 +91,15 @@ class PressureMonitorApp:
         try:
             voltage = get_average_voltage(chan, samples=10, delay=0.01)
             pressure = convert_to_pressure(voltage)
-            percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)
+            self.target_percentage = voltage_to_percentage(voltage, min_v=0.4, max_v=1.0)
 
-            # UI 업데이트
-            self.progress['value'] = percentage
-            self.percent_label.config(text=f"{percentage:.2f} %")
+            # UI 업데이트 (애니메이션을 통해 부드럽게)
+            self.animate_progress()
+
+            # 레이블 업데이트
             self.voltage_label.config(text=f"Voltage: {voltage:.2f} V")
             self.pressure_label.config(text=f"Pressure: {pressure:.2f} Pa")
+            self.percent_label.config(text=f"{self.current_percentage:.2f} %")
         except Exception as e:
             # GUI에서 오류를 표시
             self.percent_label.config(text="오류 발생")
@@ -101,6 +109,24 @@ class PressureMonitorApp:
         
         # 다음 업데이트 예약
         self.root.after(self.update_interval, self.update_readings)
+
+    def animate_progress(self):
+        if self.current_percentage < self.target_percentage:
+            self.current_percentage += self.animation_step
+            if self.current_percentage > self.target_percentage:
+                self.current_percentage = self.target_percentage
+        elif self.current_percentage > self.target_percentage:
+            self.current_percentage -= self.animation_step
+            if self.current_percentage < self.target_percentage:
+                self.current_percentage = self.target_percentage
+        
+        # 프로그레스 바와 레이블 업데이트
+        self.progress['value'] = self.current_percentage
+        self.percent_label.config(text=f"{self.current_percentage:.2f} %")
+        
+        # 애니메이션 계속
+        if self.current_percentage != self.target_percentage:
+            self.root.after(self.animation_delay, self.animate_progress)
 
 # 메인 함수
 def main():
