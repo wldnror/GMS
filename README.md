@@ -76,6 +76,7 @@ WantedBy=multi-user.target
 ### systemd 서비스를 다시 시작하여 변경 사항을 적용합니다.
 ```bash
 sudo systemctl daemon-reload
+sudo systemctl enable myscript.service
 sudo systemctl restart myscript.service
 ```
 
