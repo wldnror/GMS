@@ -17,13 +17,16 @@ import socket
 from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
-# import pygame
+import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
+import logging
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 os.environ['DISPLAY'] = ':0'
-
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
 SETTINGS_FILE = "settings.json"
@@ -72,13 +75,21 @@ audio_playing = False
 
 # 각 상자의 알람 상태를 저장하는 딕셔너리
 box_alarm_states = {}
+pygame.mixer.init()
 
-# pygame.mixer.init()
+# pygame 초기화는 main.py에서 한 번만 수행
+try:
+    import pygame
+    pygame.mixer.init()
+except ImportError:
+    logging.error("pygame is not installed. Alarm sounds will not work.")
+except pygame.error as e:
+    logging.error(f"Pygame initialization error: {e}")
 
 def play_alarm_sound():
     global selected_audio_file, audio_playing
     if selected_audio_file is None:
-        print("No audio file selected. Skipping alarm sound.")
+        logging.info("No audio file selected. Skipping alarm sound.")
         return
 
     if not audio_playing:
@@ -87,16 +98,18 @@ def play_alarm_sound():
                 pygame.mixer.music.load(selected_audio_file)
                 pygame.mixer.music.play(loops=-1)
                 audio_playing = True
+                logging.info("Alarm sound started.")
             except pygame.error as e:
-                print(f"Pygame error: {e}")
+                logging.error(f"Pygame error: {e}")
         else:
-            print(f"File not found: {selected_audio_file}")
+            logging.error(f"File not found: {selected_audio_file}")
 
 def stop_alarm_sound():
     global audio_playing
     if audio_playing:
         pygame.mixer.music.stop()
         audio_playing = False
+        logging.info("Alarm sound stopped.")
 
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
@@ -149,6 +162,7 @@ def stop_all_alarms():
     GPIO.output(YELLOW_PIN, GPIO.LOW)
     root.config(background=default_background)
     stop_alarm_sound()
+    logging.info("All alarms stopped.")
 
 def alarm_blink():
     red_duration = 1000
@@ -269,11 +283,14 @@ def change_branch():
         branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
 
         selected_branch = StringVar(branch_window)
-        selected_branch.set(branches[0])
+        selected_branch.set(branches[0] if branches else "N/A")
         ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
 
         def switch_branch():
             new_branch = selected_branch.get()
+            if new_branch == "N/A":
+                messagebox.showerror("오류", "유효한 브랜치를 선택해주세요.")
+                return
             try:
                 subprocess.check_output(['git', 'checkout', new_branch])
                 messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
@@ -303,7 +320,7 @@ if __name__ == "__main__":
     default_background = root.cget("background")
 
     def signal_handler(sig, frame):
-        print("Exiting gracefully...")
+        logging.info("Exiting gracefully...")
         GPIO.cleanup()  # GPIO 핀 초기화
         root.destroy()
         sys.exit(0)
@@ -342,8 +359,8 @@ if __name__ == "__main__":
     main_frame.grid(row=0, column=0, sticky="nsew")
 
     # 클래스 인스턴스 생성 (프레임 배치 없음)
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings.get("modbus_gas_types", {}), lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings.get("analog_gas_types", {}), lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
@@ -427,7 +444,7 @@ if __name__ == "__main__":
         clock_thread.start()
 
     def on_closing():
-        if 0 <= total_boxes <= 4:
+        if 0 <= total_boxes <= 4 and 'stop_event' in locals():
             stop_event.set()
             clock_thread.join()
         GPIO.cleanup()
