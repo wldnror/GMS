@@ -8,8 +8,12 @@ import Adafruit_ADS1x15
 import queue
 import tkinter as tk
 import time
+import logging
 
 from common import SEGMENTS, create_segment_display, SCALE
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 전역 변수로 설정
 GAIN = 2 / 3  # 필요에 따라 1, 2, 4, 8 등으로 변경 가능
@@ -282,9 +286,9 @@ class AnalogUI:
                 adc = Adafruit_ADS1x15.ADS1115(address=addr, busnum=1)
                 adc.read_adc(0, gain=GAIN)  # 초기화 확인
                 adcs.append({'adc': adc, 'addr': addr})
-                print(f"ADC at address {hex(addr)} initialized successfully.")
+                logging.info(f"ADC at address {hex(addr)} initialized successfully.")
             except Exception as e:
-                print(f"ADC at address {hex(addr)} is not available: {e}")
+                logging.error(f"ADC at address {hex(addr)} is not available: {e}")
 
         while True:
             for adc_index, adc_info in enumerate(adcs):
@@ -323,11 +327,11 @@ class AnalogUI:
                             self.adc_queue.put(box_index)
 
                 except OSError as e:
-                    print(f"Error reading ADC data from {hex(addr)}: {e}")
+                    logging.error(f"Error reading ADC data from {hex(addr)}: {e}")
                 except Exception as e:
-                    print(f"Unexpected error reading ADC data from {hex(addr)}: {e}")
+                    logging.error(f"Unexpected error reading ADC data from {hex(addr)}: {e}")
 
-            time.sleep(0.05)  # 50ms 간격으로 ADC 읽기
+            time.sleep(0.1)  # 100ms 간격으로 ADC 읽기
 
     def start_adc_thread(self):
         adc_thread = threading.Thread(target=self.read_adc_thread)
@@ -335,7 +339,7 @@ class AnalogUI:
         adc_thread.start()
 
     def schedule_ui_update(self):
-        self.parent.after(100, self.update_ui_from_queue)  # UI 업데이트 주기 100ms
+        self.parent.after(200, self.update_ui_from_queue)  # UI 업데이트 주기 200ms
 
     def update_ui_from_queue(self):
         try:
@@ -349,7 +353,7 @@ class AnalogUI:
                 self.start_interpolation(box_index, full_scale, alarm_levels)
 
         except Exception as e:
-            print(f"Error updating UI from queue: {e}")
+            logging.error(f"Error updating UI from queue: {e}")
 
         self.schedule_ui_update()
 
