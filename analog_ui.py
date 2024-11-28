@@ -73,7 +73,7 @@ class AnalogUI:
         box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR),
                                     fill='black', outline='grey', tags='border')
 
-        gas_type_value = gas_types.get(f"analog_box_{index}", "ORG")
+        gas_type_value = initial_gas_types.get(f"analog_box_{index}", "ORG")
         gas_type_var = StringVar(value=gas_type_value)
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var
