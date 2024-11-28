@@ -6,8 +6,8 @@ from collections import deque
 from tkinter import Frame, Canvas, StringVar
 import Adafruit_ADS1x15
 import queue
-import asyncio
 import tkinter as tk
+import time
 
 from common import SEGMENTS, create_segment_display, SCALE
 
@@ -19,7 +19,7 @@ class AnalogUI:
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
-        "HMDS": 3000.0,  # 복원: 300.0 -> 3000.0
+        "HMDS": 3000.0,
         "HC-100": 5000
     }
 
@@ -33,7 +33,7 @@ class AnalogUI:
     ALARM_LEVELS = {
         "ORG": {"AL1": 9500, "AL2": 9999},
         "ARF-T": {"AL1": 2000, "AL2": 4000},
-        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},  # 복원: 264.0 -> 2640.0, 300.0 -> 3000.0
+        "HMDS": {"AL1": 2640.0, "AL2": 3000.0},
         "HC-100": {"AL1": 1500, "AL2": 3000}
     }
 
@@ -45,8 +45,6 @@ class AnalogUI:
         self.box_states = []
         self.box_frames = []
         self.box_data = []
-
-        # 필터 크기 축소 및 가중치 필터 적용
         self.adc_values = [deque(maxlen=3) for _ in range(num_boxes)]  # 필터링을 위해 최근 3개의 값을 유지
 
         for i in range(num_boxes):
@@ -55,7 +53,7 @@ class AnalogUI:
         for i in range(num_boxes):
             self.update_circle_state([False, False, False, False], box_index=i)
 
-        self.adc_queue = queue.Queue()
+        self.adc_queue = queue.Queue(maxsize=100)  # 큐 크기 제한
         self.start_adc_thread()
         self.schedule_ui_update()
 
@@ -75,7 +73,7 @@ class AnalogUI:
         box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR),
                                     fill='black', outline='grey', tags='border')
 
-        gas_type_value = initial_gas_types.get(f"analog_box_{index}", "ORG")
+        gas_type_value = gas_types.get(f"analog_box_{index}", "ORG")
         gas_type_var = StringVar(value=gas_type_value)
         gas_type_var.trace_add("write", lambda *args, var=gas_type_var, idx=index: self.update_full_scale(var, idx))
         self.gas_types[f"analog_box_{index}"] = gas_type_var
@@ -151,23 +149,12 @@ class AnalogUI:
         self.box_states[index]["milliamp_var"] = milliamp_var
         self.box_states[index]["milliamp_text_id"] = milliamp_text_id
 
-        # AL1 및 AL2에 반응하는 사각 박스 제거
-        # led1 = box_canvas.create_rectangle(0, int(200 * SCALE_FACTOR), int(78 * SCALE_FACTOR),
-        #                                    int(215 * SCALE_FACTOR), fill='black', outline='white')
-        # led2 = box_canvas.create_rectangle(int(78 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
-        #                                    int(155 * SCALE_FACTOR), int(215 * SCALE_FACTOR),
-        #                                    fill='black', outline='white')
-        # box_canvas.lift(led1)
-        # box_canvas.lift(led2)
-
         box_canvas.create_text(int(80 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD",
                                font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#cccccc", anchor="center")
 
-        # 수정: led1과 led2를 box_data에서 제외
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, circle_items))
 
-     
     def update_full_scale(self, gas_type_var, box_index):
         gas_type = gas_type_var.get()
         full_scale = self.GAS_FULL_SCALE[gas_type]
@@ -178,9 +165,8 @@ class AnalogUI:
         box_canvas.coords(self.box_states[box_index]["gas_type_text_id"], *position)
         box_canvas.itemconfig(self.box_states[box_index]["gas_type_text_id"], text=gas_type)
 
-    
     def update_circle_state(self, states, box_index=0):
-        box_canvas, circle_items = self.box_data[box_index]  # led1, led2 제거
+        box_canvas, circle_items = self.box_data[box_index]
 
         colors_on = ['red', 'red', 'green', 'yellow']
         colors_off = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
@@ -190,7 +176,7 @@ class AnalogUI:
         if states[1]:
             states[0] = True
 
-        for i, state in enumerate(states[:4]):  # 필요에 따라 조정
+        for i, state in enumerate(states[:4]):
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
@@ -207,11 +193,6 @@ class AnalogUI:
             outline_color = outline_color_off
 
         box_canvas.config(highlightbackground=outline_color)
-
-        # led1과 led2 업데이트 제거
-        # box_canvas.itemconfig(led1, fill='red' if states[0] else 'black')
-        # box_canvas.itemconfig(led2, fill='red' if states[1] else 'black')
-
 
     def update_segment_display(self, value, box_canvas, blink=False, box_index=0):
         previous_segment_display = self.box_states[box_index]["previous_segment_display"]
@@ -292,7 +273,7 @@ class AnalogUI:
         with open(log_file, 'a') as file:
             file.write(log_line)
 
-    async def read_adc_data(self):
+    def read_adc_thread(self):
         adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = []
 
@@ -306,72 +287,55 @@ class AnalogUI:
                 print(f"ADC at address {hex(addr)} is not available: {e}")
 
         while True:
-            tasks = []
             for adc_index, adc_info in enumerate(adcs):
                 adc = adc_info['adc']
                 addr = adc_info['addr']
-                task = self.read_adc_values(adc, addr, adc_index)
-                tasks.append(task)
-            await asyncio.gather(*tasks)
-            await asyncio.sleep(0.1)
+                try:
+                    values = []
+                    raw_values = []
+                    for channel in range(4):
+                        value = adc.read_adc(channel, gain=GAIN)
+                        raw_values.append(value)
+                        voltage = value * 6.144 / 32767
+                        current = voltage / 250
+                        milliamp = current * 1000
+                        values.append(milliamp)
 
-    async def read_adc_values(self, adc, addr, adc_index):
-        try:
-            values = []
-            raw_values = []  # 디버깅용 원시 값 저장
-            for channel in range(4):
-                value = adc.read_adc(channel, gain=GAIN)
-                raw_values.append(value)  # 원시 값 저장
-                voltage = value * 6.144 / 32767
-                current = voltage / 250
-                milliamp = current * 1000
+                    for channel, milliamp in enumerate(values):
+                        box_index = adc_index * 4 + channel
+                        if box_index >= self.num_boxes:
+                            continue
 
-                values.append(milliamp)
+                        if len(self.adc_values[box_index]) == 0:
+                            filtered_value = milliamp
+                        else:
+                            filtered_value = (0.7 * milliamp) + (0.3 * self.adc_values[box_index][-1])
 
-            # 디버깅: 원시 값과 변환된 값 출력
-            for channel, (raw, milliamp) in enumerate(zip(raw_values, values)):
-                box_index = adc_index * 4 + channel
-                if box_index >= self.num_boxes:
-                    continue
-                print(f"ADC {hex(addr)} Channel {channel} Raw: {raw}, Current: {milliamp:.2f} mA")
+                        self.adc_values[box_index].append(filtered_value)
+                        previous_value = self.box_states[box_index]["current_value"]
+                        current_value = filtered_value
 
-            for channel, milliamp in enumerate(values):
-                box_index = adc_index * 4 + channel
-                if box_index >= self.num_boxes:
-                    continue
+                        self.box_states[box_index]["previous_value"] = previous_value
+                        self.box_states[box_index]["current_value"] = current_value
+                        self.box_states[box_index]["interpolating"] = True
 
-                # 가중치 필터 적용
-                if len(self.adc_values[box_index]) == 0:
-                    filtered_value = milliamp
-                else:
-                    filtered_value = (0.7 * milliamp) + (0.3 * self.adc_values[box_index][-1])
+                        if not self.adc_queue.full():
+                            self.adc_queue.put(box_index)
 
-                self.adc_values[box_index].append(filtered_value)
+                except OSError as e:
+                    print(f"Error reading ADC data from {hex(addr)}: {e}")
+                except Exception as e:
+                    print(f"Unexpected error reading ADC data from {hex(addr)}: {e}")
 
-                print(f"Box {box_index} Filtered Current: {filtered_value:.2f} mA")
-                previous_value = self.box_states[box_index]["current_value"]
-                current_value = filtered_value
-
-                self.box_states[box_index]["previous_value"] = previous_value
-                self.box_states[box_index]["current_value"] = current_value
-                self.box_states[box_index]["interpolating"] = True
-
-                self.adc_queue.put(box_index)
-        except OSError as e:
-            print(f"Error reading ADC data from {hex(addr)}: {e}")
-        except Exception as e:
-            print(f"Unexpected error reading ADC data from {hex(addr)}: {e}")
+            time.sleep(0.05)  # 50ms 간격으로 ADC 읽기
 
     def start_adc_thread(self):
-        adc_thread = threading.Thread(target=self.run_async_adc)
+        adc_thread = threading.Thread(target=self.read_adc_thread)
         adc_thread.daemon = True
         adc_thread.start()
 
-    def run_async_adc(self):
-        asyncio.run(self.read_adc_data())
-
     def schedule_ui_update(self):
-        self.parent.after(10, self.update_ui_from_queue)
+        self.parent.after(100, self.update_ui_from_queue)  # UI 업데이트 주기 100ms
 
     def update_ui_from_queue(self):
         try:
