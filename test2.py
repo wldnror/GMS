@@ -2,7 +2,7 @@ import RPi.GPIO as GPIO
 import time
 
 # GPIO 핀 번호 설정 (BCM 모드 사용)
-COOLER_PIN = 27
+COOLER_PIN = 12
 
 # GPIO 설정
 GPIO.setmode(GPIO.BCM)
