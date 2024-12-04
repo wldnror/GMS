@@ -41,7 +41,7 @@ class UPSMonitorUI:
 
         # 주기적으로 업데이트하는 쓰레드 시작
         self.running = True
-        self.update_thread = threading.Thread(target=self.update_loop)
+        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
         self.update_thread.start()
 
     def create_ups_box(self, index):
@@ -68,10 +68,10 @@ class UPSMonitorUI:
             outline='black',
             tags='border'
         )
-        # 하단 영역 (검정색)
+        # 하단 영역 (검정색) - Y 좌표 수정: y0 < y1
         box_canvas.create_rectangle(
-            0, int(310 * SCALE_FACTOR),
-            int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
+            0, int(200 * SCALE_FACTOR),
+            int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR),
             fill='black',
             outline='black',
             tags='border'
@@ -170,7 +170,7 @@ class UPSMonitorUI:
             # 조정 값이 -100에서 +100 사이로 제한
             adjustment = max(-100, min(100, adjustment))
             self.box_data[0]["adjustment"] = adjustment
-            print(f"배터리 조정 값: {self.box_data[0]['adjustment']}%")
+            print(f"배터리 조정 값이 {adjustment}%로 설정되었습니다.")
         except (ValueError, IndexError):
             print("유효한 값을 입력하세요. 예: +30 또는 -30")
 
@@ -300,7 +300,7 @@ if __name__ == "__main__":
 
     # 배터리 조정 값 설정 (예: +30 또는 -30)
     # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(10)   # 배터리 잔량을 +30% 조정
+    ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
     # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
