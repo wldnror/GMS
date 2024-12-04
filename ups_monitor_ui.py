@@ -1,7 +1,6 @@
 from tkinter import Frame, Canvas, Button, Scale, HORIZONTAL
 import time
 import threading
-import random  # 오차 적용을 위해 random 모듈 임포트
 
 # Adafruit INA219 라이브러리 임포트
 from adafruit_ina219 import INA219
