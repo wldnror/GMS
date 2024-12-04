@@ -16,7 +16,6 @@ class UPSMonitorUI:
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
-        self.adjustment = 0  # 배터리 조정 값 초기화
 
         # I2C 통신 설정
         i2c_bus = I2C(board.SCL, board.SDA)
@@ -80,24 +79,29 @@ class UPSMonitorUI:
             "battery_level_bar": battery_level_bar,
             "battery_percentage_text": battery_percentage_text,
             "mode_text_id": mode_text_id,
-            "mode": "상시 모드"  # 초기 모드 설정
+            "mode": "상시 모드",  # 초기 모드 설정
+            "adjustment": 0  # 배터리 조정 값 초기화
         })
 
         # 프레임을 부모 위젯에 추가
         box_frame.pack(side="left", padx=10, pady=10)
 
-    def set_adjustment(self, value):
+    def set_adjustment(self, index, value):
         """
-        배터리 조정 값을 설정하는 함수
+        개발자나 관리자가 배터리 조정 값을 설정하는 함수
+        :param index: UPS 박스 인덱스
         :param value: 조정할 값 (예: +30, -30)
         """
         try:
-            self.adjustment = int(value)
+            adjustment = int(value)
             # 조정 값이 -100에서 +100 사이로 제한
-            self.adjustment = max(-100, min(100, self.adjustment))
-            print(f"배터리 조정 값이 {self.adjustment}%로 설정되었습니다.")
-        except ValueError:
-            print("유효한 정수를 입력하세요.")
+            adjustment = max(-100, min(100, adjustment))
+            self.box_data[index]["adjustment"] += adjustment
+            # 조정 값이 -100에서 +100 사이로 유지
+            self.box_data[index]["adjustment"] = max(-100, min(100, self.box_data[index]["adjustment"]))
+            print(f"박스 {index}의 배터리 조정 값: {self.box_data[index]['adjustment']}%")
+        except (ValueError, IndexError):
+            print("유효한 인덱스와 정수를 입력하세요.")
 
     def update_battery_status(self, index, battery_level, mode):
         """
@@ -113,7 +117,7 @@ class UPSMonitorUI:
         mode_text_id = data["mode_text_id"]
 
         # 배터리 조정 값 적용
-        adjusted_battery_level = battery_level + self.adjustment
+        adjusted_battery_level = battery_level + data["adjustment"]
         # 배터리 잔량이 0~100% 범위를 넘지 않도록 조정
         adjusted_battery_level = max(0, min(100, adjusted_battery_level))
 
@@ -212,10 +216,10 @@ if __name__ == "__main__":
 
     ups_monitor = UPSMonitorUI(root, num_boxes=2)  # 원하는 박스 수로 변경 가능
 
-    # 배터리 조정 값 설정 (예: +30 또는 -30)
-    # 원하는 값을 아래에 설정하세요.
-    ups_monitor.set_adjustment(30)  # 예: +30%
-    # ups_monitor.set_adjustment(-30)  # 예: -30%
+    # 배터리 조정 값 설정 (예: 박스 0에 +30%, 박스 1에 -30%)
+    # 개발자나 관리자가 코드 내에서 설정
+    ups_monitor.set_adjustment(0, 30)   # 박스 0에 +30% 조정
+    ups_monitor.set_adjustment(1, -30)  # 박스 1에 -30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
