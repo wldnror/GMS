@@ -148,10 +148,10 @@ class UPSMonitorUI:
         """
         cell_voltage = voltage / 6  # 6셀 배터리로 가정
         # 리튬 배터리 전압에 따른 대략적인 잔량 계산
-        if cell_voltage >= 4.1:
+        if cell_voltage >= 4.0:
             return 100
         elif cell_voltage > 3.7:
-            return int((cell_voltage - 3.7) / (4.1 - 3.7) * 50 + 50)
+            return int((cell_voltage - 3.7) / (4.0 - 3.7) * 50 + 50)
         elif cell_voltage > 3.0:
             return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
         else:
