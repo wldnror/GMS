@@ -11,7 +11,7 @@ import board
 SCALE_FACTOR = 1.65
 
 class UPSMonitorUI:
-    def __init__(self, parent, num_boxes):
+    def __init__(self, parent, num_boxes=1):
         self.parent = parent
         self.box_frames = []
         self.box_data = []
@@ -86,22 +86,21 @@ class UPSMonitorUI:
         # 프레임을 부모 위젯에 추가
         box_frame.pack(side="left", padx=10, pady=10)
 
-    def set_adjustment(self, index, value):
+    def set_adjustment(self, value):
         """
         개발자나 관리자가 배터리 조정 값을 설정하는 함수
-        :param index: UPS 박스 인덱스
         :param value: 조정할 값 (예: +30, -30)
         """
         try:
             adjustment = int(value)
             # 조정 값이 -100에서 +100 사이로 제한
             adjustment = max(-100, min(100, adjustment))
-            self.box_data[index]["adjustment"] += adjustment
+            self.box_data[0]["adjustment"] += adjustment
             # 조정 값이 -100에서 +100 사이로 유지
-            self.box_data[index]["adjustment"] = max(-100, min(100, self.box_data[index]["adjustment"]))
-            print(f"박스 {index}의 배터리 조정 값: {self.box_data[index]['adjustment']}%")
+            self.box_data[0]["adjustment"] = max(-100, min(100, self.box_data[0]["adjustment"]))
+            print(f"배터리 조정 값: {self.box_data[0]['adjustment']}%")
         except (ValueError, IndexError):
-            print("유효한 인덱스와 정수를 입력하세요.")
+            print("유효한 값을 입력하세요. 예: +30 또는 -30")
 
     def update_battery_status(self, index, battery_level, mode):
         """
@@ -190,7 +189,7 @@ class UPSMonitorUI:
                     battery_level = 0
                     self.last_battery_level = battery_level
 
-                # 각 박스에 대해 업데이트
+                # 각 박스에 대해 업데이트 (여기서는 하나의 박스만 존재)
                 for index, data in enumerate(self.box_data):
                     self.update_battery_status(index, battery_level=battery_level, mode=data["mode"])
 
@@ -214,11 +213,12 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("UPS Monitor")
 
-    ups_monitor = UPSMonitorUI(root, num_boxes=1)  # 원하는 박스 수로 변경 가능
+    ups_monitor = UPSMonitorUI(root, num_boxes=1)  # 배터리 박스는 하나뿐이므로 1로 설정
 
-    # 배터리 조정 값 설정 (예: 박스 0에 +30%, 박스 1에 -30%)
+    # 배터리 조정 값 설정 (예: +30 또는 -30)
     # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(2, 90)   # 박스 0에 +30% 조정
+    ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
+    # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
