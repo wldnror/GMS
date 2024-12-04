@@ -1,6 +1,7 @@
-from tkinter import Frame, Canvas, Button
+from tkinter import Frame, Canvas, Button, Scale, HORIZONTAL
 import time
 import threading
+import random  # 오차 적용을 위해 random 모듈 임포트
 
 # Adafruit INA219 라이브러리 임포트
 from adafruit_ina219 import INA219
@@ -11,11 +12,12 @@ import board
 SCALE_FACTOR = 1.65
 
 class UPSMonitorUI:
-    def __init__(self, parent, num_boxes):
+    def __init__(self, parent, num_boxes, error_margin_percent=5):
         self.parent = parent
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
+        self.error_margin_percent = error_margin_percent  # 오차 범위 설정
 
         # I2C 통신 설정
         i2c_bus = I2C(board.SCL, board.SDA)
@@ -32,10 +34,25 @@ class UPSMonitorUI:
         for i in range(num_boxes):
             self.create_ups_box(i)
 
+        # 오차 범위 조절 슬라이더 추가 (선택사항)
+        self.error_slider = Scale(parent, from_=0, to=20, orient=HORIZONTAL,
+                                  label="오차 범위 (%)", command=self.update_error_margin)
+        self.error_slider.set(self.error_margin_percent)
+        self.error_slider.pack(pady=10)
+
         # 주기적으로 업데이트하는 쓰레드 시작
         self.running = True
         self.update_thread = threading.Thread(target=self.update_loop)
         self.update_thread.start()
+
+    def update_error_margin(self, val):
+        """
+        슬라이더를 통해 오차 범위를 업데이트하는 함수
+        """
+        try:
+            self.error_margin_percent = float(val)
+        except ValueError:
+            pass  # 유효하지 않은 입력은 무시
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -144,18 +161,26 @@ class UPSMonitorUI:
         """
         배터리 전압을 잔량 퍼센트로 변환하는 함수
         :param voltage: 측정된 전체 전압
-        :return: 잔량 퍼센트 (0 ~ 100)
+        :return: 잔량 퍼센트 (0 ~ 100) ±오차 범위
         """
         cell_voltage = voltage / 6  # 6셀 배터리로 가정
         # 리튬 배터리 전압에 따른 대략적인 잔량 계산
-        if cell_voltage >= 4.0:
-            return 100
+        if cell_voltage >= 4.2:
+            base_level = 100
         elif cell_voltage > 3.7:
-            return int((cell_voltage - 3.7) / (4.0 - 3.7) * 50 + 50)
+            base_level = int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
         elif cell_voltage > 3.0:
-            return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
+            base_level = int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
         else:
-            return 0
+            base_level = 0
+
+        # 오차 범위 적용
+        error = random.uniform(-self.error_margin_percent, self.error_margin_percent)
+        adjusted_level = base_level + error
+        # 0 ~ 100% 범위 내로 클램핑
+        adjusted_level = max(0, min(100, adjusted_level))
+
+        return int(adjusted_level)
 
     def update_loop(self):
         """
