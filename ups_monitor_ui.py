@@ -18,15 +18,22 @@ class UPSMonitorUI:
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
 
         # I2C 통신 설정
-        i2c_bus = I2C(board.SCL, board.SDA)
+        try:
+            i2c_bus = I2C(board.SCL, board.SDA)
+        except Exception as e:
+            print(f"I2C 초기화 실패: {e}")
+            i2c_bus = None
 
         # INA219 인스턴스 생성 시도
-        try:
-            self.ina219 = INA219(i2c_bus)
-            self.ina219_available = True
-            print("INA219 센서가 성공적으로 초기화되었습니다.")
-        except ValueError as e:
-            print(f"INA219 센서를 찾을 수 없습니다: {e}")
+        if i2c_bus:
+            try:
+                self.ina219 = INA219(i2c_bus)
+                self.ina219_available = True
+                print("INA219 센서가 성공적으로 초기화되었습니다.")
+            except ValueError as e:
+                print(f"INA219 센서를 찾을 수 없습니다: {e}")
+                self.ina219_available = False
+        else:
             self.ina219_available = False
 
         for i in range(num_boxes):
@@ -43,34 +50,101 @@ class UPSMonitorUI:
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(
+            inner_frame,
+            width=int(150 * SCALE_FACTOR),
+            height=int(300 * SCALE_FACTOR),
+            highlightthickness=int(3 * SCALE_FACTOR),
+            highlightbackground="#000000",
+            highlightcolor="#000000"
+        )
         box_canvas.pack()
 
         # 상단 영역 (진한 회색)
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(250 * SCALE_FACTOR), fill='#4B4B4B', outline='black', tags='border')
+        box_canvas.create_rectangle(
+            0, 0,
+            int(160 * SCALE_FACTOR), int(250 * SCALE_FACTOR),
+            fill='#4B4B4B',
+            outline='black',
+            tags='border'
+        )
         # 하단 영역 (검정색)
-        box_canvas.create_rectangle(0, int(310 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR), fill='black', outline='black', tags='border')
+        box_canvas.create_rectangle(
+            0, int(310 * SCALE_FACTOR),
+            int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
+            fill='black',
+            outline='black',
+            tags='border'
+        )
 
         # 배터리 모양으로 잔량 표시
         # 배터리 외곽
-        box_canvas.create_rectangle(int(15 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(135 * SCALE_FACTOR), int(60 * SCALE_FACTOR), fill='#4B4B4B', outline='black', width=int(3 * SCALE_FACTOR))
+        box_canvas.create_rectangle(
+            int(15 * SCALE_FACTOR), int(20 * SCALE_FACTOR),
+            int(135 * SCALE_FACTOR), int(60 * SCALE_FACTOR),
+            fill='#4B4B4B',
+            outline='black',
+            width=int(3 * SCALE_FACTOR)
+        )
         # 배터리 양극 단자
-        box_canvas.create_rectangle(int(135 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(145 * SCALE_FACTOR), int(50 * SCALE_FACTOR), fill='#4B4B4B', outline='black', width=int(2 * SCALE_FACTOR))
+        box_canvas.create_rectangle(
+            int(135 * SCALE_FACTOR), int(30 * SCALE_FACTOR),
+            int(145 * SCALE_FACTOR), int(50 * SCALE_FACTOR),
+            fill='#4B4B4B',
+            outline='black',
+            width=int(2 * SCALE_FACTOR)
+        )
         # 배터리 잔량 바
-        battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR), fill='#00AA00', outline='')
+        battery_level_bar = box_canvas.create_rectangle(
+            int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
+            int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR),
+            fill='#00AA00',
+            outline=''
+        )
         # 배터리 퍼센트 텍스트
-        battery_percentage_text = box_canvas.create_text(int(75 * SCALE_FACTOR), int(40 * SCALE_FACTOR), text="0%", font=("Helvetica", int(12 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
+        battery_percentage_text = box_canvas.create_text(
+            int(75 * SCALE_FACTOR), int(40 * SCALE_FACTOR),
+            text="0%",
+            font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
+            fill="#FFFFFF",
+            anchor="center"
+        )
 
         # UPS 모드 표시
-        mode_text_id = box_canvas.create_text(int(75 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00", anchor="center")
+        mode_text_id = box_canvas.create_text(
+            int(75 * SCALE_FACTOR), int(100 * SCALE_FACTOR),
+            text="상시 모드",
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#00FF00",
+            anchor="center"
+        )
 
         # 모드 전환 버튼
-        toggle_button = Button(box_canvas, text="모드 전환", command=lambda idx=index: self.toggle_mode(idx))
-        box_canvas.create_window(int(75 * SCALE_FACTOR), int(140 * SCALE_FACTOR), window=toggle_button)
+        toggle_button = Button(
+            box_canvas,
+            text="모드 전환",
+            command=lambda idx=index: self.toggle_mode(idx)
+        )
+        box_canvas.create_window(
+            int(75 * SCALE_FACTOR), int(140 * SCALE_FACTOR),
+            window=toggle_button
+        )
 
         # UPS 및 제조사 정보
-        box_canvas.create_text(int(75 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
-        box_canvas.create_text(int(75 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
+        box_canvas.create_text(
+            int(75 * SCALE_FACTOR), int(270 * SCALE_FACTOR),
+            text="UPS Monitor",
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#FFFFFF",
+            anchor="center"
+        )
+        box_canvas.create_text(
+            int(75 * SCALE_FACTOR), int(295 * SCALE_FACTOR),
+            text="GDS ENGINEERING CO.,LTD",
+            font=("Helvetica", int(7 * SCALE_FACTOR), "bold"),
+            fill="#999999",
+            anchor="center"
+        )
 
         # 필요한 데이터 저장
         self.box_frames.append(box_frame)
@@ -95,9 +169,7 @@ class UPSMonitorUI:
             adjustment = int(value)
             # 조정 값이 -100에서 +100 사이로 제한
             adjustment = max(-100, min(100, adjustment))
-            self.box_data[0]["adjustment"] += adjustment
-            # 조정 값이 -100에서 +100 사이로 유지
-            self.box_data[0]["adjustment"] = max(-100, min(100, self.box_data[0]["adjustment"]))
+            self.box_data[0]["adjustment"] = adjustment
             print(f"배터리 조정 값: {self.box_data[0]['adjustment']}%")
         except (ValueError, IndexError):
             print("유효한 값을 입력하세요. 예: +30 또는 -30")
@@ -120,16 +192,27 @@ class UPSMonitorUI:
         # 배터리 잔량이 0~100% 범위를 넘지 않도록 조정
         adjusted_battery_level = max(0, min(100, adjusted_battery_level))
 
+        # 디버깅 출력 추가
+        print(f"박스 {index} - 원래 잔량: {battery_level}%, 조정값: {data['adjustment']}%, 조정된 잔량: {adjusted_battery_level}%")
+
         if self.ina219_available:
             # 배터리 잔량 바 업데이트
             battery_width = int(110 * SCALE_FACTOR * (adjusted_battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
-            canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR))
+            canvas.coords(
+                battery_level_bar,
+                int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
+                int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR)
+            )
 
             # 배터리 퍼센트 텍스트 업데이트
             canvas.itemconfig(battery_percentage_text, text=f"{adjusted_battery_level}%")
         else:
             # 센서가 없을 경우, 배터리 잔량 바를 비우고 텍스트를 "연결되지 않음"으로 표시
-            canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR))
+            canvas.coords(
+                battery_level_bar,
+                int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
+                int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR)
+            )
             canvas.itemconfig(battery_percentage_text, text="연결되지 않음")
 
         # UPS 모드 텍스트 및 색상 업데이트
@@ -217,7 +300,7 @@ if __name__ == "__main__":
 
     # 배터리 조정 값 설정 (예: +30 또는 -30)
     # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(-100)   # 배터리 잔량을 +30% 조정
+    ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
     # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
