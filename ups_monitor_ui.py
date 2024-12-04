@@ -1,7 +1,6 @@
-from tkinter import Frame, Canvas, Button, Scale, HORIZONTAL, Entry, Label
+from tkinter import Frame, Canvas, Button
 import time
 import threading
-import random  # 오차 적용을 위해 random 모듈 임포트
 
 # Adafruit INA219 라이브러리 임포트
 from adafruit_ina219 import INA219
@@ -12,12 +11,12 @@ import board
 SCALE_FACTOR = 1.65
 
 class UPSMonitorUI:
-    def __init__(self, parent, num_boxes, error_margin_percent=5):
+    def __init__(self, parent, num_boxes):
         self.parent = parent
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
-        self.error_margin_percent = error_margin_percent  # 오차 범위 설정
+        self.adjustment = 0  # 배터리 조정 값 초기화
 
         # I2C 통신 설정
         i2c_bus = I2C(board.SCL, board.SDA)
@@ -31,29 +30,13 @@ class UPSMonitorUI:
             print(f"INA219 센서를 찾을 수 없습니다: {e}")
             self.ina219_available = False
 
-        # 오차 범위 조절 슬라이더 추가
-        self.error_slider = Scale(parent, from_=0, to=20, orient=HORIZONTAL,
-                                  label="오차 범위 (%)", command=self.update_error_margin)
-        self.error_slider.set(self.error_margin_percent)
-        self.error_slider.pack(pady=10)
-
         for i in range(num_boxes):
             self.create_ups_box(i)
 
         # 주기적으로 업데이트하는 쓰레드 시작
         self.running = True
-        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
+        self.update_thread = threading.Thread(target=self.update_loop)
         self.update_thread.start()
-
-    def update_error_margin(self, val):
-        """
-        슬라이더를 통해 오차 범위를 업데이트하는 함수
-        """
-        try:
-            self.error_margin_percent = float(val)
-            print(f"오차 범위가 {self.error_margin_percent}%으로 설정되었습니다.")
-        except ValueError:
-            pass  # 유효하지 않은 입력은 무시
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -61,7 +44,7 @@ class UPSMonitorUI:
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(400 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
+        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR), highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000", highlightcolor="#000000")
         box_canvas.pack()
 
         # 상단 영역 (진한 회색)
@@ -86,16 +69,6 @@ class UPSMonitorUI:
         toggle_button = Button(box_canvas, text="모드 전환", command=lambda idx=index: self.toggle_mode(idx))
         box_canvas.create_window(int(75 * SCALE_FACTOR), int(140 * SCALE_FACTOR), window=toggle_button)
 
-        # 배터리 조정 입력 필드
-        adjust_label = Label(box_canvas, text="배터리 조정(%):", font=("Helvetica", int(10 * SCALE_FACTOR)))
-        box_canvas.create_window(int(50 * SCALE_FACTOR), int(180 * SCALE_FACTOR), window=adjust_label)
-
-        adjust_entry = Entry(box_canvas, width=5)
-        box_canvas.create_window(int(120 * SCALE_FACTOR), int(180 * SCALE_FACTOR), window=adjust_entry)
-
-        adjust_button = Button(box_canvas, text="적용", command=lambda idx=index, entry=adjust_entry: self.apply_adjustment(idx, entry))
-        box_canvas.create_window(int(75 * SCALE_FACTOR), int(220 * SCALE_FACTOR), window=adjust_button)
-
         # UPS 및 제조사 정보
         box_canvas.create_text(int(75 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor", font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
         box_canvas.create_text(int(75 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD", font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
@@ -107,28 +80,24 @@ class UPSMonitorUI:
             "battery_level_bar": battery_level_bar,
             "battery_percentage_text": battery_percentage_text,
             "mode_text_id": mode_text_id,
-            "mode": "상시 모드",  # 초기 모드 설정
-            "adjustment": 0  # 배터리 조정 값 초기화
+            "mode": "상시 모드"  # 초기 모드 설정
         })
 
         # 프레임을 부모 위젯에 추가
         box_frame.pack(side="left", padx=10, pady=10)
 
-    def apply_adjustment(self, index, entry):
+    def set_adjustment(self, value):
         """
-        사용자가 입력한 배터리 조정 값을 적용하는 함수
+        배터리 조정 값을 설정하는 함수
+        :param value: 조정할 값 (예: +30, -30)
         """
         try:
-            adjustment = int(entry.get())
-            current_adjustment = self.box_data[index]["adjustment"]
-            new_adjustment = current_adjustment + adjustment
-            # 배터리 조정 값이 -100~+100 범위를 넘지 않도록 조정
-            new_adjustment = max(-100, min(100, new_adjustment))
-            self.box_data[index]["adjustment"] = new_adjustment
-            print(f"박스 {index}의 배터리 조정 값: {self.box_data[index]['adjustment']}%")
-            entry.delete(0, 'end')  # 입력 필드 초기화
+            self.adjustment = int(value)
+            # 조정 값이 -100에서 +100 사이로 제한
+            self.adjustment = max(-100, min(100, self.adjustment))
+            print(f"배터리 조정 값이 {self.adjustment}%로 설정되었습니다.")
         except ValueError:
-            print("유효한 숫자를 입력하세요.")
+            print("유효한 정수를 입력하세요.")
 
     def update_battery_status(self, index, battery_level, mode):
         """
@@ -144,7 +113,7 @@ class UPSMonitorUI:
         mode_text_id = data["mode_text_id"]
 
         # 배터리 조정 값 적용
-        adjusted_battery_level = battery_level + data["adjustment"]
+        adjusted_battery_level = battery_level + self.adjustment
         # 배터리 잔량이 0~100% 범위를 넘지 않도록 조정
         adjusted_battery_level = max(0, min(100, adjusted_battery_level))
 
@@ -184,26 +153,18 @@ class UPSMonitorUI:
         """
         배터리 전압을 잔량 퍼센트로 변환하는 함수
         :param voltage: 측정된 전체 전압
-        :return: 잔량 퍼센트 (0 ~ 100) ±오차 범위
+        :return: 잔량 퍼센트 (0 ~ 100)
         """
         cell_voltage = voltage / 6  # 6셀 배터리로 가정
         # 리튬 배터리 전압에 따른 대략적인 잔량 계산
         if cell_voltage >= 4.2:
-            base_level = 100
+            return 100
         elif cell_voltage > 3.7:
-            base_level = int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
+            return int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
         elif cell_voltage > 3.0:
-            base_level = int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
+            return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
         else:
-            base_level = 0
-
-        # 오차 범위 적용
-        error = random.uniform(-self.error_margin_percent, self.error_margin_percent)
-        adjusted_level = base_level + error
-        # 0 ~ 100% 범위 내로 클램핑
-        adjusted_level = max(0, min(100, adjusted_level))
-
-        return int(adjusted_level)
+            return 0
 
     def update_loop(self):
         """
@@ -250,6 +211,11 @@ if __name__ == "__main__":
     root.title("UPS Monitor")
 
     ups_monitor = UPSMonitorUI(root, num_boxes=2)  # 원하는 박스 수로 변경 가능
+
+    # 배터리 조정 값 설정 (예: +30 또는 -30)
+    # 원하는 값을 아래에 설정하세요.
+    ups_monitor.set_adjustment(30)  # 예: +30%
+    # ups_monitor.set_adjustment(-30)  # 예: -30%
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
