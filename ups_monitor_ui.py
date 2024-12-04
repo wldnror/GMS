@@ -151,7 +151,7 @@ class UPSMonitorUI:
         if cell_voltage >= 4.1:
             return 100
         elif cell_voltage > 3.7:
-            return int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
+            return int((cell_voltage - 3.7) / (4.1 - 3.7) * 50 + 50)
         elif cell_voltage > 3.0:
             return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
         else:
