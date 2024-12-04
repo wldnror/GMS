@@ -300,7 +300,7 @@ if __name__ == "__main__":
 
     # 배터리 조정 값 설정 (예: +30 또는 -30)
     # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
+    ups_monitor.set_adjustment10)   # 배터리 잔량을 +30% 조정
     # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
