@@ -214,12 +214,11 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("UPS Monitor")
 
-    ups_monitor = UPSMonitorUI(root, num_boxes=2)  # 원하는 박스 수로 변경 가능
+    ups_monitor = UPSMonitorUI(root, num_boxes=1)  # 원하는 박스 수로 변경 가능
 
     # 배터리 조정 값 설정 (예: 박스 0에 +30%, 박스 1에 -30%)
     # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(0, 30)   # 박스 0에 +30% 조정
-    ups_monitor.set_adjustment(1, -30)  # 박스 1에 -30% 조정
+    ups_monitor.set_adjustment(0, 90)   # 박스 0에 +30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
