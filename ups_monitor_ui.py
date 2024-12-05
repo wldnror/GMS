@@ -10,7 +10,7 @@ import board
 SCALE_FACTOR = 1.65
 
 class UPSMonitorUI:
-    def __init__(self, parent, num_boxes=1, adjustment=0):
+    def __init__(self, parent, num_boxes=0, adjustment=0):
         self.parent = parent
         self.box_frames = []
         self.box_data = []
