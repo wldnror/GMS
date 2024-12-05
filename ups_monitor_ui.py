@@ -1,6 +1,5 @@
 from tkinter import Frame, Canvas, Button
 import time
-import threading
 
 # Adafruit INA219 라이브러리 임포트
 from adafruit_ina219 import INA219
@@ -16,9 +15,6 @@ class UPSMonitorUI:
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
-
-        # 락 초기화 먼저 수행
-        self.lock = threading.Lock()
 
         # 조정 값 초기화
         self.adjustment = 0  # 초기값 설정
@@ -46,10 +42,8 @@ class UPSMonitorUI:
         for i in range(num_boxes):
             self.create_ups_box(i)
 
-        # 주기적으로 업데이트하는 쓰레드 시작
-        self.running = True
-        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
-        self.update_thread.start()
+        # 주기적으로 업데이트하는 함수 호출
+        self.update_loop()
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -175,8 +169,7 @@ class UPSMonitorUI:
             adjustment = int(value)
             # 조정 값이 -100에서 +100 사이로 제한
             adjustment = max(-100, min(100, adjustment))
-            with self.lock:
-                self.adjustment = adjustment
+            self.adjustment = adjustment
             print(f"[DEBUG] 배터리 조정 값이 {adjustment}%로 설정되었습니다.")
         except (ValueError, IndexError):
             print("유효한 값을 입력하세요. 예: +30 또는 -30")
@@ -224,8 +217,7 @@ class UPSMonitorUI:
 
         # 상태 업데이트 (배터리 레벨은 그대로 유지)
         # 조정값을 다시 적용하여 업데이트
-        with self.lock:
-            adjustment = self.adjustment
+        adjustment = self.adjustment
 
         adjusted_battery_level = self.last_battery_level + adjustment
         adjusted_battery_level = max(0, min(100, adjusted_battery_level))
@@ -253,48 +245,45 @@ class UPSMonitorUI:
         """
         주기적으로 배터리 상태를 업데이트하는 함수
         """
-        while self.running:
-            try:
-                if self.ina219_available:
-                    # INA219에서 전압 측정
-                    bus_voltage = self.ina219.bus_voltage  # 전압 (V)
-                    shunt_voltage = self.ina219.shunt_voltage  # 션트 전압 (mV)
-                    voltage = bus_voltage + (shunt_voltage / 1000)  # 전체 전압 계산
+        try:
+            if self.ina219_available:
+                # INA219에서 전압 측정
+                bus_voltage = self.ina219.bus_voltage  # 전압 (V)
+                shunt_voltage = self.ina219.shunt_voltage  # 션트 전압 (mV)
+                voltage = bus_voltage + (shunt_voltage / 1000)  # 전체 전압 계산
 
-                    # 배터리 잔량 계산
-                    battery_level = self.calculate_battery_percentage(voltage)
-                    self.last_battery_level = battery_level  # 토글 모드에서 사용하기 위해 저장
-                else:
-                    # 센서가 없을 경우 배터리 잔량을 0%로 설정
-                    battery_level = 0
-                    self.last_battery_level = battery_level
+                # 배터리 잔량 계산
+                battery_level = self.calculate_battery_percentage(voltage)
+                self.last_battery_level = battery_level  # 토글 모드에서 사용하기 위해 저장
+            else:
+                # 센서가 없을 경우 배터리 잔량을 0%로 설정
+                battery_level = 0
+                self.last_battery_level = battery_level
 
-                # 조정값 적용
-                with self.lock:
-                    adjustment = self.adjustment
+            # 조정값 적용
+            adjustment = self.adjustment
 
-                adjusted_battery_level = battery_level + adjustment
-                adjusted_battery_level = max(0, min(100, adjusted_battery_level))
+            adjusted_battery_level = battery_level + adjustment
+            adjusted_battery_level = max(0, min(100, adjusted_battery_level))
 
-                # 디버깅 출력 추가
-                print(f"[DEBUG] 박스 0 - 원래 잔량: {battery_level}%, 조정값: {adjustment}%, 조정된 잔량: {adjusted_battery_level}%")
+            # 디버깅 출력 추가
+            print(f"[DEBUG] 박스 0 - 원래 잔량: {battery_level}%, 조정값: {adjustment}%, 조정된 잔량: {adjusted_battery_level}%")
 
-                # 각 박스에 대해 업데이트 (여기서는 하나의 박스만 존재)
-                for index, data in enumerate(self.box_data):
-                    self.update_battery_status(index, adjusted_battery_level, mode=data["mode"])
+            # 각 박스에 대해 업데이트 (여기서는 하나의 박스만 존재)
+            for index, data in enumerate(self.box_data):
+                self.update_battery_status(index, adjusted_battery_level, mode=data["mode"])
 
-                # 1초마다 업데이트
-                time.sleep(1)
-            except Exception as e:
-                print(f"업데이트 중 오류 발생: {e}")
-                time.sleep(1)
+        except Exception as e:
+            print(f"업데이트 중 오류 발생: {e}")
+
+        # 1초 후에 다시 호출
+        self.parent.after(1000, self.update_loop)
 
     def stop(self):
         """
-        쓰레드를 중지하는 함수
+        프로그램 종료 시 호출되는 함수
         """
-        self.running = False
-        self.update_thread.join()
+        pass  # 별도 처리가 필요 없으면 패스
 
 # Tkinter 윈도우 설정 및 실행 예제
 if __name__ == "__main__":
