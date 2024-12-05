@@ -20,7 +20,6 @@ class UPSMonitorUI:
         # I2C 통신 설정
         try:
             i2c_bus = I2C(board.SCL, board.SDA)
-            print("I2C 버스 초기화 성공")
         except Exception as e:
             print(f"I2C 초기화 실패: {e}")
             i2c_bus = None
@@ -30,7 +29,7 @@ class UPSMonitorUI:
             try:
                 self.ina219 = INA219(i2c_bus)
                 self.ina219_available = True
-                print(f"ADC at address {hex(self.ina219.address)} initialized successfully.")
+                print("INA219 센서가 성공적으로 초기화되었습니다.")
             except ValueError as e:
                 print(f"INA219 센서를 찾을 수 없습니다: {e}")
                 self.ina219_available = False
@@ -39,6 +38,9 @@ class UPSMonitorUI:
 
         for i in range(num_boxes):
             self.create_ups_box(i)
+
+        # 배터리 조정 값 초기화 (디폴트 0)
+        self.set_adjustment(0)
 
         # 주기적으로 업데이트하는 쓰레드 시작
         self.running = True
@@ -158,9 +160,6 @@ class UPSMonitorUI:
             "adjustment": 0  # 배터리 조정 값 초기화
         })
 
-        # 초기 배터리 조정 값 출력
-        print(f"박스 {index} 생성 완료. 초기 조정값: {self.box_data[index]['adjustment']}%")
-
         # 프레임을 부모 위젯에 추가
         box_frame.pack(side="left", padx=10, pady=10)
 
@@ -174,7 +173,7 @@ class UPSMonitorUI:
             # 조정 값이 -100에서 +100 사이로 제한
             adjustment = max(-100, min(100, adjustment))
             self.box_data[0]["adjustment"] = adjustment
-            print(f"배터리 조정 값이 {adjustment}%로 설정되었습니다.")
+            print(f"[DEBUG] 배터리 조정 값이 {adjustment}%로 설정되었습니다.")
         except (ValueError, IndexError):
             print("유효한 값을 입력하세요. 예: +30 또는 -30")
 
@@ -197,7 +196,7 @@ class UPSMonitorUI:
         adjusted_battery_level = max(0, min(100, adjusted_battery_level))
 
         # 디버깅 출력 추가
-        print(f"박스 {index} - 원래 잔량: {battery_level}%, 조정값: {data['adjustment']}%, 조정된 잔량: {adjusted_battery_level}%")
+        print(f"[DEBUG] 박스 {index} - 원래 잔량: {battery_level}%, 조정값: {data['adjustment']}%, 조정된 잔량: {adjusted_battery_level}%")
 
         if self.ina219_available:
             # 배터리 잔량 바 업데이트
@@ -304,8 +303,8 @@ if __name__ == "__main__":
 
     # 배터리 조정 값 설정 (예: +30 또는 -30)
     # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(10)   # 배터리 잔량을 +10% 조정
-    # ups_monitor.set_adjustment(-10)  # 배터리 잔량을 -10% 조정
+    ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
+    # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
