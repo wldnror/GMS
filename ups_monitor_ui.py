@@ -1,4 +1,4 @@
-from tkinter import Frame, Canvas, Button
+from tkinter import Frame, Canvas, Button, Entry, Label
 import time
 import threading
 
@@ -16,6 +16,7 @@ class UPSMonitorUI:
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
+        self.adjustment_value = 0  # 배터리 잔량 조정값
 
         # I2C 통신 설정
         i2c_bus = I2C(board.SCL, board.SDA)
@@ -29,6 +30,16 @@ class UPSMonitorUI:
             print(f"INA219 센서를 찾을 수 없습니다: {e}")
             self.ina219_available = False
 
+        # 배터리 잔량 조정을 위한 입력 필드 추가
+        adjustment_frame = Frame(self.parent)
+        adjustment_frame.pack(pady=10)
+        Label(adjustment_frame, text="배터리 조정값 (0~100):").pack(side="left")
+        self.adjustment_entry = Entry(adjustment_frame, width=5)
+        self.adjustment_entry.pack(side="left")
+        self.adjustment_entry.insert(0, "0")
+        apply_button = Button(adjustment_frame, text="적용", command=self.apply_adjustment)
+        apply_button.pack(side="left", padx=5)
+
         for i in range(num_boxes):
             self.create_ups_box(i)
 
@@ -36,6 +47,19 @@ class UPSMonitorUI:
         self.running = True
         self.update_thread = threading.Thread(target=self.update_loop)
         self.update_thread.start()
+
+    def apply_adjustment(self):
+        """
+        입력된 조정값을 저장하는 함수
+        """
+        try:
+            value = int(self.adjustment_entry.get())
+            if 0 <= value <= 100:
+                self.adjustment_value = value
+            else:
+                print("조정값은 0에서 100 사이의 숫자여야 합니다.")
+        except ValueError:
+            print("유효한 숫자를 입력해주세요.")
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -99,12 +123,16 @@ class UPSMonitorUI:
         mode_text_id = data["mode_text_id"]
 
         if self.ina219_available:
+            # 조정값을 적용하여 배터리 잔량 계산
+            adjusted_battery_level = battery_level + self.adjustment_value
+            adjusted_battery_level = max(0, min(100, adjusted_battery_level))  # 0~100 사이로 제한
+
             # 배터리 잔량 바 업데이트
-            battery_width = int(110 * SCALE_FACTOR * (battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
+            battery_width = int(110 * SCALE_FACTOR * (adjusted_battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
             canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR))
 
             # 배터리 퍼센트 텍스트 업데이트
-            canvas.itemconfig(battery_percentage_text, text=f"{battery_level}%")
+            canvas.itemconfig(battery_percentage_text, text=f"{adjusted_battery_level}%")
         else:
             # 센서가 없을 경우, 배터리 잔량 바를 비우고 텍스트를 "연결되지 않음"으로 표시
             canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR))
