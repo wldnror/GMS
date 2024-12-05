@@ -18,8 +18,8 @@ class UPSMonitorUI:
 
         # 조정 값 초기화
         self.adjustment = 0  # 초기값 설정
-        self.set_adjustment(adjustment)
         print(f"[DEBUG] __init__: adjustment 파라미터 값은 {adjustment}%입니다.")
+        self.set_adjustment(adjustment)
 
         # I2C 통신 설정
         try:
