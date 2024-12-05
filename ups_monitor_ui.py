@@ -178,11 +178,11 @@ class UPSMonitorUI:
         except (ValueError, IndexError):
             print("유효한 값을 입력하세요. 예: +30 또는 -30")
 
-    def update_battery_status(self, index, battery_level, mode):
+    def update_battery_status(self, index, adjusted_battery_level, mode):
         """
         배터리 상태와 모드를 업데이트하는 함수
         :param index: 박스 인덱스
-        :param battery_level: 배터리 잔량 (0 ~ 100)
+        :param adjusted_battery_level: 조정된 배터리 잔량 (0 ~ 100)
         :param mode: 현재 UPS 모드 ("상시 모드" 또는 "배터리 모드")
         """
         data = self.box_data[index]
@@ -190,17 +190,6 @@ class UPSMonitorUI:
         battery_level_bar = data["battery_level_bar"]
         battery_percentage_text = data["battery_percentage_text"]
         mode_text_id = data["mode_text_id"]
-
-        with self.lock:
-            adjustment = self.adjustment
-
-        # 배터리 조정 값 적용
-        adjusted_battery_level = battery_level + adjustment
-        # 배터리 잔량이 0~100% 범위를 넘지 않도록 조정
-        adjusted_battery_level = max(0, min(100, adjusted_battery_level))
-
-        # 디버깅 출력 추가
-        print(f"[DEBUG] 박스 {index} - 원래 잔량: {battery_level}%, 조정값: {adjustment}%, 조정된 잔량: {adjusted_battery_level}%")
 
         # 배터리 잔량 바 업데이트
         battery_width = int(110 * SCALE_FACTOR * (adjusted_battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
@@ -231,7 +220,14 @@ class UPSMonitorUI:
         data["mode"] = new_mode
 
         # 상태 업데이트 (배터리 레벨은 그대로 유지)
-        self.update_battery_status(index, battery_level=self.last_battery_level, mode=new_mode)
+        # 조정값을 다시 적용하여 업데이트
+        with self.lock:
+            adjustment = self.adjustment
+
+        adjusted_battery_level = self.last_battery_level + adjustment
+        adjusted_battery_level = max(0, min(100, adjusted_battery_level))
+
+        self.update_battery_status(index, adjusted_battery_level, mode=new_mode)
 
     def calculate_battery_percentage(self, voltage):
         """
@@ -270,9 +266,19 @@ class UPSMonitorUI:
                     battery_level = 0
                     self.last_battery_level = battery_level
 
+                # 조정값 적용
+                with self.lock:
+                    adjustment = self.adjustment
+
+                adjusted_battery_level = battery_level + adjustment
+                adjusted_battery_level = max(0, min(100, adjusted_battery_level))
+
+                # 디버깅 출력 추가
+                print(f"[DEBUG] 박스 0 - 원래 잔량: {battery_level}%, 조정값: {adjustment}%, 조정된 잔량: {adjusted_battery_level}%")
+
                 # 각 박스에 대해 업데이트 (여기서는 하나의 박스만 존재)
                 for index, data in enumerate(self.box_data):
-                    self.update_battery_status(index, battery_level=battery_level, mode=data["mode"])
+                    self.update_battery_status(index, adjusted_battery_level, mode=data["mode"])
 
                 # 1초마다 업데이트
                 time.sleep(1)
