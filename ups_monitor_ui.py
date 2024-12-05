@@ -17,9 +17,12 @@ class UPSMonitorUI:
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
 
-        # 조정 값 및 락 초기화
-        self.adjustment = adjustment
+        # 락 초기화 먼저 수행
         self.lock = threading.Lock()
+
+        # 조정 값 초기화
+        self.adjustment = 0  # 초기값 설정
+        self.set_adjustment(adjustment)  # 조정값 설정
 
         # I2C 통신 설정
         try:
