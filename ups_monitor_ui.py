@@ -18,7 +18,8 @@ class UPSMonitorUI:
 
         # 조정 값 초기화
         self.adjustment = 0  # 초기값 설정
-        self.set_adjustment(adjustment)  # 조정값 설정
+        self.set_adjustment(adjustment)
+        print(f"[DEBUG] __init__: adjustment 파라미터 값은 {adjustment}%입니다.")
 
         # I2C 통신 설정
         try:
@@ -161,10 +162,7 @@ class UPSMonitorUI:
         box_frame.pack(side="left", padx=10, pady=10)
 
     def set_adjustment(self, value):
-        """
-        개발자나 관리자가 배터리 조정 값을 설정하는 함수
-        :param value: 조정할 값 (예: +30, -30)
-        """
+        print(f"[DEBUG] set_adjustment: 전달받은 value 값은 {value}%입니다.")
         try:
             adjustment = int(value)
             # 조정 값이 -100에서 +100 사이로 제한
@@ -292,8 +290,8 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("UPS Monitor")
 
-    # UPSMonitorUI 객체 생성 시 조정값을 설정
-    ups_monitor = UPSMonitorUI(root, num_boxes=1, adjustment=30)  # 배터리 잔량을 +30% 조정
+    # UPSMonitorUI 객체 생성 시 adjustment 값을 키워드 인자로 전달
+    ups_monitor = UPSMonitorUI(root, num_boxes=1, adjustment=30)
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
