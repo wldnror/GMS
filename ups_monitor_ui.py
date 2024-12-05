@@ -16,7 +16,7 @@ class UPSMonitorUI:
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
-        self.adjustment_value = 0  # 배터리 잔량 조정값
+        self.adjustment_value = 0  # 배터리 조정값
 
         # I2C 통신 설정
         i2c_bus = I2C(board.SCL, board.SDA)
@@ -30,28 +30,33 @@ class UPSMonitorUI:
             print(f"INA219 센서를 찾을 수 없습니다: {e}")
             self.ina219_available = False
 
-        # 배터리 잔량 조정을 위한 입력 필드 추가
-        adjustment_frame = Frame(self.parent)
-        adjustment_frame.pack(pady=10)
-        Label(adjustment_frame, text="배터리 조정값 (0~100):").pack(side="left")
-        self.adjustment_entry = Entry(adjustment_frame, width=5)
-        self.adjustment_entry.pack(side="left")
-        self.adjustment_entry.insert(0, "0")
-        apply_button = Button(adjustment_frame, text="적용", command=self.apply_adjustment)
-        apply_button.pack(side="left", padx=5)
-
         for i in range(num_boxes):
             self.create_ups_box(i)
+
+        # 배터리 조정값 입력 필드 추가
+        self.create_adjustment_input()
 
         # 주기적으로 업데이트하는 쓰레드 시작
         self.running = True
         self.update_thread = threading.Thread(target=self.update_loop)
         self.update_thread.start()
 
+    def create_adjustment_input(self):
+        # 조정값 입력을 위한 프레임 생성
+        adjustment_frame = Frame(self.parent)
+        adjustment_frame.pack(pady=10)
+
+        adjustment_label = Label(adjustment_frame, text="조정값 (0~100):")
+        adjustment_label.pack(side="left")
+
+        self.adjustment_entry = Entry(adjustment_frame, width=5)
+        self.adjustment_entry.pack(side="left")
+        self.adjustment_entry.insert(0, "0")
+
+        apply_button = Button(adjustment_frame, text="적용", command=self.apply_adjustment)
+        apply_button.pack(side="left", padx=5)
+
     def apply_adjustment(self):
-        """
-        입력된 조정값을 저장하는 함수
-        """
         try:
             value = int(self.adjustment_entry.get())
             if 0 <= value <= 100:
