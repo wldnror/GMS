@@ -17,6 +17,10 @@ class UPSMonitorUI:
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
 
+        # 조정 값 및 락 초기화
+        self.adjustment = 0
+        self.lock = threading.Lock()
+
         # I2C 통신 설정
         try:
             i2c_bus = I2C(board.SCL, board.SDA)
@@ -38,9 +42,6 @@ class UPSMonitorUI:
 
         for i in range(num_boxes):
             self.create_ups_box(i)
-
-        # 배터리 조정 값 초기화 (디폴트 0)
-        self.set_adjustment(0)
 
         # 주기적으로 업데이트하는 쓰레드 시작
         self.running = True
@@ -157,7 +158,6 @@ class UPSMonitorUI:
             "battery_percentage_text": battery_percentage_text,
             "mode_text_id": mode_text_id,
             "mode": "상시 모드",  # 초기 모드 설정
-            "adjustment": 0  # 배터리 조정 값 초기화
         })
 
         # 프레임을 부모 위젯에 추가
@@ -172,7 +172,8 @@ class UPSMonitorUI:
             adjustment = int(value)
             # 조정 값이 -100에서 +100 사이로 제한
             adjustment = max(-100, min(100, adjustment))
-            self.box_data[0]["adjustment"] = adjustment
+            with self.lock:
+                self.adjustment = adjustment
             print(f"[DEBUG] 배터리 조정 값이 {adjustment}%로 설정되었습니다.")
         except (ValueError, IndexError):
             print("유효한 값을 입력하세요. 예: +30 또는 -30")
@@ -190,13 +191,16 @@ class UPSMonitorUI:
         battery_percentage_text = data["battery_percentage_text"]
         mode_text_id = data["mode_text_id"]
 
+        with self.lock:
+            adjustment = self.adjustment
+
         # 배터리 조정 값 적용
-        adjusted_battery_level = battery_level + data["adjustment"]
+        adjusted_battery_level = battery_level + adjustment
         # 배터리 잔량이 0~100% 범위를 넘지 않도록 조정
         adjusted_battery_level = max(0, min(100, adjusted_battery_level))
 
         # 디버깅 출력 추가
-        print(f"[DEBUG] 박스 {index} - 원래 잔량: {battery_level}%, 조정값: {data['adjustment']}%, 조정된 잔량: {adjusted_battery_level}%")
+        print(f"[DEBUG] 박스 {index} - 원래 잔량: {battery_level}%, 조정값: {adjustment}%, 조정된 잔량: {adjusted_battery_level}%")
 
         if self.ina219_available:
             # 배터리 잔량 바 업데이트
