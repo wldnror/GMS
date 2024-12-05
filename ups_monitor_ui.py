@@ -11,14 +11,14 @@ import board
 SCALE_FACTOR = 1.65
 
 class UPSMonitorUI:
-    def __init__(self, parent, num_boxes=1):
+    def __init__(self, parent, num_boxes=1, adjustment=0):
         self.parent = parent
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
 
         # 조정 값 및 락 초기화
-        self.adjustment = 0
+        self.adjustment = adjustment
         self.lock = threading.Lock()
 
         # I2C 통신 설정
@@ -34,8 +34,8 @@ class UPSMonitorUI:
                 self.ina219 = INA219(i2c_bus)
                 self.ina219_available = True
                 print("INA219 센서가 성공적으로 초기화되었습니다.")
-            except ValueError as e:
-                print(f"INA219 센서를 찾을 수 없습니다: {e}")
+            except Exception as e:
+                print(f"INA219 센서를 초기화할 수 없습니다: {e}")
                 self.ina219_available = False
         else:
             self.ina219_available = False
@@ -43,7 +43,10 @@ class UPSMonitorUI:
         for i in range(num_boxes):
             self.create_ups_box(i)
 
-        # 업데이트 쓰레드는 메인 코드에서 시작하도록 변경
+        # 주기적으로 업데이트하는 쓰레드 시작
+        self.running = True
+        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
+        self.update_thread.start()
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -69,7 +72,7 @@ class UPSMonitorUI:
             outline='black',
             tags='border'
         )
-        # 하단 영역 (검정색) - Y 좌표 수정: y0 < y1
+        # 하단 영역 (검정색)
         box_canvas.create_rectangle(
             0, int(200 * SCALE_FACTOR),
             int(160 * SCALE_FACTOR), int(310 * SCALE_FACTOR),
@@ -199,25 +202,16 @@ class UPSMonitorUI:
         # 디버깅 출력 추가
         print(f"[DEBUG] 박스 {index} - 원래 잔량: {battery_level}%, 조정값: {adjustment}%, 조정된 잔량: {adjusted_battery_level}%")
 
-        if self.ina219_available:
-            # 배터리 잔량 바 업데이트
-            battery_width = int(110 * SCALE_FACTOR * (adjusted_battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
-            canvas.coords(
-                battery_level_bar,
-                int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
-                int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR)
-            )
+        # 배터리 잔량 바 업데이트
+        battery_width = int(110 * SCALE_FACTOR * (adjusted_battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
+        canvas.coords(
+            battery_level_bar,
+            int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
+            int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR)
+        )
 
-            # 배터리 퍼센트 텍스트 업데이트
-            canvas.itemconfig(battery_percentage_text, text=f"{adjusted_battery_level}%")
-        else:
-            # 센서가 없을 경우, 배터리 잔량 바를 비우고 텍스트를 "연결되지 않음"으로 표시
-            canvas.coords(
-                battery_level_bar,
-                int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
-                int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR)
-            )
-            canvas.itemconfig(battery_percentage_text, text="연결되지 않음")
+        # 배터리 퍼센트 텍스트 업데이트
+        canvas.itemconfig(battery_percentage_text, text=f"{adjusted_battery_level}%")
 
         # UPS 모드 텍스트 및 색상 업데이트
         if mode == "상시 모드":
@@ -300,17 +294,8 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("UPS Monitor")
 
-    ups_monitor = UPSMonitorUI(root, num_boxes=1)  # 배터리 박스는 하나뿐이므로 1로 설정
-
-    # 배터리 조정 값 설정 (예: +30 또는 -30)
-    # 개발자나 관리자가 코드 내에서 설정
-    ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
-    # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
-
-    # 업데이트 쓰레드 시작
-    ups_monitor.running = True
-    ups_monitor.update_thread = threading.Thread(target=ups_monitor.update_loop, daemon=True)
-    ups_monitor.update_thread.start()
+    # UPSMonitorUI 객체 생성 시 조정값을 설정
+    ups_monitor = UPSMonitorUI(root, num_boxes=1, adjustment=30)  # 배터리 잔량을 +30% 조정
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
