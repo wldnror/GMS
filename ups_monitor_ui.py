@@ -43,10 +43,7 @@ class UPSMonitorUI:
         for i in range(num_boxes):
             self.create_ups_box(i)
 
-        # 주기적으로 업데이트하는 쓰레드 시작
-        self.running = True
-        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
-        self.update_thread.start()
+        # 업데이트 쓰레드는 메인 코드에서 시작하도록 변경
 
     def create_ups_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
@@ -309,6 +306,11 @@ if __name__ == "__main__":
     # 개발자나 관리자가 코드 내에서 설정
     ups_monitor.set_adjustment(30)   # 배터리 잔량을 +30% 조정
     # ups_monitor.set_adjustment(-30)  # 배터리 잔량을 -30% 조정
+
+    # 업데이트 쓰레드 시작
+    ups_monitor.running = True
+    ups_monitor.update_thread = threading.Thread(target=ups_monitor.update_loop, daemon=True)
+    ups_monitor.update_thread.start()
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
