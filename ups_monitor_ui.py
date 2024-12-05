@@ -291,7 +291,7 @@ if __name__ == "__main__":
     root.title("UPS Monitor")
 
     # UPSMonitorUI 객체 생성 시 adjustment 값을 키워드 인자로 전달
-    ups_monitor = UPSMonitorUI(root, num_boxes=1, adjustment=30)
+    ups_monitor = UPSMonitorUI(root, num_boxes=0, adjustment=30)
 
     root.protocol("WM_DELETE_WINDOW", ups_monitor.stop)
     root.mainloop()
