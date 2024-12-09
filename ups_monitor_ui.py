@@ -8,7 +8,7 @@ from busio import I2C
 import board
 
 # 배터리 보정값 (0 ~ 100 범위로 설정)
-BATTERY_ADJUSTMENT = 22  # 여기서 값을 수정하여 보정
+BATTERY_ADJUSTMENT = 0  # 여기서 값을 수정하여 보정
 
 # 스케일 팩터로 20% 확대
 SCALE_FACTOR = 1.65
