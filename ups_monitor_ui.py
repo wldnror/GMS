@@ -20,6 +20,8 @@ class UPSMonitorUI:
         self.box_frames = []
         self.box_data = []
         self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
+        self.last_battery_level = 0
+        self.last_voltage = 0.0
 
         # I2C 통신 설정
         i2c_bus = I2C(board.SCL, board.SDA)
@@ -77,6 +79,11 @@ class UPSMonitorUI:
                                                          font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
                                                          fill="#FFFFFF", anchor="center")
 
+        # 전압 표시 텍스트 추가 (예쁘게 가운데 정렬, 하얀색)
+        voltage_text_id = box_canvas.create_text(int(75 * SCALE_FACTOR), int(80 * SCALE_FACTOR), text="0.00V",
+                                                 font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
+                                                 fill="#FFFFFF", anchor="center")
+
         # UPS 모드 표시
         mode_text_id = box_canvas.create_text(int(75 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드",
                                               font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00",
@@ -99,18 +106,20 @@ class UPSMonitorUI:
             "battery_level_bar": battery_level_bar,
             "battery_percentage_text": battery_percentage_text,
             "mode_text_id": mode_text_id,
-            "mode": "상시 모드"  # 초기 모드 설정
+            "mode": "상시 모드",  # 초기 모드 설정
+            "voltage_text_id": voltage_text_id
         })
 
         # 프레임을 부모 위젯에 추가
         box_frame.pack(side="left", padx=10, pady=10)
 
-    def update_battery_status(self, index, battery_level, mode):
+    def update_battery_status(self, index, battery_level, mode, voltage=0.0):
         """
-        배터리 상태와 모드를 업데이트하는 함수
+        배터리 상태, 모드, 전압을 업데이트하는 함수
         :param index: 박스 인덱스
         :param battery_level: 배터리 잔량 (0 ~ 100)
         :param mode: 현재 UPS 모드 ("상시 모드" 또는 "배터리 모드")
+        :param voltage: 현재 측정된 전압 값
         """
         # 배터리 레벨에 보정값 추가
         adjusted_battery_level = min(max(battery_level + BATTERY_ADJUSTMENT, 0), 100)  # 0~100 범위 제한
@@ -119,6 +128,7 @@ class UPSMonitorUI:
         battery_level_bar = data["battery_level_bar"]
         battery_percentage_text = data["battery_percentage_text"]
         mode_text_id = data["mode_text_id"]
+        voltage_text_id = data["voltage_text_id"]
 
         if self.ina219_available:
             # 배터리 잔량 바 업데이트
@@ -128,11 +138,15 @@ class UPSMonitorUI:
 
             # 배터리 퍼센트 텍스트 업데이트
             canvas.itemconfig(battery_percentage_text, text=f"{adjusted_battery_level}%")
+
+            # 전압 텍스트 업데이트 (소수점 둘째자리까지 표시)
+            canvas.itemconfig(voltage_text_id, text=f"{voltage:.2f}V")
         else:
             # 센서가 없을 경우, 배터리 잔량 바를 비우고 텍스트를 "연결되지 않음"으로 표시
             canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
                           int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR))
             canvas.itemconfig(battery_percentage_text, text="연결되지 않음")
+            canvas.itemconfig(voltage_text_id, text="N/A")
 
         # UPS 모드 텍스트 및 색상 업데이트
         if mode == "상시 모드":
@@ -161,8 +175,8 @@ class UPSMonitorUI:
         new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
         data["mode"] = new_mode
 
-        # 상태 업데이트 (배터리 레벨은 그대로 유지)
-        self.update_battery_status(index, battery_level=self.last_battery_level, mode=new_mode)
+        # 상태 업데이트 (배터리 레벨, 전압은 마지막 측정값 사용)
+        self.update_battery_status(index, battery_level=self.last_battery_level, mode=new_mode, voltage=self.last_voltage)
 
     def calculate_battery_percentage(self, voltage):
         """
@@ -195,15 +209,18 @@ class UPSMonitorUI:
 
                     # 배터리 잔량 계산
                     battery_level = self.calculate_battery_percentage(voltage)
-                    self.last_battery_level = battery_level  # 토글 모드에서 사용하기 위해 저장
-                else:
-                    # 센서가 없을 경우 배터리 잔량을 0%로 설정
-                    battery_level = 0
                     self.last_battery_level = battery_level
+                    self.last_voltage = voltage
+                else:
+                    # 센서가 없을 경우
+                    battery_level = 0
+                    voltage = 0.0
+                    self.last_battery_level = battery_level
+                    self.last_voltage = voltage
 
                 # 각 박스에 대해 업데이트
                 for index, data in enumerate(self.box_data):
-                    self.update_battery_status(index, battery_level=battery_level, mode=data["mode"])
+                    self.update_battery_status(index, battery_level=battery_level, mode=data["mode"], voltage=voltage)
 
                 # 1초마다 업데이트
                 time.sleep(1)
