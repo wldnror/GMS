@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Tk
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
@@ -86,27 +86,68 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
+        # Entry를 감쌀 프레임 생성 (테두리 효과)
+        entry_border = Frame(frame, bg="#4a4a4a", bd=2)
+        entry_border.grid(row=0, column=0, padx=(0, 10), pady=5)
+
+        # Entry 위젯 생성
         entry = Entry(
-            frame,
+            entry_border,
             textvariable=ip_var,
-            width=int(11 * SCALE_FACTOR),
+            width=int(15 * SCALE_FACTOR),  # 너비 조정
             highlightthickness=0,
             bd=0,
-            relief='flat'
+            relief='flat',
+            bg="#2e2e2e",
+            fg="white",
+            insertbackground="white",
+            font=("Helvetica", int(12 * SCALE_FACTOR))
         )
+        entry.pack(padx=5, pady=5)
+
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
-            entry.config(fg="grey")
+            entry.config(fg="#a9a9a9")  # 회색으로 플레이스홀더 표시
         else:
-            entry.config(fg="black")
+            entry.config(fg="white")
 
-        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
-        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
-        entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=(0, 10), pady=5)
+        # 포커스 인/아웃 시 처리
+        def on_focus_in(event, e=entry, p=placeholder_text):
+            if e['state'] == 'normal':
+                if e.get() == p:
+                    e.delete(0, "end")
+                    e.config(fg="white")
+                entry_border.config(bg="#1e90ff")  # 포커스 시 테두리 색상 변경
+                e.config(
+                    bg="#3a3a3a",
+                    fg="white",
+                    insertbackground="white"
+                )
+
+        def on_focus_out(event, e=entry, p=placeholder_text):
+            if e['state'] == 'normal':
+                if not e.get():
+                    e.insert(0, p)
+                    e.config(fg="#a9a9a9")
+                entry_border.config(bg="#4a4a4a")  # 포커스 해제 시 테두리 색상 복원
+                e.config(
+                    bg="#2e2e2e",
+                    fg="#a9a9a9" if e.get() == p else "white",
+                    insertbackground="white"
+                )
+
+        def on_entry_click(event, e=entry, p=placeholder_text):
+            if e['state'] == 'normal':
+                on_focus_in(event, e, p)
+                self.show_virtual_keyboard(e)
+
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
+        entry.bind("<Button-1>", on_entry_click)
         self.entries.append(entry)
 
+        # 연결/해제 버튼 생성
         action_button = Button(
             frame,
             image=self.connect_image,
@@ -118,7 +159,8 @@ class ModbusUI:
             borderwidth=0,
             relief='flat',
             bg='black',
-            activebackground='black'
+            activebackground='black',
+            cursor="hand2"  # 마우스 커서 변경
         )
         action_button.grid(row=0, column=1)
         self.action_buttons.append(action_button)
@@ -126,35 +168,6 @@ class ModbusUI:
     def show_virtual_keyboard(self, entry):
         self.virtual_keyboard.show(entry)
         entry.focus_set()
-
-    def on_focus_in(self, event, entry, placeholder):
-        if entry['state'] == 'normal':
-            if entry.get() == placeholder:
-                entry.delete(0, "end")
-                entry.config(fg="black")
-            entry.config(
-                highlightthickness=1,
-                highlightbackground="blue",
-                highlightcolor="blue",
-                bd=1,
-                relief='solid'
-            )
-
-    def on_focus_out(self, event, entry, placeholder):
-        if entry['state'] == 'normal':
-            if not entry.get():
-                entry.insert(0, placeholder)
-                entry.config(fg="grey")
-            entry.config(
-                highlightthickness=0,
-                bd=0,
-                relief='flat'
-            )
-
-    def on_entry_click(self, event, entry, placeholder):
-        if entry['state'] == 'normal':
-            self.on_focus_in(event, entry, placeholder)
-            self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))  # 기존 코드 유지
@@ -168,7 +181,8 @@ class ModbusUI:
             height=int(300 * SCALE_FACTOR),
             highlightthickness=int(3 * SCALE_FACTOR),
             highlightbackground="#000000",
-            highlightcolor="#000000"
+            highlightcolor="#000000",
+            bg="#1e1e1e"  # 배경색 추가
         )
         box_canvas.pack()
 
@@ -213,7 +227,8 @@ class ModbusUI:
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="AL1",
             fill="#cccccc",
-            anchor="e"
+            anchor="e",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
         )
 
         circle_items.append(
@@ -229,7 +244,8 @@ class ModbusUI:
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="AL2",
             fill="#cccccc",
-            anchor="e"
+            anchor="e",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
         )
 
         circle_items.append(
@@ -245,7 +261,8 @@ class ModbusUI:
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="PWR",
             fill="#cccccc",
-            anchor="center"
+            anchor="center",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
         )
 
         circle_items.append(
@@ -261,7 +278,8 @@ class ModbusUI:
             int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="FUT",
             fill="#cccccc",
-            anchor="n"
+            anchor="n",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
         )
 
         gas_type_var = self.box_states[index]["gas_type_var"]
@@ -650,3 +668,30 @@ class ModbusUI:
                 self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
+
+def main():
+    root = Tk()
+    root.title("Modbus UI")
+    root.geometry("800x600")  # 예시 크기 조정
+    root.configure(bg="#1e1e1e")  # 배경색 설정
+
+    num_boxes = 4  # 필요한 박스 수 설정
+    gas_types = {
+        "modbus_box_0": "ORG",
+        "modbus_box_1": "ARF-T",
+        "modbus_box_2": "HMDS",
+        "modbus_box_3": "HC-100"
+    }
+
+    def alarm_callback(active, box_id):
+        if active:
+            print(f"Alarm active in {box_id}")
+        else:
+            print(f"Alarm cleared in {box_id}")
+
+    modbus_ui = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
