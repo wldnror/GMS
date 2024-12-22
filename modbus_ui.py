@@ -88,7 +88,7 @@ class ModbusUI:
     def add_ip_row(self, frame, ip_var, index):
         # Entry를 감쌀 프레임 생성 (테두리 효과)
         entry_border = Frame(frame, bg="#4a4a4a", bd=1, relief='solid')
-        entry_border.grid(row=0, column=0, padx=(0, 10), pady=5)
+        entry_border.grid(row=0, column=0, padx=(0, 5), pady=5)
 
         # Entry 위젯 생성
         entry = Entry(
