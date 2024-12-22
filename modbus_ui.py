@@ -65,7 +65,7 @@ class ModbusUI:
             self.create_modbus_box(i)
 
         self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 133ms
+        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -87,23 +87,23 @@ class ModbusUI:
 
     def add_ip_row(self, frame, ip_var, index):
         # Entry를 감쌀 프레임 생성 (테두리 효과)
-        entry_border = Frame(frame, bg="#4a4a4a", bd=2)
+        entry_border = Frame(frame, bg="#4a4a4a", bd=1, relief='solid')
         entry_border.grid(row=0, column=0, padx=(0, 10), pady=5)
 
         # Entry 위젯 생성
         entry = Entry(
             entry_border,
             textvariable=ip_var,
-            width=int(15 * SCALE_FACTOR),  # 너비 조정
+            width=int(15 * SCALE_FACTOR),  # 기존 너비 유지
             highlightthickness=0,
             bd=0,
             relief='flat',
             bg="#2e2e2e",
             fg="white",
             insertbackground="white",
-            font=("Helvetica", int(12 * SCALE_FACTOR))
+            font=("Helvetica", int(10 * SCALE_FACTOR))  # 기존 폰트 크기 유지
         )
-        entry.pack(padx=5, pady=5)
+        entry.pack(padx=5, pady=2)
 
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
@@ -119,11 +119,7 @@ class ModbusUI:
                     e.delete(0, "end")
                     e.config(fg="white")
                 entry_border.config(bg="#1e90ff")  # 포커스 시 테두리 색상 변경
-                e.config(
-                    bg="#3a3a3a",
-                    fg="white",
-                    insertbackground="white"
-                )
+                e.config(bg="#3a3a3a")
 
         def on_focus_out(event, e=entry, p=placeholder_text):
             if e['state'] == 'normal':
@@ -131,11 +127,7 @@ class ModbusUI:
                     e.insert(0, p)
                     e.config(fg="#a9a9a9")
                 entry_border.config(bg="#4a4a4a")  # 포커스 해제 시 테두리 색상 복원
-                e.config(
-                    bg="#2e2e2e",
-                    fg="#a9a9a9" if e.get() == p else "white",
-                    insertbackground="white"
-                )
+                e.config(bg="#2e2e2e")
 
         def on_entry_click(event, e=entry, p=placeholder_text):
             if e['state'] == 'normal':
@@ -418,15 +410,15 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
 
-                # 테두리 제거 # 수정됨
-                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))  # 수정됨
+                # 테두리 제거
+                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
             else:
                 # 연결 실패
                 self.console.print(f"Failed to connect to {ip}")
@@ -447,8 +439,8 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))  # 수정됨
+        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
+        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -479,7 +471,7 @@ class ModbusUI:
                 result_40007 = client.read_holding_registers(address_40007, count)
                 result_40011 = client.read_holding_registers(address_40011, count)
 
-                if result_40001.isError():
+                if result_40001.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40001")
 
                 value_40001 = result_40001.registers[0]
@@ -501,13 +493,13 @@ class ModbusUI:
 
                 self.ui_update_queue.put(('circle_state', box_index, [top_blink, middle_blink, middle_fixed, False]))
 
-                if result_40005.isError():
+                if result_40005.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40005")
 
                 value_40005 = result_40005.registers[0]
                 self.box_states[box_index]["last_value_40005"] = value_40005
 
-                if result_40007.isError():
+                if result_40007.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40007")
 
                 value_40007 = result_40007.registers[0]
@@ -533,7 +525,7 @@ class ModbusUI:
                         self.data_queue.put((box_index, error_display, False))
                         self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
 
-                if result_40011.isError():
+                if result_40011.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40011")
 
                 value_40011 = result_40011.registers[0]
@@ -621,8 +613,8 @@ class ModbusUI:
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
         self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))  # 수정됨
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -636,8 +628,8 @@ class ModbusUI:
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
-                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))  # 수정됨
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
+                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
