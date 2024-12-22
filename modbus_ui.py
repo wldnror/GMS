@@ -101,7 +101,7 @@ class ModbusUI:
             bg="#2e2e2e",
             fg="white",
             insertbackground="white",
-            font=("Helvetica", int(12 * SCALE_FACTOR))  # 기존 폰트 크기 유지
+            font=("Helvetica", int(11 * SCALE_FACTOR))  # 기존 폰트 크기 유지
         )
         entry.pack(padx=2, pady=3)
 
