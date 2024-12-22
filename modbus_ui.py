@@ -94,7 +94,7 @@ class ModbusUI:
         entry = Entry(
             entry_border,
             textvariable=ip_var,
-            width=int(15 * SCALE_FACTOR),  # 기존 너비 유지
+            width=int(10 * SCALE_FACTOR),  # 기존 너비 유지
             highlightthickness=0,
             bd=0,
             relief='flat',
