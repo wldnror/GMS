@@ -103,7 +103,7 @@ class ModbusUI:
             insertbackground="white",
             font=("Helvetica", int(10 * SCALE_FACTOR))  # 기존 폰트 크기 유지
         )
-        entry.pack(padx=5, pady=2)
+        entry.pack(padx=2, pady=2)
 
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
