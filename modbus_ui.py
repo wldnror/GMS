@@ -59,13 +59,11 @@ class ModbusUI:
         self.connect_image = self.load_image(connect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
         self.disconnect_image = self.load_image(disconnect_image_path, (int(50 * SCALE_FACTOR), int(70 * SCALE_FACTOR)))
 
-        # 원하는 개수(num_boxes)만큼 Modbus 박스 생성
         for i in range(num_boxes):
             self.create_modbus_box(i)
 
-        # 통신 주기는 0.2초(200ms), 깜빡임 간격은 1초(1000ms) 예시
-        self.communication_interval = 0.2
-        self.blink_interval = 1000  # 1초
+        self.communication_interval = 0.2  # 200ms
+        self.blink_interval = int(self.communication_interval * 1000)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -194,13 +192,13 @@ class ModbusUI:
             "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
             "gas_type_text_id": None,
             "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")],
-            # 알람 관련 플래그
+            # 알람 상태(새로 추가)
             "alarm1_on": False,
             "alarm2_on": False,
             "alarm1_blinking": False,
             "alarm2_blinking": False,
-            "alarm_border_blink": False,
-            "border_blink_state": False
+            "alarm_border_blink": False,  # 테두리 깜빡임 여부
+            "border_blink_state": False   # 테두리 현재 깜빡임 상태(토글용)
         })
 
         self.box_states[index]["gas_type_var"].trace_add(
@@ -214,19 +212,15 @@ class ModbusUI:
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        # AL1(0), AL2(1), PWR(2), FUT(3) 순으로 oval 생성
-        # 여기서 AL1이 "오른쪽", AL2가 "왼쪽" 등에 위치하도록 좌표 조정
-        # (원하는 레이아웃에 맞춰 배치하세요)
+        # AL1(0), AL2(1), PWR(2), FUT(3) 순서로 oval 생성
         circle_items = []
-
-        # AL1 (오른쪽 램프)
+        # AL1
         circle_items.append(
             box_canvas.create_oval(
                 int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
                 int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
                 int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                fill="#fdc8c8", outline="#fdc8c8"
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
             )
         )
         box_canvas.create_text(
@@ -237,14 +231,13 @@ class ModbusUI:
             anchor="e"
         )
 
-        # AL2 (왼쪽 램프)
+        # AL2
         circle_items.append(
             box_canvas.create_oval(
                 int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
                 int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
                 int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                fill="#fdc8c8", outline="#fdc8c8"
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
             )
         )
         box_canvas.create_text(
@@ -255,14 +248,13 @@ class ModbusUI:
             anchor="e"
         )
 
-        # PWR (가운데 혹은 임의 위치)
+        # PWR
         circle_items.append(
             box_canvas.create_oval(
                 int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
                 int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
                 int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                fill="#e0fbba", outline="#e0fbba"
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
             )
         )
         box_canvas.create_text(
@@ -273,14 +265,13 @@ class ModbusUI:
             anchor="center"
         )
 
-        # FUT (추가 램프)
+        # FUT
         circle_items.append(
             box_canvas.create_oval(
                 int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
                 int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
                 int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                fill="#fcf1bf", outline="#fcf1bf"
+                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
             )
         )
         box_canvas.create_text(
@@ -362,7 +353,7 @@ class ModbusUI:
             color = colors_on[i] if state else colors_off[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
 
-        # 콜백
+        # (기존 코드) alarm_callback
         alarm_active = states[0] or states[1]
         self.alarm_callback(alarm_active, f"modbus_{box_index}")
 
@@ -382,7 +373,7 @@ class ModbusUI:
                 segments = SEGMENTS[digit]
                 leading_zero = False
 
-            # 깜빡임 상태라면 세그먼트를 꺼버림
+            # 깜빡임 상태이면 세그먼트를 꺼버림
             if blink and self.box_states[box_index]["blink_state"]:
                 segments = SEGMENTS[' ']
 
@@ -419,7 +410,7 @@ class ModbusUI:
 
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
-                self.update_circle_state([False, False, True, False], box_index=i)  # PWR on
+                self.update_circle_state([False, False, True, False], box_index=i)  # PWR 켜짐
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
@@ -482,24 +473,23 @@ class ModbusUI:
                 if result_40001.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40001")
 
-                # ALARM 비트(6: AL1, 7: AL2) 확인
+                # Alarm bits 확인
                 value_40001 = result_40001.registers[0]
-                bit_6_on = bool(value_40001 & (1 << 6))  # AL1
-                bit_7_on = bool(value_40001 & (1 << 7))  # AL2
+                bit_6_on = bool(value_40001 & (1 << 6))  # ALARM1
+                bit_7_on = bool(value_40001 & (1 << 7))  # ALARM2
 
-                # box_states에 저장 + UI에 알람 체크 요청
+                # 읽은 알람 상태를 box_states에 저장
                 self.box_states[box_index]["alarm1_on"] = bit_6_on
                 self.box_states[box_index]["alarm2_on"] = bit_7_on
+                # UI 쪽에서 알람 깜빡임 로직 처리
                 self.ui_update_queue.put(('alarm_check', box_index))
 
-                # Read 40005
                 if result_40005.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40005")
 
                 value_40005 = result_40005.registers[0]
                 self.box_states[box_index]["last_value_40005"] = value_40005
 
-                # Read 40007 (에러 비트)
                 if result_40007.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40007")
 
@@ -526,7 +516,6 @@ class ModbusUI:
                         self.data_queue.put((box_index, error_display, False))
                         self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
 
-                # Read 40011 (Bar 표시 값)
                 if result_40011.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40011")
 
@@ -603,7 +592,7 @@ class ModbusUI:
                     _, box_index, value, blink = item
                     self.update_segment_display(value, box_index=box_index, blink=blink)
                 elif item[0] == 'alarm_check':
-                    # AL1/AL2 비트 변경 시 알람 깜빡임 로직
+                    # Alarm 비트 변경에 따른 AL1, AL2 램프 깜빡임 로직
                     box_index = item[1]
                     self.check_alarms(box_index)
         except queue.Empty:
@@ -696,55 +685,69 @@ class ModbusUI:
 
         toggle_color()
 
-    # --------------------------------------------------------
-    # 추가된 알람 체크/깜빡임 함수
-    # --------------------------------------------------------
+    # -------------------------------------------------------------------------
+    #  추가된 알람 체크/깜빡임 함수
+    # -------------------------------------------------------------------------
     def check_alarms(self, box_index):
-        alarm1 = self.box_states[box_index]["alarm1_on"]  # bit6
-        alarm2 = self.box_states[box_index]["alarm2_on"]  # bit7
+        """
+        - Alarm2가 울리면(=bit7) Alarm1 램프는 빨간색으로 계속 켜두고, Alarm2를 깜빡임.
+        - Alarm1만 울리면(=bit6) Alarm1 깜빡임, Alarm2는 꺼짐.
+        - 둘 다 없으면 깜빡임 전부 해제.
+        """
+        alarm1 = self.box_states[box_index]["alarm1_on"]
+        alarm2 = self.box_states[box_index]["alarm2_on"]
 
         if alarm2:
-            # Alarm2가 켜져있으면 Alarm1은 빨간 고정, Alarm2만 깜빡
+            # Alarm2가 켜져 있으면, Alarm1은 "깜빡임 없이" 빨간색 유지
             self.box_states[box_index]["alarm1_blinking"] = False
             self.box_states[box_index]["alarm2_blinking"] = True
-            self.set_alarm_lamp(box_index, alarm1_on=True, blink1=False,
-                                alarm2_on=True, blink2=True)
+            # 램프 색상 강제 갱신(AL1=빨간색 켜짐, AL2=깜빡임)
+            self.set_alarm_lamp(box_index, alarm1_on=True, blink1=False, alarm2_on=True, blink2=True)
+
+            # 테두리도 깜빡이도록 설정
             self.box_states[box_index]["alarm_border_blink"] = True
-            self.blink_alarms(box_index)
+            self.blink_alarms(box_index)  # 깜빡임 시작
 
         elif alarm1:
-            # Alarm1만 켜져 있으면 AL1 깜빡임, AL2는 off
+            # Alarm1만 켜져 있으면 AL1 깜빡임, AL2 끔
             self.box_states[box_index]["alarm1_blinking"] = True
             self.box_states[box_index]["alarm2_blinking"] = False
-            self.set_alarm_lamp(box_index, alarm1_on=True, blink1=True,
-                                alarm2_on=False, blink2=False)
+            self.set_alarm_lamp(box_index, alarm1_on=True, blink1=True, alarm2_on=False, blink2=False)
+
+            # 테두리 깜빡임
             self.box_states[box_index]["alarm_border_blink"] = True
             self.blink_alarms(box_index)
 
         else:
-            # 둘 다 없으면 깜빡임 해제
+            # 둘 다 꺼졌으면 깜빡임 해제, 램프 모두 off
             self.box_states[box_index]["alarm1_blinking"] = False
             self.box_states[box_index]["alarm2_blinking"] = False
             self.box_states[box_index]["alarm_border_blink"] = False
-            self.set_alarm_lamp(box_index, False, False, False, False)
 
+            self.set_alarm_lamp(box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
+            # 테두리 색상도 기본(검정 or 0)으로 돌림
             box_canvas = self.box_data[box_index][0]
-            box_canvas.config(highlightbackground="#000000")
+            box_canvas.config(highlightbackground="#000000")  # 기본 테두리
             self.box_states[box_index]["border_blink_state"] = False
 
     def set_alarm_lamp(self, box_index, alarm1_on, blink1, alarm2_on, blink2):
         """
-        AL1: circle_items[0], AL2: circle_items[1]
+        실제로 AL1, AL2 램프 색을 세팅.
+        blink1, blink2는 ‘현재 이 순간’ 깜빡이냐 아니냐가 아닌,
+        “이 램프가 깜빡임 대상인지”를 의미합니다.
         """
         box_canvas, circle_items, *_ = self.box_data[box_index]
 
         # AL1
         if alarm1_on:
             if blink1:
+                # 깜빡임 대상이면 우선 한 번 "off" 로 시작해서 blink_alarms에서 토글
                 box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
             else:
+                # 깜빡이지 않는 고정 빨간
                 box_canvas.itemconfig(circle_items[0], fill="red", outline="red")
         else:
+            # 알람 꺼짐
             box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
 
         # AL2
@@ -757,17 +760,18 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
 
     def blink_alarms(self, box_index):
-        # 둘 중 하나라도 깜빡여야 동작
-        if not (self.box_states[box_index]["alarm1_blinking"] or 
-                self.box_states[box_index]["alarm2_blinking"] or
-                self.box_states[box_index]["alarm_border_blink"]):
+        """
+        Alarm1/Alarm2 깜빡임 + 테두리 깜빡임을 200ms마다 토글
+        """
+        # 만약 둘 다 깜빡임 해제라면 종료
+        if not (self.box_states[box_index]["alarm1_blinking"] or self.box_states[box_index]["alarm2_blinking"] or self.box_states[box_index]["alarm_border_blink"]):
             return
 
         box_canvas, circle_items, *_ = self.box_data[box_index]
         state = self.box_states[box_index]["border_blink_state"]
         self.box_states[box_index]["border_blink_state"] = not state
 
-        # 테두리 색상 깜빡임(빨간 <-> 검정)
+        # 테두리 색상 토글 (빨간 <-> 검정)
         if self.box_states[box_index]["alarm_border_blink"]:
             if state:
                 box_canvas.config(highlightbackground="#000000")
@@ -790,9 +794,8 @@ class ModbusUI:
             else:
                 box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
 
-        # 다음 깜빡임 예약(1초마다)
+        # 다음 깜빡임 예약
         self.parent.after(self.blink_interval, lambda: self.blink_alarms(box_index))
-
 
 def main():
     root = Tk()
