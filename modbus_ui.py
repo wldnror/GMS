@@ -498,7 +498,7 @@ class ModbusUI:
                 result_40007 = client.read_holding_registers(address_40007, count)
                 result_40011 = client.read_holding_registers(address_40011, count)
 
-                if result_40001.isError():
+                if result_40001.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40001")
 
                 value_40001 = result_40001.registers[0]
@@ -520,13 +520,13 @@ class ModbusUI:
 
                 self.ui_update_queue.put(('circle_state', box_index, [top_blink, middle_blink, middle_fixed, False]))
 
-                if result_40005.isError():
+                if result_40005.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40005")
 
                 value_40005 = result_40005.registers[0]
                 self.box_states[box_index]["last_value_40005"] = value_40005
 
-                if result_40007.isError():
+                if result_40007.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40007")
 
                 value_40007 = result_40007.registers[0]
@@ -544,15 +544,18 @@ class ModbusUI:
 
                     error_display = error_display.ljust(4)
                     if 'E' in error_display:
-                        self.box_states[box_index]["blinking_error"] = True
-                        self.data_queue.put((box_index, error_display, True))
-                        self.ui_update_queue.put(('circle_state', box_index, [False, False, True, self.box_states[box_index]["blink_state"]]))
+                        if not self.box_states[box_index]["blinking_error"]:
+                            self.box_states[box_index]["blinking_error"] = True
+                            self.data_queue.put((box_index, error_display, True))
+                            # 시작 시 첫 번째 UI 업데이트만 큐에 넣기
+                            self.ui_update_queue.put(('circle_state', box_index, [False, False, True, self.box_states[box_index]["blink_state"]]))
                     else:
-                        self.box_states[box_index]["blinking_error"] = False
-                        self.data_queue.put((box_index, error_display, False))
-                        self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
+                        if self.box_states[box_index]["blinking_error"]:
+                            self.box_states[box_index]["blinking_error"] = False
+                            self.data_queue.put((box_index, error_display, False))
+                            self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
 
-                if result_40011.isError():
+                if result_40011.is_error():
                     raise ModbusIOException(f"Error reading from {ip} at address 40011")
 
                 value_40011 = result_40011.registers[0]
@@ -573,7 +576,8 @@ class ModbusUI:
 
     def update_bar(self, value, box_index):
         _, _, bar_canvas, _, bar_item = self.box_data[box_index]
-        percentage = value / 100.0
+        percentage = value / self.box_states[box_index]["full_scale"]  # 수정: full_scale을 기준으로 퍼센트 계산
+        percentage = max(0.0, min(1.0, percentage))  # 퍼센트 범위를 0.0 ~ 1.0으로 제한
         bar_length = int(153 * SCALE_FACTOR * percentage)
 
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, int(5 * SCALE_FACTOR)))
@@ -626,7 +630,11 @@ class ModbusUI:
                     self.update_bar(value, box_index)
                 elif item[0] == 'segment_display':
                     _, box_index, value, blink = item
-                    self.update_segment_display(value, box_index=box_index, blink=blink)
+                    # 깜빡이는 중이거나, blink가 False일 때만 업데이트
+                    if blink and self.box_states[box_index]["blinking_error"]:
+                        self.update_segment_display(value, box_index=box_index, blink=blink)
+                    elif not blink:
+                        self.update_segment_display(value, box_index=box_index, blink=blink)
         except queue.Empty:
             pass
         finally:
