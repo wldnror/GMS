@@ -642,6 +642,15 @@ class ModbusUI:
         self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
         self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
+        
+        # pwr_blink_state를 False로 설정하여 blink_pwr가 더 이상 동작하지 않도록 함
+        self.box_states[box_index]["pwr_blink_state"] = False
+        
+        # PWR 램프를 연한 초록색으로 강제로 설정
+        box_canvas = self.box_data[box_index][0]
+        circle_items = self.box_data[box_index][1]
+        box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+        self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
 
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
@@ -654,7 +663,7 @@ class ModbusUI:
                 stop_flag.clear()
                 threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
                 self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
@@ -675,12 +684,24 @@ class ModbusUI:
 
     def blink_pwr(self, box_index):
         def toggle_color():
+            # 먼저 연결 상태를 확인
+            if self.ip_vars[box_index].get() not in self.connected_clients:
+                # 연결이 끊어졌으므로 PWR 램프를 연한 초록색으로 설정
+                box_canvas = self.box_data[box_index][0]
+                circle_items = self.box_data[box_index][1]
+                box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+                self.box_states[box_index]["pwr_blink_state"] = False
+                self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
+                return  # 더 이상 반복하지 않음
+
             box_canvas = self.box_data[box_index][0]
             circle_items = self.box_data[box_index][1]
             if self.box_states[box_index]["pwr_blink_state"]:
                 box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
+                self.console.print(f"PWR lamp set to red for box {box_index}.")
             else:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
+                self.console.print(f"PWR lamp set to green for box {box_index}.")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
                 self.parent.after(self.blink_interval, toggle_color)
