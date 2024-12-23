@@ -104,7 +104,7 @@ class ModbusUI:
             font=("Helvetica", int(10 * SCALE_FACTOR)),  # 기존 폰트 크기 유지
             justify='center'  # 텍스트 중앙 정렬 추가
         )
-        entry.pack(padx=2, pady=4)
+        entry.pack(padx=2, pady=3)
 
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
@@ -161,6 +161,35 @@ class ModbusUI:
     def show_virtual_keyboard(self, entry):
         self.virtual_keyboard.show(entry)
         entry.focus_set()
+
+    def on_focus_in(self, event, entry, placeholder):
+        if entry['state'] == 'normal':
+            if entry.get() == placeholder:
+                entry.delete(0, "end")
+                entry.config(fg="black")
+            entry.config(
+                highlightthickness=1,
+                highlightbackground="blue",
+                highlightcolor="blue",
+                bd=1,
+                relief='solid'
+            )
+
+    def on_focus_out(self, event, entry, placeholder):
+        if entry['state'] == 'normal':
+            if not entry.get():
+                entry.insert(0, placeholder)
+                entry.config(fg="grey")
+            entry.config(
+                highlightthickness=0,
+                bd=0,
+                relief='flat'
+            )
+
+    def on_entry_click(self, event, entry, placeholder):
+        if entry['state'] == 'normal':
+            self.on_focus_in(event, entry, placeholder)
+            self.show_virtual_keyboard(entry)
 
     def create_modbus_box(self, index):
         box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))  # 기존 코드 유지
