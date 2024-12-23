@@ -683,3 +683,118 @@ class ModbusUI:
                 self.parent.after(self.blink_interval, toggle_color)  # 계속 깜빡
 
         toggle_color()
+
+    # -------------------------------------------------------------------------
+    #  추가: Alarm1/Alarm2 램프 + 테두리 깜빡임
+    # -------------------------------------------------------------------------
+    def check_alarms(self, box_index):
+        alarm1 = self.box_states[box_index]["alarm1_on"]
+        alarm2 = self.box_states[box_index]["alarm2_on"]
+
+        if alarm2:
+            # Alarm2 ON → Alarm1은 켜고(깜빡임 없이), AL2 깜빡임
+            self.box_states[box_index]["alarm1_blinking"] = False
+            self.box_states[box_index]["alarm2_blinking"] = True
+            self.set_alarm_lamp(box_index, alarm1_on=True, blink1=False, alarm2_on=True, blink2=True)
+            self.box_states[box_index]["alarm_border_blink"] = True
+            self.blink_alarms(box_index)
+        elif alarm1:
+            # Alarm1만 ON
+            self.box_states[box_index]["alarm1_blinking"] = True
+            self.box_states[box_index]["alarm2_blinking"] = False
+            self.set_alarm_lamp(box_index, alarm1_on=True, blink1=True, alarm2_on=False, blink2=False)
+            self.box_states[box_index]["alarm_border_blink"] = True
+            self.blink_alarms(box_index)
+        else:
+            # 둘 다 OFF
+            self.box_states[box_index]["alarm1_blinking"] = False
+            self.box_states[box_index]["alarm2_blinking"] = False
+            self.box_states[box_index]["alarm_border_blink"] = False
+
+            self.set_alarm_lamp(box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
+            # 테두리 원복
+            box_canvas = self.box_data[box_index][0]
+            box_canvas.config(highlightbackground="#000000")
+            self.box_states[box_index]["border_blink_state"] = False
+
+    def set_alarm_lamp(self, box_index, alarm1_on, blink1, alarm2_on, blink2):
+        box_canvas, circle_items, *_ = self.box_data[box_index]
+
+        # AL1
+        if alarm1_on:
+            if blink1:
+                box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
+            else:
+                box_canvas.itemconfig(circle_items[0], fill="red", outline="red")
+        else:
+            box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
+
+        # AL2
+        if alarm2_on:
+            if blink2:
+                box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
+            else:
+                box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
+        else:
+            box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
+
+    def blink_alarms(self, box_index):
+        if not (self.box_states[box_index]["alarm1_blinking"] or
+                self.box_states[box_index]["alarm2_blinking"] or
+                self.box_states[box_index]["alarm_border_blink"]):
+            return
+
+        box_canvas, circle_items, *_ = self.box_data[box_index]
+        state = self.box_states[box_index]["border_blink_state"]
+        self.box_states[box_index]["border_blink_state"] = not state
+
+        if self.box_states[box_index]["alarm_border_blink"]:
+            if state:
+                box_canvas.config(highlightbackground="#000000")
+            else:
+                box_canvas.config(highlightbackground="#ff0000")
+
+        # AL1
+        if self.box_states[box_index]["alarm1_blinking"]:
+            fill_now = box_canvas.itemcget(circle_items[0], "fill")
+            if fill_now == "red":
+                box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
+            else:
+                box_canvas.itemconfig(circle_items[0], fill="red", outline="red")
+
+        # AL2
+        if self.box_states[box_index]["alarm2_blinking"]:
+            fill_now = box_canvas.itemcget(circle_items[1], "fill")
+            if fill_now == "red":
+                box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
+            else:
+                box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
+
+        self.parent.after(self.alarm_blink_interval, lambda: self.blink_alarms(box_index))
+
+
+def main():
+    root = Tk()
+    root.title("Modbus UI")
+    root.geometry("1200x600")
+    root.configure(bg="#1e1e1e")
+
+    num_boxes = 4
+    gas_types = {
+        "modbus_box_0": "ORG",
+        "modbus_box_1": "ARF-T",
+        "modbus_box_2": "HMDS",
+        "modbus_box_3": "HC-100"
+    }
+
+    def alarm_callback(active, box_id):
+        if active:
+            print(f"[Callback] Alarm active in {box_id}")
+        else:
+            print(f"[Callback] Alarm cleared in {box_id}")
+
+    modbus_ui = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
