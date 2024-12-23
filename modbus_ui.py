@@ -65,7 +65,7 @@ class ModbusUI:
             self.create_modbus_box(i)
 
         self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 200ms
+        self.blink_interval = int((self.communication_interval) * 1000)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -217,7 +217,8 @@ class ModbusUI:
             "blinking_error": False,
             "previous_value_40011": None,
             "previous_segment_display": None,
-            "pwr_blink_state": False,
+            "pwr_blink_state": False,          # PWR 램프 깜빡임 상태 플래그
+            "pwr_blinking": False,             # PWR 램프 깜빡임 활성화 여부
             "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
             "gas_type_text_id": None,
             "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
@@ -417,7 +418,7 @@ class ModbusUI:
         if self.ip_vars[i].get() in self.connected_clients:
             self.disconnect(i)
         else:
-            threading.Thread(target=self.connect, args=(i,)).start()
+            threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
@@ -453,7 +454,7 @@ class ModbusUI:
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+            threading.Thread(target=self.disconnect_client, args=(ip, i), daemon=True).start()
 
     def disconnect_client(self, ip, i):
         self.stop_flags[ip].set()
@@ -643,8 +644,9 @@ class ModbusUI:
         self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
         
-        # pwr_blink_state를 False로 설정하여 blink_pwr가 더 이상 동작하지 않도록 함
+        # pwr_blink_state와 pwr_blinking을 False로 설정하여 blink_pwr가 더 이상 동작하지 않도록 함
         self.box_states[box_index]["pwr_blink_state"] = False
+        self.box_states[box_index]["pwr_blinking"] = False
         
         # PWR 램프를 연한 초록색으로 강제로 설정
         box_canvas = self.box_data[box_index][0]
@@ -661,7 +663,7 @@ class ModbusUI:
             if client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
-                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
+                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index), daemon=True).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
                 self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
                 self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))
@@ -683,7 +685,18 @@ class ModbusUI:
             json.dump(ip_settings, file)
 
     def blink_pwr(self, box_index):
+        # 이미 깜빡이고 있는지 확인
+        if self.box_states[box_index].get("pwr_blinking", False):
+            return
+
+        # 깜빡임 시작
+        self.box_states[box_index]["pwr_blinking"] = True
+
         def toggle_color():
+            if not self.box_states[box_index]["pwr_blinking"]:
+                # 깜빡임 중지
+                return
+
             # 먼저 연결 상태를 확인
             if self.ip_vars[box_index].get() not in self.connected_clients:
                 # 연결이 끊어졌으므로 PWR 램프를 연한 초록색으로 설정
@@ -691,6 +704,7 @@ class ModbusUI:
                 circle_items = self.box_data[box_index][1]
                 box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
                 self.box_states[box_index]["pwr_blink_state"] = False
+                self.box_states[box_index]["pwr_blinking"] = False
                 self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
                 return  # 더 이상 반복하지 않음
 
@@ -698,10 +712,10 @@ class ModbusUI:
             circle_items = self.box_data[box_index][1]
             if self.box_states[box_index]["pwr_blink_state"]:
                 box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
-                self.console.print(f"PWR lamp set to red for box {box_index}.")
+                # self.console.print(f"PWR lamp set to red for box {box_index}.")  # 로깅 빈도 줄임
             else:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
-                self.console.print(f"PWR lamp set to green for box {box_index}.")
+                # self.console.print(f"PWR lamp set to green for box {box_index}.")  # 로깅 빈도 줄임
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
                 self.parent.after(self.blink_interval, toggle_color)
