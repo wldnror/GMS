@@ -3,7 +3,7 @@
 import json
 import os
 import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Tk
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
@@ -65,7 +65,7 @@ class ModbusUI:
             self.create_modbus_box(i)
 
         self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int((self.communication_interval / 1) * 1000)  # 133ms
+        self.blink_interval = int((self.communication_interval) * 1000)  # 200ms
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -86,27 +86,61 @@ class ModbusUI:
         return ImageTk.PhotoImage(img)
 
     def add_ip_row(self, frame, ip_var, index):
+        # Entry를 감쌀 프레임 생성 (테두리 효과)
+        entry_border = Frame(frame, bg="#4a4a4a", bd=1, relief='solid')
+        entry_border.grid(row=0, column=0, padx=(0, 0), pady=5)
+
+        # Entry 위젯 생성
         entry = Entry(
-            frame,
+            entry_border,
             textvariable=ip_var,
-            width=int(11 * SCALE_FACTOR),
+            width=int(7 * SCALE_FACTOR),  # 기존 너비 유지
             highlightthickness=0,
             bd=0,
-            relief='flat'
+            relief='flat',
+            bg="#2e2e2e",
+            fg="white",
+            insertbackground="white",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),  # 기존 폰트 크기 유지
+            justify='center'  # 텍스트 중앙 정렬 추가
         )
+        entry.pack(padx=2, pady=3)
+
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
             entry.insert(0, placeholder_text)
-            entry.config(fg="grey")
+            entry.config(fg="#a9a9a9")  # 회색으로 플레이스홀더 표시
         else:
-            entry.config(fg="black")
+            entry.config(fg="white")
 
-        entry.bind("<FocusIn>", lambda event, e=entry, p=placeholder_text: self.on_focus_in(event, e, p))
-        entry.bind("<FocusOut>", lambda event, e=entry, p=placeholder_text: self.on_focus_out(event, e, p))
-        entry.bind("<Button-1>", lambda event, e=entry, p=placeholder_text: self.on_entry_click(event, e, p))
-        entry.grid(row=0, column=0, padx=(0, 10), pady=5)
+        # 포커스 인/아웃 시 처리
+        def on_focus_in(event, e=entry, p=placeholder_text):
+            if e['state'] == 'normal':
+                if e.get() == p:
+                    e.delete(0, "end")
+                    e.config(fg="white")
+                entry_border.config(bg="#1e90ff")  # 포커스 시 테두리 색상 변경
+                e.config(bg="#3a3a3a")
+
+        def on_focus_out(event, e=entry, p=placeholder_text):
+            if e['state'] == 'normal':
+                if not e.get():
+                    e.insert(0, p)
+                    e.config(fg="#a9a9a9")
+                entry_border.config(bg="#4a4a4a")  # 포커스 해제 시 테두리 색상 복원
+                e.config(bg="#2e2e2e")
+
+        def on_entry_click(event, e=entry, p=placeholder_text):
+            if e['state'] == 'normal':
+                on_focus_in(event, e, p)
+                self.show_virtual_keyboard(e)
+
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
+        entry.bind("<Button-1>", on_entry_click)
         self.entries.append(entry)
 
+        # 연결/해제 버튼 생성
         action_button = Button(
             frame,
             image=self.connect_image,
@@ -118,7 +152,8 @@ class ModbusUI:
             borderwidth=0,
             relief='flat',
             bg='black',
-            activebackground='black'
+            activebackground='black',
+            cursor="hand2"  # 마우스 커서 변경
         )
         action_button.grid(row=0, column=1)
         self.action_buttons.append(action_button)
@@ -168,7 +203,8 @@ class ModbusUI:
             height=int(300 * SCALE_FACTOR),
             highlightthickness=int(3 * SCALE_FACTOR),
             highlightbackground="#000000",
-            highlightcolor="#000000"
+            highlightcolor="#000000",
+            bg="#1e1e1e"  # 배경색 추가
         )
         box_canvas.pack()
 
@@ -181,7 +217,8 @@ class ModbusUI:
             "blinking_error": False,
             "previous_value_40011": None,
             "previous_segment_display": None,
-            "pwr_blink_state": False,
+            "pwr_blink_state": False,          # PWR 램프 깜빡임 상태 플래그
+            "pwr_blinking": False,             # PWR 램프 깜빡임 활성화 여부
             "gas_type_var": StringVar(value=self.gas_types.get(f"modbus_box_{index}", "ORG")),
             "gas_type_text_id": None,
             "full_scale": self.GAS_FULL_SCALE[self.gas_types.get(f"modbus_box_{index}", "ORG")]
@@ -381,7 +418,7 @@ class ModbusUI:
         if self.ip_vars[i].get() in self.connected_clients:
             self.disconnect(i)
         else:
-            threading.Thread(target=self.connect, args=(i,)).start()
+            threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
     def connect(self, i):
         ip = self.ip_vars[i].get()
@@ -400,15 +437,15 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
                 self.parent.after(0, lambda: self.action_buttons[i].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[i].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
+                self.parent.after(0, lambda: self.entries[i].config(state="disabled"))
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
 
-                # 테두리 제거 # 수정됨
-                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))  # 수정됨
+                # 테두리 제거
+                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
             else:
                 # 연결 실패
                 self.console.print(f"Failed to connect to {ip}")
@@ -417,7 +454,7 @@ class ModbusUI:
     def disconnect(self, i):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(target=self.disconnect_client, args=(ip, i)).start()
+            threading.Thread(target=self.disconnect_client, args=(ip, i), daemon=True).start()
 
     def disconnect_client(self, ip, i):
         self.stop_flags[ip].set()
@@ -429,8 +466,8 @@ class ModbusUI:
         self.cleanup_client(ip)
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(0, lambda: self.action_buttons[i].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[i].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))  # 수정됨
+        self.parent.after(0, lambda: self.entries[i].config(state="normal"))
+        self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))
         self.save_ip_settings()
 
     def reset_ui_elements(self, box_index):
@@ -603,9 +640,19 @@ class ModbusUI:
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
         self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.connect_image, relief='flat', borderwidth=0))
-        self.parent.after(0, lambda: self.entries[box_index].config(state="normal", highlightthickness=1, bd=0, relief='flat'))  # 수정됨
-        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))  # 수정됨
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
+        
+        # pwr_blink_state와 pwr_blinking을 False로 설정하여 blink_pwr가 더 이상 동작하지 않도록 함
+        self.box_states[box_index]["pwr_blink_state"] = False
+        self.box_states[box_index]["pwr_blinking"] = False
+        
+        # PWR 램프를 연한 초록색으로 강제로 설정
+        box_canvas = self.box_data[box_index][0]
+        circle_items = self.box_data[box_index][1]
+        box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+        self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
 
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
@@ -616,10 +663,10 @@ class ModbusUI:
             if client.connect():
                 self.console.print(f"Reconnected to the Modbus server at {ip}")
                 stop_flag.clear()
-                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index)).start()
+                threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, box_index), daemon=True).start()
                 self.parent.after(0, lambda: self.action_buttons[box_index].config(image=self.disconnect_image, relief='flat', borderwidth=0))
-                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled", highlightthickness=0, bd=0, relief='flat'))
-                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))  # 수정됨
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
                 self.show_bar(box_index, show=True)
@@ -638,15 +685,66 @@ class ModbusUI:
             json.dump(ip_settings, file)
 
     def blink_pwr(self, box_index):
+        # 이미 깜빡이고 있는지 확인
+        if self.box_states[box_index].get("pwr_blinking", False):
+            return
+
+        # 깜빡임 시작
+        self.box_states[box_index]["pwr_blinking"] = True
+
         def toggle_color():
+            if not self.box_states[box_index]["pwr_blinking"]:
+                # 깜빡임 중지
+                return
+
+            # 먼저 연결 상태를 확인
+            if self.ip_vars[box_index].get() not in self.connected_clients:
+                # 연결이 끊어졌으므로 PWR 램프를 연한 초록색으로 설정
+                box_canvas = self.box_data[box_index][0]
+                circle_items = self.box_data[box_index][1]
+                box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+                self.box_states[box_index]["pwr_blink_state"] = False
+                self.box_states[box_index]["pwr_blinking"] = False
+                self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
+                return  # 더 이상 반복하지 않음
+
             box_canvas = self.box_data[box_index][0]
             circle_items = self.box_data[box_index][1]
             if self.box_states[box_index]["pwr_blink_state"]:
                 box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
+                # self.console.print(f"PWR lamp set to red for box {box_index}.")  # 로깅 빈도 줄임
             else:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
+                # self.console.print(f"PWR lamp set to green for box {box_index}.")  # 로깅 빈도 줄임
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
                 self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
+
+def main():
+    root = Tk()
+    root.title("Modbus UI")
+    root.geometry("800x600")  # 예시 크기 조정
+    root.configure(bg="#1e1e1e")  # 배경색 설정
+
+    num_boxes = 4  # 필요한 박스 수 설정
+    gas_types = {
+        "modbus_box_0": "ORG",
+        "modbus_box_1": "ARF-T",
+        "modbus_box_2": "HMDS",
+        "modbus_box_3": "HC-100"
+    }
+
+    def alarm_callback(active, box_id):
+        if active:
+            print(f"Alarm active in {box_id}")
+        else:
+            print(f"Alarm cleared in {box_id}")
+
+    modbus_ui = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
