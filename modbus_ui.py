@@ -104,7 +104,7 @@ class ModbusUI:
             font=("Helvetica", int(10 * SCALE_FACTOR)),  # 기존 폰트 크기 유지
             justify='center'  # 텍스트 중앙 정렬 추가
         )
-        entry.pack(padx=2, pady=3)
+        entry.pack(padx=2, pady=4)
 
         placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if ip_var.get() == '':
