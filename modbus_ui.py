@@ -62,8 +62,13 @@ class ModbusUI:
         for i in range(num_boxes):
             self.create_modbus_box(i)
 
-        self.communication_interval = 0.2  # 200ms
-        self.blink_interval = int(self.communication_interval * 1000)  # 200ms
+        # -----------------------------------------------------
+        # 통신 주기는 고정 200ms
+        # 알람 깜빡임은 1초로 따로 설정
+        # -----------------------------------------------------
+        self.communication_interval = 0.2  # 200ms (데이터 읽기 주기)
+        self.blink_interval = int(self.communication_interval * 1000)  # PWR 램프 깜빡임은 기존대로 200ms
+        self.alarm_blink_interval = 1000  # AL1/AL2 깜빡임은 1초 간격
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -214,7 +219,6 @@ class ModbusUI:
 
         # -------------------------------------------------------
         #  AL1(0), AL2(1), PWR(2), FUT(3) 순서로 circle_items에 저장
-        #  ★ 여기서 AL1/AL2 생성 순서를 바꿔 AL1이 circle_items[0], AL2가 circle_items[1] 되도록 수정 ★
         # -------------------------------------------------------
 
         # AL1
@@ -387,6 +391,7 @@ class ModbusUI:
                 if box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
+        # 다음 호출 시 깜빡임 토글
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def toggle_connection(self, i):
@@ -685,12 +690,12 @@ class ModbusUI:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
             self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
             if self.ip_vars[box_index].get() in self.connected_clients:
-                self.parent.after(self.blink_interval, toggle_color)
+                self.parent.after(self.blink_interval, toggle_color)  # PWR는 200ms로 유지
 
         toggle_color()
 
     # -------------------------------------------------------------------------
-    #  추가된 알람 체크/깜빡임 함수
+    #  추가된 알람 체크/깜빡임 함수 (AL1/AL2 램프 깜빡임은 alarm_blink_interval=1000ms)
     # -------------------------------------------------------------------------
     def check_alarms(self, box_index):
         """
@@ -759,7 +764,7 @@ class ModbusUI:
 
     def blink_alarms(self, box_index):
         """
-        Alarm1/Alarm2 램프 + 테두리 깜빡임을 200ms마다 토글
+        Alarm1/Alarm2 램프 + 테두리 깜빡임을 (alarm_blink_interval=1000ms)마다 토글
         """
         if not (self.box_states[box_index]["alarm1_blinking"] or
                 self.box_states[box_index]["alarm2_blinking"] or
@@ -793,7 +798,8 @@ class ModbusUI:
             else:
                 box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
 
-        self.parent.after(self.blink_interval, lambda: self.blink_alarms(box_index))
+        # 여기서 AL1/AL2의 깜빡임은 self.alarm_blink_interval 적용
+        self.parent.after(self.alarm_blink_interval, lambda: self.blink_alarms(box_index))
 
 def main():
     root = Tk()
