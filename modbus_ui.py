@@ -498,7 +498,7 @@ class ModbusUI:
                 result_40007 = client.read_holding_registers(address_40007, count)
                 result_40011 = client.read_holding_registers(address_40011, count)
 
-                if result_40001.is_error():
+                if result_40001.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40001")
 
                 value_40001 = result_40001.registers[0]
@@ -520,13 +520,13 @@ class ModbusUI:
 
                 self.ui_update_queue.put(('circle_state', box_index, [top_blink, middle_blink, middle_fixed, False]))
 
-                if result_40005.is_error():
+                if result_40005.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40005")
 
                 value_40005 = result_40005.registers[0]
                 self.box_states[box_index]["last_value_40005"] = value_40005
 
-                if result_40007.is_error():
+                if result_40007.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40007")
 
                 value_40007 = result_40007.registers[0]
@@ -555,7 +555,7 @@ class ModbusUI:
                             self.data_queue.put((box_index, error_display, False))
                             self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
 
-                if result_40011.is_error():
+                if result_40011.isError():
                     raise ModbusIOException(f"Error reading from {ip} at address 40011")
 
                 value_40011 = result_40011.registers[0]
