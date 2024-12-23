@@ -249,8 +249,7 @@ class ModbusUI:
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="AL1",
             fill="#cccccc",
-            anchor="e",
-            font=("Helvetica", int(10 * SCALE_FACTOR))
+            anchor="e"
         )
 
         circle_items.append(
@@ -266,8 +265,7 @@ class ModbusUI:
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="AL2",
             fill="#cccccc",
-            anchor="e",
-            font=("Helvetica", int(10 * SCALE_FACTOR))
+            anchor="e"
         )
 
         circle_items.append(
@@ -283,8 +281,7 @@ class ModbusUI:
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="PWR",
             fill="#cccccc",
-            anchor="center",
-            font=("Helvetica", int(10 * SCALE_FACTOR))
+            anchor="center"
         )
 
         circle_items.append(
@@ -300,8 +297,7 @@ class ModbusUI:
             int(217 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
             text="FUT",
             fill="#cccccc",
-            anchor="n",
-            font=("Helvetica", int(10 * SCALE_FACTOR))
+            anchor="n"
         )
 
         gas_type_var = self.box_states[index]["gas_type_var"]
