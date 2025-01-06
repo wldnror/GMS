@@ -240,7 +240,7 @@ class ModbusUI:
         box_canvas.create_text(
             int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR),
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-            text="AL1",
+            text="AL2",
             fill="#cccccc",
             anchor="e"
         )
@@ -257,7 +257,7 @@ class ModbusUI:
         box_canvas.create_text(
             int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR),
             int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-            text="AL2",
+            text="AL1",
             fill="#cccccc",
             anchor="e"
         )
