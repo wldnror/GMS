@@ -504,7 +504,7 @@ class ModbusUI:
                 # 필요한 주소별 값 추출
                 value_40001 = raw_regs[0]   # AL 비트
                 value_40005 = raw_regs[4]   # 측정값
-                value_40007 = raw_regs[6]   # 에러 비트
+                value_40007 = raw_regs[7]   # 에러 비트
                 value_40011 = raw_regs[10]  # bar 표시용 값
 
                 # Alarm1(bit6), Alarm2(bit7)
