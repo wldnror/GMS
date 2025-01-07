@@ -1,51 +1,77 @@
-# main.py
-
 import json
 import os
 import time
-from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
-from tkinter import ttk
-from modbus_ui import ModbusUI
-from analog_ui import AnalogUI
-from ups_monitor_ui import UPSMonitorUI
 import threading
 import psutil
 import signal
 import sys
 import subprocess
 import socket
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
-import utils
 import tkinter as tk
+from tkinter import Tk, Frame, Button, Label, Entry, messagebox, StringVar, Toplevel
+from tkinter import ttk
 import pygame
 import datetime
 import locale
-import RPi.GPIO as GPIO
+
+# OS 체크용
+import platform
+
+from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
+import utils
+
+# -----------------------------------------------------------------------------
+# 1) 라즈베리 파이인지 판별하는 함수(간단 예시)
+# -----------------------------------------------------------------------------
+def is_raspberry_pi():
+    return platform.system() == 'Linux' and 'arm' in platform.machine()
+
+IS_RPI = is_raspberry_pi()
+
+# -----------------------------------------------------------------------------
+# 2) RPi.GPIO, analog_ui, ups_monitor_ui, modbus_ui 조건부 import
+# -----------------------------------------------------------------------------
+if IS_RPI:
+    import RPi.GPIO as GPIO
+    from analog_ui import AnalogUI
+    from ups_monitor_ui import UPSMonitorUI
+    from modbus_ui import ModbusUI
+else:
+    # 라즈베리 파이가 아닌 경우 Dummy(더미) 클래스로 대체
+    class DummyGPIO:
+        BCM = None
+        OUT = None
+        LOW = None
+        HIGH = None
+        def setmode(self, *args, **kwargs): pass
+        def setwarnings(self, *args, **kwargs): pass
+        def setup(self, *args, **kwargs): pass
+        def output(self, *args, **kwargs): pass
+        def cleanup(self, *args, **kwargs): pass
+
+    GPIO = DummyGPIO()  # GPIO 호출하면 아무 일도 안 하도록
+
+    # analog_ui.py, ups_monitor_ui.py, modbus_ui.py 대신 Dummy 클래스
+    class AnalogUI:
+        def __init__(self, *args, **kwargs):
+            self.box_frames = []
+    class UPSMonitorUI:
+        def __init__(self, *args, **kwargs):
+            self.box_frames = []
+    class ModbusUI:
+        def __init__(self, *args, **kwargs):
+            self.box_frames = []
+            self.clients = {}
+
+# -----------------------------------------------------------------------------
 
 os.environ['DISPLAY'] = ':0'
-
 locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
 
 SETTINGS_FILE = "settings.json"
 
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
-
-# GPIO 설정
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-
-# 사용할 핀 번호 설정
-RED_PIN = 20  # 빨강 LED에 대응하는 핀
-YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
-
-# 출력 핀으로 설정
-GPIO.setup(RED_PIN, GPIO.OUT)
-GPIO.setup(YELLOW_PIN, GPIO.OUT)
-
-# 초기값 설정
-GPIO.output(RED_PIN, GPIO.LOW)
-GPIO.output(YELLOW_PIN, GPIO.LOW)
 
 def encrypt_data(data):
     return utils.encrypt_data(data)
@@ -100,7 +126,7 @@ def stop_alarm_sound():
 
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
-    # 이전 상태 저장
+
     prev_state = box_alarm_states.get(box_id, {'active': False, 'fut': False})
     prev_global_alarm_active = global_alarm_active
     prev_global_fut_active = global_fut_active
@@ -114,19 +140,23 @@ def set_alarm_status(active, box_id, fut=False):
 
     # 상태 변경 여부 확인
     state_changed = (prev_state['active'] != active) or (prev_state['fut'] != fut)
-    global_state_changed = (prev_global_alarm_active != global_alarm_active) or (prev_global_fut_active != global_fut_active)
+    global_state_changed = ((prev_global_alarm_active != global_alarm_active) 
+                           or (prev_global_fut_active != global_fut_active))
 
     if global_fut_active:
         if not prev_global_fut_active:
+            # FUT 알람이 새로 활성화된 경우
             stop_alarm_sound()
             alarm_blinking = False
             start_fut_blinking()
     elif global_alarm_active:
         if not prev_global_alarm_active:
+            # 일반 알람이 새로 활성화된 경우
             play_alarm_sound()
             start_alarm_blinking()
     else:
         if prev_global_alarm_active or prev_global_fut_active:
+            # 알람 전부 해제
             stop_all_alarms()
 
 def start_alarm_blinking():
@@ -145,8 +175,9 @@ def stop_all_alarms():
     global alarm_blinking, fut_blinking
     alarm_blinking = False
     fut_blinking = False
-    GPIO.output(RED_PIN, GPIO.LOW)
-    GPIO.output(YELLOW_PIN, GPIO.LOW)
+    # 라즈베리 파이가 아닐 경우 GPIO.output이 Dummy라서 에러 안 남
+    GPIO.output(20, GPIO.LOW)
+    GPIO.output(21, GPIO.LOW)
     root.config(background=default_background)
     stop_alarm_sound()
 
@@ -161,11 +192,11 @@ def alarm_blink():
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            GPIO.output(20, GPIO.HIGH)  # RED_PIN
             toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            GPIO.output(RED_PIN, GPIO.LOW)
+            GPIO.output(20, GPIO.LOW)
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -182,11 +213,11 @@ def fut_blink():
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
-            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            GPIO.output(21, GPIO.HIGH)  # YELLOW_PIN
             toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
-            GPIO.output(YELLOW_PIN, GPIO.LOW)
+            GPIO.output(21, GPIO.LOW)
             if toggle_color_id:
                 root.after_cancel(toggle_color_id)
 
@@ -225,14 +256,21 @@ def get_system_info():
     except subprocess.CalledProcessError:
         current_branch = "N/A"
 
+    # 라즈베리 파이가 아닐 수 있으므로, vcgencmd 등 호출시 예외 처리
     try:
-        cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
+        if IS_RPI:
+            cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
+        else:
+            cpu_temp = "N/A"
+
         cpu_usage = psutil.cpu_percent(interval=1)
         memory_usage = psutil.virtual_memory().percent
         disk_usage = psutil.disk_usage('/').percent
         net_io = psutil.net_io_counters()
         network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
-        return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
+        return (f"IP: {get_ip_address()} | Branch: {current_branch} | "
+                f"Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | "
+                f"Disk: {disk_usage}% | Net: {network_info}")
     except Exception as e:
         return f"System info could not be retrieved: {str(e)}"
 
@@ -302,14 +340,25 @@ if __name__ == "__main__":
 
     default_background = root.cget("background")
 
+    # 라즈베리 파이에서만 GPIO 사용
+    if IS_RPI:
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        RED_PIN = 20
+        YELLOW_PIN = 21
+        GPIO.setup(RED_PIN, GPIO.OUT)
+        GPIO.setup(YELLOW_PIN, GPIO.OUT)
+        GPIO.output(RED_PIN, GPIO.LOW)
+        GPIO.output(YELLOW_PIN, GPIO.LOW)
+
     def signal_handler(sig, frame):
         print("Exiting gracefully...")
-        GPIO.cleanup()  # GPIO 핀 초기화
+        if IS_RPI:
+            GPIO.cleanup()  # GPIO 핀 초기화
         root.destroy()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
-
     initialize_globals(root, change_branch)
 
     if not admin_password:
@@ -325,40 +374,34 @@ if __name__ == "__main__":
 
     settings = load_settings()
     modbus_boxes = settings.get("modbus_boxes", [])
+    analog_boxes = settings.get("analog_boxes", [])
+
     if isinstance(modbus_boxes, int):
         modbus_boxes = [None] * modbus_boxes
-
-    analog_boxes = settings.get("analog_boxes", [])
     if isinstance(analog_boxes, int):
         analog_boxes = [None] * analog_boxes
-
-    if not isinstance(modbus_boxes, list):
-        raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
-
-    if not isinstance(analog_boxes, list):
-        raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")
 
-    # 클래스 인스턴스 생성 (프레임 배치 없음)
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
+    # 라즈베리 파이가 아닌 경우, ModbusUI / AnalogUI는 Dummy 로딩
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes),
+                         settings.get("modbus_gas_types", []),
+                         lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
+    analog_ui = AnalogUI(main_frame, len(analog_boxes),
+                         settings.get("analog_gas_types", []),
+                         lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
         ups_ui = UPSMonitorUI(main_frame, 1)
 
     all_boxes = []
-
-    # 클래스에서 프레임 수집
     if ups_ui:
         for i, frame in enumerate(ups_ui.box_frames):
             all_boxes.append((frame, f"ups_{i}"))
-
     for i, frame in enumerate(modbus_ui.box_frames):
         all_boxes.append((frame, f"modbus_{i}"))
-
     for i, frame in enumerate(analog_ui.box_frames):
         all_boxes.append((frame, f"analog_{i}"))
 
@@ -366,71 +409,71 @@ if __name__ == "__main__":
     for _, idx in all_boxes:
         box_alarm_states[idx] = {'active': False, 'fut': False}
 
-    # 최대 열의 수 설정
     max_columns = 6
-
-    # 총 행의 수 계산
     num_rows = (len(all_boxes) + max_columns - 1) // max_columns
 
-    # 그리드 행과 열의 가중치 설정
-    main_frame.grid_rowconfigure(0, weight=1)  # 상단 여백
-    main_frame.grid_rowconfigure(num_rows + 1, weight=1)  # 하단 여백
-    main_frame.grid_columnconfigure(0, weight=1)  # 좌측 여백
-    main_frame.grid_columnconfigure(max_columns + 1, weight=1)  # 우측 여백
+    main_frame.grid_rowconfigure(0, weight=1)
+    main_frame.grid_rowconfigure(num_rows + 1, weight=1)
+    main_frame.grid_columnconfigure(0, weight=1)
+    main_frame.grid_columnconfigure(max_columns + 1, weight=1)
 
-    # 상자들이 위치하는 행과 열의 가중치를 0으로 설정
     for i in range(1, num_rows + 1):
         main_frame.grid_rowconfigure(i, weight=0)
     for i in range(1, max_columns + 1):
         main_frame.grid_columnconfigure(i, weight=0)
 
-    # 상자 배치 시작 인덱스를 1로 변경
     row_index = 1
     column_index = 1
-
-    # 프레임 배치
     for frame, idx in all_boxes:
         if column_index > max_columns:
             column_index = 1
             row_index += 1
-
         frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    settings_button = tk.Button(root, text="⚙",
+                                command=lambda: (prompt_new_password() if not admin_password 
+                                                 else show_password_prompt(show_settings)),
+                                font=("Arial", 20))
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
-
     def on_leave(event):
         event.widget.config(background="#b2b2b2", foreground="black")
 
     settings_button.bind("<Enter>", on_enter)
     settings_button.bind("<Leave>", on_leave)
-
     settings_button.place(relx=1.0, rely=1.0, anchor='se')
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor='sw')
 
-    total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
+    total_boxes = (len(modbus_ui.box_frames) 
+                   + len(analog_ui.box_frames) 
+                   + (len(ups_ui.box_frames) if ups_ui else 0))
 
     if 0 <= total_boxes <= 6:
-        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"),
+                               fg="white", bg="black", anchor='center',
+                               padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor='n')
 
-        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
+        date_label = tk.Label(root, font=("Helvetica", 25),
+                              fg="white", bg="black", anchor='center',
+                              padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor='n')
 
         stop_event = threading.Event()
-        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
+        clock_thread = threading.Thread(target=update_clock_thread,
+                                        args=(clock_label, date_label, stop_event))
         clock_thread.start()
 
     def on_closing():
-        if 0 <= total_boxes <= 4:
+        if 0 <= total_boxes <= 6:
             stop_event.set()
             clock_thread.join()
-        GPIO.cleanup()
+        if IS_RPI:
+            GPIO.cleanup()
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
@@ -440,6 +483,7 @@ if __name__ == "__main__":
             update_status_label()
             time.sleep(1)
 
+    # ignore_commit 로딩
     if os.path.exists(utils.IGNORE_COMMIT_FILE):
         with open(utils.IGNORE_COMMIT_FILE, "r") as file:
             ignore_commit = file.read().strip().encode()
@@ -451,5 +495,6 @@ if __name__ == "__main__":
 
     root.mainloop()
 
+    # 종료시 모드버스 클라이언트도 정리
     for _, client in modbus_ui.clients.items():
         client.close()
