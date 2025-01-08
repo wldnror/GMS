@@ -473,7 +473,7 @@ class ModbusUI:
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
-                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=7))
+                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
             else:
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
