@@ -500,7 +500,7 @@ class ModbusUI:
                 raw_regs = response.registers
                 value_40001 = raw_regs[0]
                 value_40005 = raw_regs[4]
-                value_40007 = raw_regs[6]
+                value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
 
                 bit_6_on = bool(value_40001 & (1 << 6))
