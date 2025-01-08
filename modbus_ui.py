@@ -619,12 +619,119 @@ class ModbusUI:
             text=f"DC: {self.disconnection_counts[box_index]}"
         )
 
-        self.update_circle_state([False, False, False, False], box_index=box_index)
-        self.update_segment_display("    ", box_index=box_index)
-        self.show_bar(box_index, show=False)
-        self.console.print(f"Disconnected forcibly -> box {box_index}")
+        self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
+        self.ui_update_queue.put(('segment_display', box_index, "    ", False))
+        self.ui_update_queue.put(('bar', box_index, 0))
+        self.parent.after(
+            0, 
+            lambda: self.action_buttons[box_index].config(
+                image=self.connect_image,
+                relief='flat',
+                borderwidth=0
+            )
+        )
+        self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))
+        self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
-        # 자동 해제/오류 해제 시에는 GMS-1000 표시 등은 하지 않음(요구사항에 따라 추가 가능)
+        self.box_states[box_index]["pwr_blink_state"] = False
+        self.box_states[box_index]["pwr_blinking"] = False
+
+        box_canvas = self.box_data[box_index][0]
+        circle_items = self.box_data[box_index][1]
+        box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+        self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
+
+    # ------------------------------------------------------------
+    # 재연결 로직: 5회 실패 시 self.auto_reconnect_failed[box_index] = True
+    # ------------------------------------------------------------
+    def reconnect(self, ip, client, stop_flag, box_index):
+        retries = 0
+        max_retries = 5
+        while not stop_flag.is_set() and retries < max_retries:
+            time.sleep(2)
+            self.console.print(f"Attempting to reconnect to {ip} (Attempt {retries + 1}/{max_retries})")
+
+            self.parent.after(0, lambda idx=box_index, r=retries:
+                self.reconnect_attempt_labels[idx].config(text=f"Reconnect: {r + 1}/{max_retries}")
+            )
+
+            if client.connect():
+                self.console.print(f"Reconnected to the Modbus server at {ip}")
+                stop_flag.clear()
+                threading.Thread(
+                    target=self.read_modbus_data,
+                    args=(ip, client, stop_flag, box_index),
+                    daemon=True
+                ).start()
+                self.parent.after(
+                    0,
+                    lambda: self.action_buttons[box_index].config(
+                        image=self.disconnect_image,
+                        relief='flat',
+                        borderwidth=0
+                    )
+                )
+                self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))
+                self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
+                self.blink_pwr(box_index)
+                self.show_bar(box_index, show=True)
+
+                # 성공 시 OK
+                self.parent.after(0, lambda idx=box_index:
+                    self.reconnect_attempt_labels[idx].config(text="Reconnect: OK")
+                )
+                break
+            else:
+                retries += 1
+                self.console.print(f"Reconnect attempt to {ip} failed.")
+
+        if retries >= max_retries:
+            self.console.print(f"Failed to reconnect to {ip} after {max_retries} attempts.")
+            # ★ 자동 재연결 실패로 표시
+            self.auto_reconnect_failed[box_index] = True
+
+            self.parent.after(0, lambda idx=box_index:
+                self.reconnect_attempt_labels[idx].config(text="Reconnect: Failed")
+            )
+            self.disconnect_client(ip, box_index)
+
+    def save_ip_settings(self):
+        ip_settings = [ip_var.get() for ip_var in self.ip_vars]
+        with open(self.SETTINGS_FILE, 'w') as file:
+            json.dump(ip_settings, file)
+
+    def blink_pwr(self, box_index):
+        if self.box_states[box_index].get("pwr_blinking", False):
+            return
+
+        self.box_states[box_index]["pwr_blinking"] = True
+
+        def toggle_color():
+            if not self.box_states[box_index]["pwr_blinking"]:
+                return
+
+            if self.ip_vars[box_index].get() not in self.connected_clients:
+                box_canvas = self.box_data[box_index][0]
+                circle_items = self.box_data[box_index][1]
+                box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+                self.box_states[box_index]["pwr_blink_state"] = False
+                self.box_states[box_index]["pwr_blinking"] = False
+                return
+
+            box_canvas = self.box_data[box_index][0]
+            circle_items = self.box_data[box_index][1]
+            if self.box_states[box_index]["pwr_blink_state"]:
+                box_canvas.itemconfig(circle_items[2], fill="red", outline="red")
+            else:
+                box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
+
+            self.box_states[box_index]["pwr_blink_state"] = not self.box_states[box_index]["pwr_blink_state"]
+            if self.ip_vars[box_index].get() in self.connected_clients:
+                self.parent.after(self.blink_interval, toggle_color)
+
+        toggle_color()
 
     def check_alarms(self, box_index):
         alarm1 = self.box_states[box_index]["alarm1_on"]
