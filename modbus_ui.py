@@ -52,9 +52,15 @@ class ModbusUI:
         self.gradient_bar = create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR))
         self.gas_types = gas_types
 
-        # Disconnect Count(DC) 관리
+        # -----------------------------
+        # 끊김 횟수 + 자동 재연결 실패
+        # -----------------------------
         self.disconnection_counts = [0] * num_boxes
         self.disconnection_labels = [None] * num_boxes
+        self.auto_reconnect_failed = [False] * num_boxes  # ★ 추가: 자동 재연결 5회 실패 여부
+
+        # 재연결 시도 라벨
+        self.reconnect_attempt_labels = [None] * num_boxes
 
         self.load_ip_settings(num_boxes)
 
@@ -313,8 +319,17 @@ class ModbusUI:
             anchor="n"
         )
 
-        # 2) GMS-1000 텍스트 (기본 표시)
-        gms_text_id = box_canvas.create_text(
+        gas_type_var = self.box_states[index]["gas_type_var"]
+        gas_type_text_id = box_canvas.create_text(
+            *self.GAS_TYPE_POSITIONS[gas_type_var.get()],
+            text=gas_type_var.get(),
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center"
+        )
+        self.box_states[index]["gas_type_text_id"] = gas_type_text_id
+
+        box_canvas.create_text(
             int(80 * SCALE_FACTOR),
             int(270 * SCALE_FACTOR),
             text="GMS-1000",
