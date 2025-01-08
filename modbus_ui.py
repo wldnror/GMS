@@ -7,12 +7,8 @@ from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from rich.console import Console
 from PIL import Image, ImageTk
-
-# ---- 아래 부분은 프로젝트 구조에 맞게 import 해주세요 ----
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
-# -----------------------------------------------------------
-
 import queue
 
 SCALE_FACTOR = 1.65
@@ -185,6 +181,7 @@ class ModbusUI:
         )
         box_canvas.pack()
 
+        # 상단(회색), 하단(검정)
         box_canvas.create_rectangle(
             0, 0,
             int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
@@ -227,7 +224,7 @@ class ModbusUI:
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        # 1) DC 라벨 (처음엔 숨김)
+        # 끊김횟수
         disconnection_label = Label(
             control_frame,
             text=f"DC: {self.disconnection_counts[index]}",
@@ -236,7 +233,6 @@ class ModbusUI:
             font=("Helvetica", int(10 * SCALE_FACTOR))
         )
         disconnection_label.grid(row=1, column=0, columnspan=2, pady=(2,0))
-        disconnection_label.grid_remove()
         self.disconnection_labels[index] = disconnection_label
 
         # 재연결 시도
@@ -337,7 +333,6 @@ class ModbusUI:
             fill="#cccccc",
             anchor="center"
         )
-        self.box_states[index]["gms_text_id"] = gms_text_id
 
         box_canvas.create_text(
             int(80 * SCALE_FACTOR),
@@ -357,7 +352,7 @@ class ModbusUI:
         )
         bar_canvas.place(x=int(18.5 * SCALE_FACTOR), y=int(75 * SCALE_FACTOR))
 
-        bar_image = ImageTk.PhotoImage(create_gradient_bar(int(120 * SCALE_FACTOR), int(5 * SCALE_FACTOR)))
+        bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
         self.box_frames.append(box_frame)
@@ -404,7 +399,6 @@ class ModbusUI:
                 segments = SEGMENTS.get(digit, SEGMENTS[' '])
                 leading_zero = False
 
-            # blink인 경우 깜빡임 처리
             if blink and self.box_states[box_index]["blink_state"]:
                 segments = SEGMENTS[' ']
 
@@ -418,14 +412,22 @@ class ModbusUI:
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
-            # 수동 해제
             self.disconnect(i)
         else:
-            # 수동 연결
             threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
+    # ------------------------------------------------------------
+    # 연결 버튼(수동) 클릭 -> 만약 이전에 5회 모두 실패했다면 DC를 0으로 리셋
+    # ------------------------------------------------------------
     def connect(self, i):
         ip = self.ip_vars[i].get()
+
+        # 이미 5회 모두 재연결 실패했던 박스라면, 다시 연결 시도할 때 DC 리셋
+        if self.auto_reconnect_failed[i]:
+            self.disconnection_counts[i] = 0
+            self.disconnection_labels[i].config(text="DC: 0")
+            self.auto_reconnect_failed[i] = False
+
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
@@ -452,16 +454,9 @@ class ModbusUI:
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
-                self.save_ip_settings()
-
-                # ---- 1) "GMS-1000" 숨기기, 2) DC 라벨 표시
-                box_canvas = self.box_data[i][0]
-                gms_text_id = self.box_states[i]["gms_text_id"]
-                box_canvas.itemconfig(gms_text_id, state='hidden')  
-                self.disconnection_labels[i].grid()
-
-                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
                 self.blink_pwr(i)
+                self.save_ip_settings()
+                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
             else:
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
@@ -472,7 +467,6 @@ class ModbusUI:
             threading.Thread(target=self.disconnect_client, args=(ip, i), daemon=True).start()
 
     def disconnect_client(self, ip, i):
-        # 여기서는 '수동 해제'라고 가정
         self.stop_flags[ip].set()
         self.connected_clients[ip].join(timeout=5)
         if self.connected_clients[ip].is_alive():
@@ -480,7 +474,6 @@ class ModbusUI:
         self.clients[ip].close()
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
-
         self.parent.after(0, lambda: self.reset_ui_elements(i))
         self.parent.after(
             0,
@@ -493,12 +486,6 @@ class ModbusUI:
         self.parent.after(0, lambda: self.entries[i].config(state="normal"))
         self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))
         self.save_ip_settings()
-
-        # ---- 1) DC 라벨 숨김, 2) GMS-1000 다시 표시
-        box_canvas = self.box_data[i][0]
-        gms_text_id = self.box_states[i]["gms_text_id"]
-        box_canvas.itemconfig(gms_text_id, state='normal')  
-        self.disconnection_labels[i].grid_remove()
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
@@ -566,11 +553,12 @@ class ModbusUI:
             except (ConnectionException, ModbusIOException) as e:
                 self.console.print(f"Connection to {ip} lost: {e}")
                 self.handle_disconnection(box_index)
-                # 필요하다면 여기서 자동 재연결을 시도할 수도 있음
+                self.reconnect(ip, client, stop_flag, box_index)
                 break
             except Exception as e:
                 self.console.print(f"Error reading data from {ip}: {e}")
                 self.handle_disconnection(box_index)
+                self.reconnect(ip, client, stop_flag, box_index)
                 break
 
     def update_bar(self, value, box_index):
@@ -591,14 +579,14 @@ class ModbusUI:
             bar_canvas.itemconfig(bar_item, state='hidden')
 
     def connect_to_server(self, ip, client):
-        retries = 3
+        retries = 5
         for attempt in range(retries):
             if client.connect():
                 self.console.print(f"Connected to the Modbus server at {ip}")
                 return True
             else:
-                self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 1 second...")
-                time.sleep(1)
+                self.console.print(f"Connection attempt {attempt + 1} to {ip} failed. Retrying in 2 seconds...")
+                time.sleep(2)
         return False
 
     def start_data_processing_thread(self):
@@ -787,7 +775,6 @@ class ModbusUI:
 
     def set_alarm_lamp(self, box_index, alarm1_on, blink1, alarm2_on, blink2):
         box_canvas, circle_items, *_ = self.box_data[box_index]
-        # AL1
         if alarm1_on:
             if blink1:
                 box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
@@ -796,7 +783,6 @@ class ModbusUI:
         else:
             box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
 
-        # AL2
         if alarm2_on:
             if blink2:
                 box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
