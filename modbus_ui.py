@@ -233,6 +233,17 @@ class ModbusUI:
         disconnection_label.grid_remove()
         self.disconnection_labels[index] = disconnection_label
 
+        # 재연결 시도
+        reconnect_label = Label(
+            control_frame,
+            text="Reconnect: 0/5",
+            fg="yellow",
+            bg="black",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
+        )
+        reconnect_label.grid(row=2, column=0, columnspan=2, pady=(2,0))
+        self.reconnect_attempt_labels[index] = reconnect_label
+
         circle_items = []
         # AL1
         circle_items.append(
