@@ -54,7 +54,6 @@ class ModbusUI:
         self.disconnection_counts = [0] * num_boxes
         self.disconnection_labels = [None] * num_boxes
         self.auto_reconnect_failed = [False] * num_boxes  # 자동 재연결 5회 실패 여부
-        # 재연결 시도 라벨
         self.reconnect_attempt_labels = [None] * num_boxes
 
         self.load_ip_settings(num_boxes)
@@ -165,7 +164,11 @@ class ModbusUI:
         entry.focus_set()
 
     def create_modbus_box(self, index):
-        box_frame = Frame(self.parent, highlightthickness=int(3 * SCALE_FACTOR))
+        # -------------------------
+        # highlightthickness=7 로 고정
+        # -------------------------
+        box_frame = Frame(self.parent, highlightthickness=7)
+
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
@@ -473,13 +476,14 @@ class ModbusUI:
                 self.virtual_keyboard.hide()
                 self.blink_pwr(i)
                 self.save_ip_settings()
-                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
+                # highlightthickness=0으로도 변경하고 싶다면 아래 사용
+                # self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=0))
             else:
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
 
     def disconnect(self, i, manual=False):
-        """ 
+        """
         manual=True면 사용자가 직접 누른 것이므로 GMS-1000을 다시 표시하고 DC/재시도 라벨 숨김.
         manual=False면(자동 끊김 등) 그대로 유지.
         """
@@ -505,6 +509,7 @@ class ModbusUI:
             )
         )
         self.parent.after(0, lambda: self.entries[i].config(state="normal"))
+        # 해제 시 highlightthickness 다시 1로 (원본 코드처럼)
         self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))
         self.save_ip_settings()
 
@@ -676,6 +681,7 @@ class ModbusUI:
             )
         )
         self.parent.after(0, lambda: self.entries[box_index].config(state="normal"))
+        # 끊길 땐 테두리를 1로
         self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=1))
         self.parent.after(0, lambda: self.reset_ui_elements(box_index))
 
@@ -715,6 +721,7 @@ class ModbusUI:
                     )
                 )
                 self.parent.after(0, lambda: self.entries[box_index].config(state="disabled"))
+                # 재연결 시 highlightthickness=0
                 self.parent.after(0, lambda: self.box_frames[box_index].config(highlightthickness=0))
                 self.ui_update_queue.put(('circle_state', box_index, [False, False, True, False]))
                 self.blink_pwr(box_index)
@@ -850,6 +857,7 @@ class ModbusUI:
                 box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
 
         self.parent.after(self.alarm_blink_interval, lambda: self.blink_alarms(box_index))
+
 
 def main():
     root = Tk()
