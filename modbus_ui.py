@@ -123,9 +123,7 @@ class ModbusUI:
         else:
             entry.config(fg="white")
 
-        # --------------------
         # 포커스 인/아웃 바인딩
-        # --------------------
         def on_focus_in(event, e=entry, p=placeholder_text):
             if e['state'] == 'normal':
                 if e.get() == p:
@@ -182,9 +180,8 @@ class ModbusUI:
         """
         아날로그박스(캔버스+테두리+IP입력+알람램프 등) 생성
         """
-
         # -----------------------------
-        # highlightthickness=7 로 예시
+        # 기본값으로 일단 7 설정(예시)
         # -----------------------------
         box_frame = Frame(self.parent, highlightthickness=7)
 
@@ -458,6 +455,11 @@ class ModbusUI:
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
+                # -------------------------------------------------------------
+                # 연결 성공 시 테두리를 1로 조정 (이 부분 추가)
+                # -------------------------------------------------------------
+                self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))
+
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
@@ -496,15 +498,8 @@ class ModbusUI:
                 self.blink_pwr(i)
                 self.save_ip_settings()
 
-                # ------------------------
-                # (중요) 연결 성공 직후,
-                # Entry 포커스아웃 강제 발생
-                # ------------------------
+                # 연결 성공 직후 Entry 포커스아웃 강제 발생
                 self.entries[i].event_generate("<FocusOut>")
-                # 또는
-                # entry_border = self.entries[i].master
-                # entry_border.config(bg="#4a4a4a")
-                # self.entries[i].config(bg="#2e2e2e")
 
             else:
                 self.console.print(f"Failed to connect to {ip}")
