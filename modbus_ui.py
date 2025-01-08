@@ -53,8 +53,7 @@ class ModbusUI:
         # -----------------------------
         self.disconnection_counts = [0] * num_boxes
         self.disconnection_labels = [None] * num_boxes
-        self.auto_reconnect_failed = [False] * num_boxes  # ★ 추가: 자동 재연결 5회 실패 여부
-
+        self.auto_reconnect_failed = [False] * num_boxes  # 자동 재연결 5회 실패 여부
         # 재연결 시도 라벨
         self.reconnect_attempt_labels = [None] * num_boxes
 
@@ -181,7 +180,7 @@ class ModbusUI:
         )
         box_canvas.pack()
 
-        # 상단(회색), 하단(검정)
+        # 상단(회색), 하단(검정) 영역
         box_canvas.create_rectangle(
             0, 0,
             int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
@@ -210,21 +209,25 @@ class ModbusUI:
             "alarm1_blinking": False,
             "alarm2_blinking": False,
             "alarm_border_blink": False,
-            "border_blink_state": False
+            "border_blink_state": False,
+            # ★ GMS-1000 텍스트 ID 저장용
+            "gms1000_text_id": None
         })
 
+        # GAS 타입 변수 binding
         self.box_states[index]["gas_type_var"].trace_add(
             "write",
             lambda *args, var=self.box_states[index]["gas_type_var"], idx=index: self.update_full_scale(var, idx)
         )
 
+        # Box 안쪽 하단 컨트롤 프레임 (IP 입력 + 연결버튼 + 라벨 등)
         control_frame = Frame(box_canvas, bg="black")
         control_frame.place(x=int(10 * SCALE_FACTOR), y=int(210 * SCALE_FACTOR))
 
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        # 끊김횟수
+        # 끊김횟수 Label (초기엔 숨겨놓기)
         disconnection_label = Label(
             control_frame,
             text=f"DC: {self.disconnection_counts[index]}",
@@ -235,7 +238,7 @@ class ModbusUI:
         disconnection_label.grid(row=1, column=0, columnspan=2, pady=(2,0))
         self.disconnection_labels[index] = disconnection_label
 
-        # 재연결 시도
+        # 재연결 시도 Label (초기엔 숨겨놓기)
         reconnect_label = Label(
             control_frame,
             text="Reconnect: 0/5",
@@ -246,32 +249,16 @@ class ModbusUI:
         reconnect_label.grid(row=2, column=0, columnspan=2, pady=(2,0))
         self.reconnect_attempt_labels[index] = reconnect_label
 
-        circle_items = []
-        # AL1
-        circle_items.append(
-            box_canvas.create_oval(
-                int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
-        )
-        box_canvas.create_text(
-            int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR),
-            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-            text="AL2",
-            fill="#cccccc",
-            anchor="e"
-        )
+        # ---> 프로그램 시작 시에는 DC/재연결 라벨 숨기기
+        disconnection_label.grid_remove()
+        reconnect_label.grid_remove()
 
-        # AL2
-        circle_items.append(
-            box_canvas.create_oval(
-                int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
+        # AL1
+        circle_al1 = box_canvas.create_oval(
+            int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
+            int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+            int(87 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
+            int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
         )
         box_canvas.create_text(
             int(95 * SCALE_FACTOR) - int(25 * SCALE_FACTOR),
@@ -281,14 +268,27 @@ class ModbusUI:
             anchor="e"
         )
 
+        # AL2
+        circle_al2 = box_canvas.create_oval(
+            int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
+            int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+            int(123 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
+            int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
+        )
+        box_canvas.create_text(
+            int(140 * SCALE_FACTOR) - int(35 * SCALE_FACTOR),
+            int(222 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            text="AL2",
+            fill="#cccccc",
+            anchor="e"
+        )
+
         # PWR
-        circle_items.append(
-            box_canvas.create_oval(
-                int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
+        circle_pwr = box_canvas.create_oval(
+            int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
+            int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+            int(40 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
+            int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
         )
         box_canvas.create_text(
             int(35 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
@@ -299,13 +299,11 @@ class ModbusUI:
         )
 
         # FUT
-        circle_items.append(
-            box_canvas.create_oval(
-                int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-                int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
-                int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
-                int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
-            )
+        circle_fut = box_canvas.create_oval(
+            int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            int(200 * SCALE_FACTOR) - int(32 * SCALE_FACTOR),
+            int(181 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
+            int(190 * SCALE_FACTOR) - int(32 * SCALE_FACTOR)
         )
         box_canvas.create_text(
             int(175 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
@@ -325,7 +323,8 @@ class ModbusUI:
         )
         self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
-        box_canvas.create_text(
+        # ★ GMS-1000 텍스트 생성 (ID 저장)
+        gms1000_text_id = box_canvas.create_text(
             int(80 * SCALE_FACTOR),
             int(270 * SCALE_FACTOR),
             text="GMS-1000",
@@ -333,6 +332,7 @@ class ModbusUI:
             fill="#cccccc",
             anchor="center"
         )
+        self.box_states[index]["gms1000_text_id"] = gms1000_text_id
 
         box_canvas.create_text(
             int(80 * SCALE_FACTOR),
@@ -343,6 +343,7 @@ class ModbusUI:
             anchor="center"
         )
 
+        # 바(그래프)
         bar_canvas = Canvas(
             box_canvas,
             width=int(120 * SCALE_FACTOR),
@@ -356,8 +357,17 @@ class ModbusUI:
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
 
         self.box_frames.append(box_frame)
-        self.box_data.append((box_canvas, circle_items, bar_canvas, bar_image, bar_item))
+        self.box_data.append(
+            (
+                box_canvas,
+                [circle_al1, circle_al2, circle_pwr, circle_fut],
+                bar_canvas,
+                bar_image,
+                bar_item
+            )
+        )
 
+        # 초기에는 바 숨김 + 알람(원 표시) 꺼짐
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
 
@@ -412,13 +422,12 @@ class ModbusUI:
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
-            self.disconnect(i)
+            # 수동 해제 → 여기서 GMS-1000 다시 표시, DC/재시도 횟수 감춤
+            self.disconnect(i, manual=True)
         else:
+            # 수동 연결 → GMS-1000 숨기고, DC/재시도 라벨 보이기
             threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
-    # ------------------------------------------------------------
-    # 연결 버튼(수동) 클릭 -> 만약 이전에 5회 모두 실패했다면 DC를 0으로 리셋
-    # ------------------------------------------------------------
     def connect(self, i):
         ip = self.ip_vars[i].get()
 
@@ -442,6 +451,14 @@ class ModbusUI:
                 self.connected_clients[ip].start()
                 self.console.print(f"Started data thread for {ip}")
 
+                # GMS-1000 숨기기, DC/재시도 보이기
+                box_canvas = self.box_data[i][0]
+                gms1000_id = self.box_states[i]["gms1000_text_id"]
+                box_canvas.itemconfig(gms1000_id, state='hidden')
+
+                self.disconnection_labels[i].grid()  # DC 라벨 표시
+                self.reconnect_attempt_labels[i].grid()  # Reconnect 라벨 표시
+
                 self.parent.after(
                     0,
                     lambda: self.action_buttons[i].config(
@@ -461,12 +478,16 @@ class ModbusUI:
                 self.console.print(f"Failed to connect to {ip}")
                 self.parent.after(0, lambda: self.update_circle_state([False, False, False, False], box_index=i))
 
-    def disconnect(self, i):
+    def disconnect(self, i, manual=False):
+        """ 
+        manual=True면 사용자가 직접 누른 것이므로 GMS-1000을 다시 표시하고 DC/재시도 라벨 숨김.
+        manual=False면(자동 끊김 등) 그대로 유지.
+        """
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(target=self.disconnect_client, args=(ip, i), daemon=True).start()
+            threading.Thread(target=self.disconnect_client, args=(ip, i, manual), daemon=True).start()
 
-    def disconnect_client(self, ip, i):
+    def disconnect_client(self, ip, i, manual=False):
         self.stop_flags[ip].set()
         self.connected_clients[ip].join(timeout=5)
         if self.connected_clients[ip].is_alive():
@@ -486,6 +507,14 @@ class ModbusUI:
         self.parent.after(0, lambda: self.entries[i].config(state="normal"))
         self.parent.after(0, lambda: self.box_frames[i].config(highlightthickness=1))
         self.save_ip_settings()
+
+        # ★ 사용자가 직접 끊은 경우만 GMS-1000 표시, DC/재시도 숨김
+        if manual:
+            box_canvas = self.box_data[i][0]
+            gms1000_id = self.box_states[i]["gms1000_text_id"]
+            box_canvas.itemconfig(gms1000_id, state='normal')  # GMS-1000 다시 표시
+            self.disconnection_labels[i].grid_remove()          # DC 라벨 숨기기
+            self.reconnect_attempt_labels[i].grid_remove()      # Reconnect 라벨 숨기기
 
     def reset_ui_elements(self, box_index):
         self.update_circle_state([False, False, False, False], box_index=box_index)
@@ -632,10 +661,12 @@ class ModbusUI:
         self.disconnection_labels[box_index].config(
             text=f"DC: {self.disconnection_counts[box_index]}"
         )
+        # 자동(혹은 장비 문제)으로 끊겼을 때 → GMS-1000 표시 X, DC/재시도 라벨 유지
 
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, "    ", False))
         self.ui_update_queue.put(('bar', box_index, 0))
+
         self.parent.after(
             0, 
             lambda: self.action_buttons[box_index].config(
@@ -656,9 +687,6 @@ class ModbusUI:
         box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
         self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
 
-    # ------------------------------------------------------------
-    # 재연결 로직: 5회 실패 시 self.auto_reconnect_failed[box_index] = True
-    # ------------------------------------------------------------
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
         max_retries = 5
@@ -703,13 +731,11 @@ class ModbusUI:
 
         if retries >= max_retries:
             self.console.print(f"Failed to reconnect to {ip} after {max_retries} attempts.")
-            # ★ 자동 재연결 실패로 표시
             self.auto_reconnect_failed[box_index] = True
-
             self.parent.after(0, lambda idx=box_index:
                 self.reconnect_attempt_labels[idx].config(text="Reconnect: Failed")
             )
-            self.disconnect_client(ip, box_index)
+            self.disconnect_client(ip, box_index, manual=False)
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
