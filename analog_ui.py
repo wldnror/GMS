@@ -292,7 +292,7 @@ class AnalogUI:
             file.write(log_line)
 
     async def read_adc_data(self):
-        adc_addresses = [0x48, 0x49, 0x4A]
+        adc_addresses = [0x48, 0x4A, 0x4B]
         adcs = []
 
         for addr in adc_addresses:
