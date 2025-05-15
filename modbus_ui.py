@@ -176,7 +176,7 @@ class ModbusUI:
         box_canvas = Canvas(
             inner_frame,
             width=int(150 * SCALE_FACTOR),
-            height=int(380 * SCALE_FACTOR),
+            height=int(300 * SCALE_FACTOR),
             highlightthickness=int(3 * SCALE_FACTOR),
             highlightbackground="#000000",
             highlightcolor="#000000",
