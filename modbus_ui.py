@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
+# coding: utf-8
 
+import sys, time
 import json
 import os
-import time
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Tk, Label
 import threading
+import queue
+from tkinter import Frame, Canvas, StringVar, Entry, Button, Toplevel, Tk, Label
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from rich.console import Console
@@ -13,12 +16,14 @@ from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
 
-import queue
-
 SCALE_FACTOR = 1.65
+
 
 class ModbusUI:
     SETTINGS_FILE = "modbus_settings.json"
+    BASE = 40001
+    UNIT = 1
+
     GAS_FULL_SCALE = {
         "ORG": 9999,
         "ARF-T": 5000,
@@ -34,7 +39,6 @@ class ModbusUI:
     }
 
     def __init__(self, parent, num_boxes, gas_types, alarm_callback):
-        self.modbus_lock = threading.Lock()
         self.parent = parent
         self.alarm_callback = alarm_callback
         self.virtual_keyboard = VirtualKeyboard(parent)
@@ -85,83 +89,158 @@ class ModbusUI:
                 ip_settings = json.load(file)
                 for i in range(min(num_boxes, len(ip_settings))):
                     self.ip_vars[i].set(ip_settings[i])
-        else:
-            self.ip_vars = [StringVar() for _ in range(num_boxes)]
 
     def load_image(self, path, size):
         img = Image.open(path).convert("RGBA")
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
 
+    # --- 기존 safe_read / safe_write / ip2regs 메서드 ---
+    def safe_read(self, client, reg):
+        try:
+            return client.read_holding_registers(reg - self.BASE, 1, slave=self.UNIT)
+        except (ConnectionException, ModbusIOException):
+            client.close()
+            time.sleep(1)
+            client.connect()
+            return client.read_holding_registers(reg - self.BASE, 1, slave=self.UNIT)
+
+    def safe_write(self, client, reg, val):
+        try:
+            return client.write_register(reg - self.BASE, val, slave=self.UNIT)
+        except (ConnectionException, ModbusIOException):
+            client.close()
+            time.sleep(1)
+            client.connect()
+            return client.write_register(reg - self.BASE, val, slave=self.UNIT)
+
+    def ip2regs(self, ip):
+        a, b, c, d = map(int, ip.split('.'))
+        return [(a << 8) | b, (c << 8) | d]
+    # --- end 기존 메서드 ---
+
+    # --- New Modbus command methods ---
+    def read_version(self, box_index):
+        ip = self.ip_vars[box_index].get()
+        client = ModbusTcpClient(ip, port=502, timeout=3)
+        if client.connect():
+            rr = self.safe_read(client, self.BASE + 21)  # 40022
+            ver = rr.registers[0] if not rr.isError() else None
+            self.console.print(f"[Box {box_index}] Version: {ver}")
+        client.close()
+
+    def set_tftp(self, box_index, tftp_ip):
+        ip = self.ip_vars[box_index].get()
+        regs = self.ip2regs(tftp_ip)
+        client = ModbusTcpClient(ip, port=502, timeout=3)
+        if client.connect():
+            wr = client.write_registers(self.BASE + 87, regs, slave=self.UNIT)  # 40088~40089
+            status = "OK" if not wr.isError() else wr
+            self.console.print(f"[Box {box_index}] TFTP IP set to {tftp_ip}: {status}")
+        client.close()
+
+    def upgrade(self, box_index):
+        ip = self.ip_vars[box_index].get()
+        client = ModbusTcpClient(ip, port=502, timeout=3)
+        if not client.connect():
+            return
+        wr = self.safe_write(client, self.BASE + 90, 1)  # 40091
+        if wr.isError():
+            self.console.print(f"[Box {box_index}] Upgrade start failed: {wr}")
+            client.close()
+            return
+        self.console.print(f"[Box {box_index}] Upgrade started. Polling status...")
+        while True:
+            rr_stat = self.safe_read(client, self.BASE + 22)  # 40023
+            if rr_stat.isError():
+                time.sleep(1)
+                continue
+            st = rr_stat.registers[0]
+            done = bool(st & 0x0001); fail = bool(st & 0x0002); in_prog = bool(st & 0x0004)
+            err_code = (st >> 8) & 0xFF
+
+            rr_prog = self.safe_read(client, self.BASE + 23)  # 40024
+            if rr_prog.isError():
+                time.sleep(1)
+                continue
+            pv = rr_prog.registers[0]
+            progress = pv & 0xFF; remain = (pv >> 8) & 0xFF
+
+            status = "완료" if done else "실패" if fail else "진행중" if in_prog else "대기"
+            sys.stdout.write(f"\r[{status}] {progress:3d}% 남은시간 {remain:3d}s 에러코드 {err_code}")
+            sys.stdout.flush()
+
+            if done or fail:
+                print()
+                self.console.print(f"[Box {box_index}] Upgrade {'success' if done else 'failed'}")
+                break
+            time.sleep(1)
+        client.close()
+
+    def zero_cal(self, box_index):
+        ip = self.ip_vars[box_index].get()
+        client = ModbusTcpClient(ip, port=502, timeout=3)
+        if client.connect():
+            wr = self.safe_write(client, self.BASE + 91, 1)  # 40092
+            status = "OK" if not wr.isError() else wr
+            self.console.print(f"[Box {box_index}] Zero Calibration: {status}")
+        client.close()
+    # --- end new methods ---
+
     def add_ip_row(self, frame, ip_var, index):
         entry_border = Frame(frame, bg="#4a4a4a", bd=1, relief='solid')
         entry_border.grid(row=0, column=0, padx=(0, 0), pady=5)
 
         entry = Entry(
-            entry_border,
-            textvariable=ip_var,
-            width=int(7 * SCALE_FACTOR),
-            highlightthickness=0,
-            bd=0,
-            relief='flat',
-            bg="#2e2e2e",
-            fg="white",
-            insertbackground="white",
-            font=("Helvetica", int(10 * SCALE_FACTOR)),
-            justify='center'
+            entry_border, textvariable=ip_var,
+            width=int(7 * SCALE_FACTOR), bd=0, relief='flat',
+            bg="#2e2e2e", fg="white", insertbackground="white",
+            font=("Helvetica", int(10 * SCALE_FACTOR)), justify='center'
         )
         entry.pack(padx=2, pady=3)
 
-        placeholder_text = f"{index + 1}. IP를 입력해주세요."
-        if ip_var.get() == '':
-            entry.insert(0, placeholder_text)
+        placeholder = f"{index+1}. IP를 입력해주세요."
+        if not ip_var.get():
+            entry.insert(0, placeholder)
             entry.config(fg="#a9a9a9")
         else:
             entry.config(fg="white")
 
-        def on_focus_in(event, e=entry, p=placeholder_text):
-            if e['state'] == 'normal':
-                if e.get() == p:
-                    e.delete(0, "end")
-                    e.config(fg="white")
-                entry_border.config(bg="#1e90ff")
-                e.config(bg="#3a3a3a")
+        def on_focus_in(e, en=entry, ph=placeholder):
+            if en.get() == ph:
+                en.delete(0, "end")
+                en.config(fg="white")
+            entry_border.config(bg="#1e90ff")
+            en.config(bg="#3a3a3a")
 
-        def on_focus_out(event, e=entry, p=placeholder_text):
-            if e['state'] == 'normal':
-                if not e.get():
-                    e.insert(0, p)
-                    e.config(fg="#a9a9a9")
-                entry_border.config(bg="#4a4a4a")
-                e.config(bg="#2e2e2e")
-
-        def on_entry_click(event, e=entry, p=placeholder_text):
-            if e['state'] == 'normal':
-                on_focus_in(event, e, p)
-                self.show_virtual_keyboard(e)
+        def on_focus_out(e, en=entry, ph=placeholder):
+            if not en.get():
+                en.insert(0, ph)
+                en.config(fg="#a9a9a9")
+            entry_border.config(bg="#4a4a4a")
+            en.config(bg="#2e2e2e")
 
         entry.bind("<FocusIn>", on_focus_in)
         entry.bind("<FocusOut>", on_focus_out)
-        entry.bind("<Button-1>", on_entry_click)
+        entry.bind("<Button-1>", lambda e: self.show_virtual_keyboard(entry))
 
-        action_button = Button(
-            frame,
-            image=self.connect_image,
+        # 연결/해제 버튼
+        btn_conn = Button(
+            frame, image=self.connect_image,
             command=lambda i=index: self.toggle_connection(i),
-            width=int(60 * SCALE_FACTOR),
-            height=int(40 * SCALE_FACTOR),
-            bd=0,
-            highlightthickness=0,
-            borderwidth=0,
-            relief='flat',
-            bg='black',
-            activebackground='black',
-            cursor="hand2"
+            width=int(60 * SCALE_FACTOR), height=int(40 * SCALE_FACTOR),
+            bd=0, relief='flat', bg='black', activebackground='black', cursor="hand2"
         )
-        action_button.grid(row=0, column=1)
-        self.action_buttons.append(action_button)
-
+        btn_conn.grid(row=0, column=1)
+        self.action_buttons.append(btn_conn)
         self.entries.append(entry)
+
+        # --- new command buttons ---
+        Button(frame, text="Ver", command=lambda i=index: self.read_version(i)).grid(row=0, column=2, padx=2)
+        Button(frame, text="TFTP", command=lambda i=index: self.set_tftp(i, ip_var.get())).grid(row=0, column=3, padx=2)
+        Button(frame, text="Upg", command=lambda i=index: self.upgrade(i)).grid(row=0, column=4, padx=2)
+        Button(frame, text="Cal", command=lambda i=index: self.zero_cal(i)).grid(row=0, column=5, padx=2)
+        # --- end new buttons ---
 
     def show_virtual_keyboard(self, entry):
         self.virtual_keyboard.show(entry)
@@ -994,7 +1073,7 @@ def main():
 
     row, col = 0, 0
     max_col = 2
-    for i, frame in enumerate(modbus_ui.box_frames):
+    for frame in modbus_ui.box_frames:
         frame.grid(row=row, column=col, padx=10, pady=10)
         col += 1
         if col >= max_col:
@@ -1002,6 +1081,7 @@ def main():
             row += 1
 
     root.mainloop()
+
 
 if __name__ == "__main__":
     main()
