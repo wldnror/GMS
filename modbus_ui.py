@@ -489,10 +489,6 @@ class ModbusUI:
                 # Entry 포커스아웃 강제 발생
                 # ------------------------
                 self.entries[i].event_generate("<FocusOut>")
-                # 또는
-                # entry_border = self.entries[i].master
-                # entry_border.config(bg="#4a4a4a")
-                # self.entries[i].config(bg="#2e2e2e")
 
             else:
                 self.console.print(f"Failed to connect to {ip}")
@@ -946,6 +942,30 @@ class ModbusUI:
 
         self.parent.after(self.alarm_blink_interval, lambda: self.blink_alarms(box_index))
 
+    def set_tftp(self, box_index, ip):
+        """
+        TFTP IP 설정 (필요 시 구현)
+        """
+        # TODO: TFTP IP를 저장하거나 즉시 적용하는 로직을 여기에 작성하세요.
+        self.console.print(f"[Info] Box{box_index} TFTP IP 설정: {ip}")
+
+    def send_cmd(self, box_index, cmd):
+        """
+        모드버스 장치에 명령 쓰기
+        """
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        if client is None:
+            self.console.print(f"[Error] Box {box_index}에 연결이 없습니다.")
+            return
+
+        try:
+            # 실제 register 주소는 장비 매뉴얼에 맞게 조정하세요.
+            register_address = 40021 - 1
+            client.write_register(register_address, cmd)
+            self.console.print(f"[Info] Box{box_index} ({ip}) 에 명령 0x{cmd:02X} 전송 성공")
+        except Exception as e:
+            self.console.print(f"[Error] 명령 전송 실패: {e}")
 
 def main():
     root = Tk()
