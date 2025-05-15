@@ -34,6 +34,7 @@ class ModbusUI:
     }
 
     def __init__(self, parent, num_boxes, gas_types, alarm_callback):
+        self.modbus_lock = threading.Lock()
         self.parent = parent
         self.alarm_callback = alarm_callback
         self.virtual_keyboard = VirtualKeyboard(parent)
@@ -553,19 +554,17 @@ class ModbusUI:
         del self.stop_flags[ip]
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        """
-        주기적으로 holding register 읽어서 큐에 넣고, 끊김 발생하면 reconnect
-        """
         start_address = 40001 - 1
         num_registers = 11
         while not stop_flag.is_set():
             try:
                 if client is None or not client.is_socket_open():
                     raise ConnectionException("Socket is closed")
-
-                response = client.read_holding_registers(start_address, num_registers)
+                with self.modbus_lock:
+                    response   = client.read_holding_registers(start_address, num_registers)
+                    extra_resp = client.read_holding_registers(40022-1, 3)
                 if response.isError():
-                    raise ModbusIOException(f"Error reading from {ip}, address 40001~40011")
+                    raise ModbusIOException(f"Error reading from {ip}")
 
                 raw_regs = response.registers
                 value_40001 = raw_regs[0]
@@ -962,8 +961,9 @@ class ModbusUI:
         try:
             # 실제 register 주소는 장비 매뉴얼에 맞게 조정하세요.
             register_address = 40021 - 1
-            client.write_register(register_address, cmd)
-            self.console.print(f"[Info] Box{box_index} ({ip}) 에 명령 0x{cmd:02X} 전송 성공")
+            with self.modbus_lock:
+                client.write_register(register_address, cmd)
+                self.console.print(f"[Info] Box{box_index} ({ip}) 에 명령 0x{cmd:02X} 전송 성공")
         except Exception as e:
             self.console.print(f"[Error] 명령 전송 실패: {e}")
 
