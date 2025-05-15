@@ -1,35 +1,42 @@
 #!/usr/bin/env python3
-from pymodbus.client.sync import ModbusTcpClient
 import time, sys
+from pymodbus.client import ModbusTcpClient
 
-def test_zero_cal(ip, slave_id=1):
-    client = ModbusTcpClient(ip, port=502, timeout=3)
+def test_zero_cal(ip, port=502, slave=1):
+    client = ModbusTcpClient(ip, port=port, timeout=3)
     if not client.connect():
-        print(f"[Error] {ip}:502 연결 실패")
+        print(f"[Error] {ip}:{port} 연결 실패")
         return
 
     try:
-        # 1) 정상 읽기 확인
-        resp1 = client.read_holding_registers(40001-1, 1, unit=slave_id)
-        print("Read 40001:", getattr(resp1, "registers", resp1))
+        # --- 1) 읽기 테스트 (정상 동작 확인)
+        resp = client.read_holding_registers(40001-1, 1, slave=slave)
+        if resp.isError():
+            print(f"[Error] 40001 읽기 실패: {resp}")
+        else:
+            print("40001 값:", resp.registers[0])
 
-        # 2) Zero Cal 명령 쓰기 (Function 0x06, Reg 40092)
-        wr = client.write_register(40092-1, 1, unit=slave_id)
-        print("Write 40092 (Zero Cal):", wr)
+        # --- 2) Zero Cal 쓰기
+        reg = 40092 - 1
+        wr = client.write_register(reg, 1, slave=slave)
+        print("Zero Cal 쓰기 결과:", wr)
 
-        # 3) 센서가 리부팅/처리할 시간을 확보
+        # 장비가 처리할 시간을 주기 위해 잠시 대기
         time.sleep(2)
 
-        # 4) 쓰기 후 상태 읽기
-        resp2 = client.read_holding_registers(40092-1, 1, unit=slave_id)
-        status = resp2.registers[0] & 0x1 if not resp2.isError() else None
-        print("Zero Cal 상태 (BIT0):", status)
+        # --- 3) 쓰기 후 상태 읽기
+        resp2 = client.read_holding_registers(reg, 1, slave=slave)
+        if resp2.isError():
+            print(f"[Error] 40092 상태 읽기 실패: {resp2}")
+        else:
+            bit0 = resp2.registers[0] & 0x1
+            print("Zero Cal 상태 BIT0:", bit0, "(0=완료, 1=진행중)")
 
     finally:
         client.close()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python test1.py <SENSOR_IP>")
+        print("Usage: python3 test1.py <SENSOR_IP>")
     else:
         test_zero_cal(sys.argv[1])
