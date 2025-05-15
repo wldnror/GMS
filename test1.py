@@ -1,4 +1,4 @@
-from pymodbus.client.sync import ModbusTcpClient
+from pymodbus.client import ModbusTcpClient
 
 # 1) 연결 정보 바꿔주세요
 CLIENT_IP   = "109.3.55.1"
