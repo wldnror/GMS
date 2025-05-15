@@ -33,6 +33,6 @@ def test_zero_cal(ip, port=502):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("사용법: python3 test_zero_cal.py <SENSOR_IP>")
+        print("사용법: python3 test1.py <SENSOR_IP>")
     else:
         test_zero_cal(sys.argv[1])
