@@ -1,30 +1,38 @@
 #!/usr/bin/env python3
 from pymodbus.client import ModbusTcpClient
-from pymodbus.transaction import ModbusRtuFramer
+import time
 import sys
 
-def test_read(ip, port=502, slave_id=1):
-    # RTU 프레이머 지정
-    client = ModbusTcpClient(ip, port=port, timeout=3, framer=ModbusRtuFramer)
+def test_zero_cal(ip, port=502):
+    client = ModbusTcpClient(ip, port=port, timeout=3)
     if not client.connect():
-        print(f"[Error] TCP 연결 실패: {ip}:{port}")
+        print(f"[Error] 연결 실패: {ip}:{port}")
         return
 
     try:
-        addr = 40022 - 1
-        resp = client.read_holding_registers(addr, 3, slave=slave_id)
+        # Zero Calibration: 레지스터 40092 (0-based 주소는 40092-1), BIT0에 1 쓰기
+        reg = 40092 - 1
+        val = 1
+        result = client.write_register(reg, val)
+        print(f"[Debug] write_register 결과: {result}")
+
+        # 1초 대기 후 상태 읽기
+        time.sleep(1)
+        resp = client.read_holding_registers(reg, 1)
         if resp.isError():
-            print(f"[Error] 읽기 실패: {resp}")
+            print(f"[Error] 상태 읽기 실패: {resp}")
         else:
-            print(f"[OK] 레지스터 40022~40024 값: {resp.registers}")
+            status = resp.registers[0] & 0x1
+            if status:
+                print("[Info] 아직 캘리 진행 중 (BIT0=1)")
+            else:
+                print("[Info] 캘리 완료 (BIT0=0)")
+
     finally:
         client.close()
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 test_read.py <IP> [SLAVE_ID]")
-        sys.exit(1)
-
-    ip = sys.argv[1]
-    slave = int(sys.argv[2]) if len(sys.argv) > 2 else 1
-    test_read(ip, slave_id=slave)
+    if len(sys.argv) != 2:
+        print("사용법: python3 test_zero_cal.py <SENSOR_IP>")
+    else:
+        test_zero_cal(sys.argv[1])
