@@ -2,37 +2,35 @@
 from pymodbus.client import ModbusTcpClient
 import time, sys
 
-def test_zero_cal(ip, port=502, unit_id=1):
+def test_zero_cal(ip, port=502, slave_id=1):
     client = ModbusTcpClient(ip, port=port, timeout=3)
     if not client.connect():
         print(f"[Error] 연결 실패: {ip}:{port}")
         return
     try:
-        reg = 40092 - 1   # Zero Cal 레지스터 (0-based)
-        val = 1          # BIT0 = 1
-        
-        # 쓰기
-        result = client.write_register(reg, val, unit=unit_id)
+        reg = 40092 - 1
+        val = 1
+
+        # 쓰기: slave 인자 사용
+        result = client.write_register(reg, val, slave=slave_id)
         print(f"[Debug] write_register 결과: {result}")
-        
-        # 1초 후 상태 읽기
+
         time.sleep(1)
-        resp = client.read_holding_registers(reg, 1, unit=unit_id)
+
+        # 읽기: 마찬가지로 slave 인자 사용
+        resp = client.read_holding_registers(reg, 1, slave=slave_id)
         if resp.isError():
             print(f"[Error] 상태 읽기 실패: {resp}")
         else:
             status = resp.registers[0] & 0x1
-            if status:
-                print("[Info] 아직 캘리 진행 중 (BIT0=1)")
-            else:
-                print("[Info] 캘리 완료 (BIT0=0)")
+            print("[Info] 캘리 중…" if status else "[Info] 캘리 완료")
     finally:
         client.close()
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("사용법: python3 test1.py <SENSOR_IP> [UNIT_ID]")
+        print("Usage: python3 test1.py <SENSOR_IP> [SLAVE_ID]")
         sys.exit(1)
     ip = sys.argv[1]
-    unit = int(sys.argv[2]) if len(sys.argv) >= 3 else 1
-    test_zero_cal(ip, unit_id=unit)
+    slave = int(sys.argv[2]) if len(sys.argv) >= 3 else 1
+    test_zero_cal(ip, slave_id=slave)
