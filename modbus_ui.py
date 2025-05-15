@@ -609,6 +609,21 @@ class ModbusUI:
                         )
 
                 self.ui_update_queue.put(('bar', box_index, value_40011))
+
+                # ─── 새로 추가: 40022~40024 읽기 ───
+                try:
+                    resp2 = client.read_holding_registers(40022-1, 3)
+                    if not resp2.isError():
+                        ver, status_bits, pr = resp2.registers
+                        prog   = pr & 0xFF
+                        remain = (pr >> 8) & 0xFF
+                        self.console.print(f"[DEBUG] Box{box_index} Ver={ver} Bits=0x{status_bits:04X} Prog={prog}% Rem={remain}s")
+                        self.ui_update_queue.put(('version',      box_index, ver))
+                        self.ui_update_queue.put(('upgrade_stat', box_index, status_bits))
+                        self.ui_update_queue.put(('download',     box_index, (prog, remain)))
+                except Exception as e:
+                    self.console.print(f"[DEBUG] Extra regs error: {e}")
+
                 time.sleep(self.communication_interval)
 
             except (ConnectionException, ModbusIOException) as e:
@@ -683,18 +698,31 @@ class ModbusUI:
         try:
             while not self.ui_update_queue.empty():
                 item = self.ui_update_queue.get_nowait()
-                if item[0] == 'circle_state':
-                    _, box_index, states = item
-                    self.update_circle_state(states, box_index=box_index)
-                elif item[0] == 'bar':
-                    _, box_index, value = item
-                    self.update_bar(value, box_index)
-                elif item[0] == 'segment_display':
-                    _, box_index, value, blink = item
-                    self.update_segment_display(value, box_index=box_index, blink=blink)
-                elif item[0] == 'alarm_check':
-                    box_index = item[1]
-                    self.check_alarms(box_index)
+                kind, box = item[0], item[1]
+                if kind == 'circle_state':
+                    _, _, states = item; self.update_circle_state(states, box_index=box)
+                elif kind == 'bar':
+                    _, _, val = item; self.update_bar(val, box_index=box)
+                elif kind == 'segment_display':
+                    _, _, val, blink = item; self.update_segment_display(val, box_index=box, blink=blink)
+                elif kind == 'alarm_check':
+                    _, bx = item; self.check_alarms(bx)
+
+                # ─── 새로 추가된 분기 ───
+                elif kind == 'version':
+                    _, _, ver = item
+                    self.box_states[box]["ver_label"].config(text=f"Ver: {ver}")
+                elif kind == 'upgrade_stat':
+                    _, _, bits = item
+                    sts = []
+                    if bits & (1<<0): sts.append("OK")
+                    if bits & (1<<1): sts.append("Fail")
+                    if bits & (1<<2): sts.append("Up")
+                    text = "|".join(sts) or "Idle"
+                    self.box_states[box]["up_label"].config(text=f"State: {text}")
+                elif kind == 'download':
+                    _, _, (prog, rem) = item
+                    self.box_states[box]["dl_label"].config(text=f"DL: {prog}% / {rem}s")
         except queue.Empty:
             pass
         finally:
