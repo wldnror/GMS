@@ -9,7 +9,7 @@ from pymodbus.exceptions import ConnectionException
 # ————————————————
 # 설정
 # ————————————————
-HOST    = sys.argv[1] if len(sys.argv) > 1 else '192.168.0.100'
+HOST    = sys.argv[1] if len(sys.argv) > 1 else '109.3.55.1'
 PORT    = 502
 UNIT    = 1           # 슬레이브 ID
 TIMEOUT = 5           # 초
