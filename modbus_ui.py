@@ -360,14 +360,6 @@ class ModbusUI:
         self.box_states[index]["up_label"] = up_label
         self.box_states[index]["dl_label"] = dl_label
 
-        # ► 추가: TFTP 및 명령 버튼
-        tftp_frame = Frame(control_frame, bg="black")
-        tftp_frame.grid(row=4, column=0, columnspan=2, pady=(5,0))
-        Label(tftp_frame, text="TFTP IP:", fg="white", bg="black").pack(side="left")
-        tftp_var = StringVar()
-        Entry(tftp_frame, textvariable=tftp_var, width=15).pack(side="left", padx=(2,5))
-        Button(tftp_frame, text="Set", command=lambda i=index, v=tftp_var: self.set_tftp(i, v.get())).pack(side="left")
-
         cmd_frame = Frame(control_frame, bg="black")
         cmd_frame.grid(row=5, column=0, columnspan=2, pady=(5,0))
         Button(cmd_frame, text="Upgrade", command=lambda i=index: self.send_cmd(i, 1)).pack(side="left", padx=2)
