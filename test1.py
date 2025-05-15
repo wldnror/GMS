@@ -2,21 +2,22 @@
 from pymodbus.client import ModbusTcpClient
 import time, sys
 
-def test_zero_cal(ip, port=502, unit=1):
+def test_zero_cal(ip, port=502, slave=1):
     client = ModbusTcpClient(ip, port=port, timeout=3)
     if not client.connect():
         print(f"[Error] 연결 실패: {ip}:{port}")
         return
 
     try:
-        reg = 40092 - 1  # Zero Cal 레지스터 (0-based)
+        reg = 40092 - 1
         val = 1
-        # unit 파라미터 지정
-        result = client.write_register(reg, val, unit=unit)
+
+        # slave 인자로 슬레이브 ID 지정
+        result = client.write_register(reg, val, slave=slave)
         print(f"[Debug] write_register 결과: {result}")
 
         time.sleep(1)
-        resp = client.read_holding_registers(reg, 1, unit=unit)
+        resp = client.read_holding_registers(reg, 1, slave=slave)
         if resp.isError():
             print(f"[Error] 상태 읽기 실패: {resp}")
         else:
