@@ -1,25 +1,38 @@
+#!/usr/bin/env python3
 from pymodbus.client import ModbusTcpClient
+import time
+import sys
 
-# 1) 연결 정보 바꿔주세요
-CLIENT_IP   = "109.3.55.1"
-CLIENT_PORT = 502
+def test_zero_cal(ip, port=502):
+    client = ModbusTcpClient(ip, port=port, timeout=3)
+    if not client.connect():
+        print(f"[Error] 연결 실패: {ip}:{port}")
+        return
 
-client = ModbusTcpClient(CLIENT_IP, port=CLIENT_PORT, timeout=3)
-if not client.connect():
-    print("Modbus 연결 실패")
-    exit(1)
+    try:
+        # Zero Calibration: 레지스터 40092 (0-based 주소는 40092-1), BIT0에 1 쓰기
+        reg = 40092 - 1
+        val = 1
+        result = client.write_register(reg, val)
+        print(f"[Debug] write_register 결과: {result}")
 
-# 2) 40022~40024 읽기 (0-based offset = 40022-1)
-resp = client.read_holding_registers(40022-1, 3)
-if resp.isError():
-    print("레지스터 읽기 오류:", resp)
-else:
-    ver, status_bits, prog_rem = resp.registers
-    progress = prog_rem & 0xFF
-    remaining = prog_rem >> 8
-    print(f"Version     = {ver}")
-    print(f"Status bits = 0x{status_bits:04X}")
-    print(f"Progress    = {progress}%")
-    print(f"Remaining   = {remaining} s")
+        # 1초 대기 후 상태 읽기
+        time.sleep(1)
+        resp = client.read_holding_registers(reg, 1)
+        if resp.isError():
+            print(f"[Error] 상태 읽기 실패: {resp}")
+        else:
+            status = resp.registers[0] & 0x1
+            if status:
+                print("[Info] 아직 캘리 진행 중 (BIT0=1)")
+            else:
+                print("[Info] 캘리 완료 (BIT0=0)")
 
-client.close()
+    finally:
+        client.close()
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("사용법: python3 test_zero_cal.py <SENSOR_IP>")
+    else:
+        test_zero_cal(sys.argv[1])
