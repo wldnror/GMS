@@ -951,11 +951,22 @@ class ModbusUI:
             return
 
         try:
-            # 실제 register 주소는 장비 매뉴얼에 맞게 조정하세요.
-            register_address = 40021 - 1
+            # 명령별로 올바른 레지스터 주소를 선택
+            if cmd == 0x100:  # Zero Cal
+                register_address = 40092 - 1
+                value = 1
+            elif cmd in (1, 2):  # 1=Upgrade, 2=Rollback
+                register_address = 40091 - 1
+                value = cmd
+            else:
+                self.console.print(f"[Error] 알 수 없는 명령 코드: {cmd}")
+                return
+
             with self.modbus_lock:
-                client.write_register(register_address, cmd)
-                self.console.print(f"[Info] Box{box_index} ({ip}) 에 명령 0x{cmd:02X} 전송 성공")
+                client.write_register(register_address, value)
+                self.console.print(
+                    f"[Info] Box{box_index} ({ip}) -> Reg {register_address+1} 에 값 {value} 전송 성공"
+                )
         except Exception as e:
             self.console.print(f"[Error] 명령 전송 실패: {e}")
 
