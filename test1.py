@@ -33,7 +33,7 @@ if not client.connect():
 
 try:
     # 1) 버전 정보 읽기 (40022)
-    rr = client.read_holding_registers(to_offset(40022), count=1, unit=UNIT)
+    rr = client.read_holding_registers(to_offset(40022), 1, slave=UNIT)
     if not rr.isError():
         version = rr.registers[0]
         print(f"장비 버전(Unsigned): {version}")
@@ -42,21 +42,21 @@ try:
 
     # 2) TFTP 서버 IP 설정 (40088~40089)
     ip_regs = ip_to_regs('109.3.55.2')
-    wr = client.write_registers(to_offset(40088), ip_regs, unit=UNIT)
+    wr = client.write_registers(to_offset(40088), ip_regs, slave=UNIT)
     if wr.isError():
         print("[Error] TFTP IP 쓰기 실패:", wr)
     else:
         print("TFTP IP 설정 완료")
 
     # 3) 업그레이드 시작 (40091, 1:업그레이드 시작)
-    wr = client.write_register(to_offset(40091), 1, unit=UNIT)
+    wr = client.write_register(to_offset(40091), 1, slave=UNIT)
     if wr.isError():
         print("[Error] 업그레이드 명령 실패:", wr)
     else:
         print("업그레이드 시작 명령 전송 완료")
 
     # 4) 제로 캘리브레이션 (40092, 1:Zero Calibration)
-    wr = client.write_register(to_offset(40092), 1, unit=UNIT)
+    wr = client.write_register(to_offset(40092), 1, slave=UNIT)
     if wr.isError():
         print("[Error] Zero Cal 명령 실패:", wr)
     else:
