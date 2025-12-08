@@ -17,7 +17,7 @@ import queue
 SCALE_FACTOR = 1.65
 
 # ▼ 필요시 여기 TFTP 서버 IP만 바꿔주면 모든 박스에 공통 적용됨
-DEFAULT_TFTP_IP = "109.3.55.2"
+DEFAULT_TFTP_IP = "109.3.55.17"
 
 
 def sx(x: float) -> int:
