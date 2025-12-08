@@ -82,7 +82,7 @@ class ModbusUI:
         self.clients = {}
         self.connected_clients = {}
         self.stop_flags = {}
-        # ▼ Modbus 통신 락 (IP별)
+        # Modbus 통신 락 (IP별)
         self.modbus_locks = {}
 
         self.data_queue = queue.Queue()
@@ -299,9 +299,30 @@ class ModbusUI:
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        # --- 유지보수 버튼(FW / ZERO / RST) : IP 바로 아래에 추가 ---
+        # DC/재연결 라벨
+        disconnection_label = Label(
+            control_frame,
+            text=f"DC: {self.disconnection_counts[index]}",
+            fg="white",
+            bg="black",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
+        )
+        disconnection_label.grid(row=1, column=0, columnspan=2, pady=(2, 0))
+        self.disconnection_labels[index] = disconnection_label
+
+        reconnect_label = Label(
+            control_frame,
+            text="Reconnect: 0/5",
+            fg="yellow",
+            bg="black",
+            font=("Helvetica", int(10 * SCALE_FACTOR))
+        )
+        reconnect_label.grid(row=2, column=0, columnspan=2, pady=(2, 0))
+        self.reconnect_attempt_labels[index] = reconnect_label
+
+        # 유지보수 버튼(FW / ZERO / RST) - 맨 아래줄
         maint_frame = Frame(control_frame, bg="black")
-        maint_frame.grid(row=1, column=0, columnspan=2, pady=(2, 0))
+        maint_frame.grid(row=3, column=0, columnspan=2, pady=(2, 0))
 
         fw_button = Button(
             maint_frame,
@@ -338,28 +359,6 @@ class ModbusUI:
             bd=1
         )
         rst_button.grid(row=0, column=2, padx=1)
-        # ------------------------------------------------------------------
-
-        # DC/재연결 라벨 (maint_frame 아래로 한 칸씩 내림)
-        disconnection_label = Label(
-            control_frame,
-            text=f"DC: {self.disconnection_counts[index]}",
-            fg="white",
-            bg="black",
-            font=("Helvetica", int(10 * SCALE_FACTOR))
-        )
-        disconnection_label.grid(row=2, column=0, columnspan=2, pady=(2, 0))
-        self.disconnection_labels[index] = disconnection_label
-
-        reconnect_label = Label(
-            control_frame,
-            text="Reconnect: 0/5",
-            fg="yellow",
-            bg="black",
-            font=("Helvetica", int(10 * SCALE_FACTOR))
-        )
-        reconnect_label.grid(row=3, column=0, columnspan=2, pady=(2, 0))
-        self.reconnect_attempt_labels[index] = reconnect_label
 
         # 시작 시 라벨 숨김
         disconnection_label.grid_remove()
@@ -559,7 +558,7 @@ class ModbusUI:
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
-                # ▼ 이 IP용 락 생성
+                # 이 IP용 락 생성
                 self.modbus_locks[ip] = threading.Lock()
 
                 t = threading.Thread(
@@ -740,7 +739,8 @@ class ModbusUI:
                         self.box_states[box_index]["blinking_error"] = True
                         self.data_queue.put((box_index, error_display, True))
                         self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, self.box_states[box_index]["blink_state"]])
+                            ('circle_state', box_index,
+                             [False, False, True, self.box_states[box_index]["blink_state"]])
                         )
                     else:
                         self.box_states[box_index]["blinking_error"] = False
@@ -753,7 +753,8 @@ class ModbusUI:
                 self.ui_update_queue.put(('bar', box_index, value_40011))
 
                 # FW 상태 갱신 (UI/로그)
-                self.ui_update_queue.put(('fw_status', box_index, value_40022, value_40023, value_40024))
+                self.ui_update_queue.put(('fw_status', box_index,
+                                          value_40022, value_40023, value_40024))
 
                 time.sleep(self.communication_interval)
 
@@ -1095,14 +1096,24 @@ class ModbusUI:
             with lock:
                 # 40088, 40089 : TFTP 서버 IP
                 client.write_registers(40088 - 1, [w1, w2])
-                # 40091 BIT0~1 : 1 = 업그레이드 시작
-                client.write_register(40091 - 1, 1)
-            self.console.print(f"[FW] Upgrade started for box {box_index} ({ip}) via {tftp_ip}")
+
+                # 40091 현재 값 읽기
+                res = client.read_holding_registers(40091 - 1, 1)
+                cur = res.registers[0] if (res and not res.isError()) else 0
+
+                # BIT0만 ON (업그레이드 시작 펄스)
+                new_val = cur | 0x0001
+                client.write_register(40091 - 1, new_val)
+                time.sleep(0.1)
+                # 다시 원래 값으로 복구
+                client.write_register(40091 - 1, cur)
+
+            self.console.print(f"[FW] Upgrade pulse sent for box {box_index} ({ip}) via {tftp_ip}")
         except Exception as e:
             self.console.print(f"[FW] Error starting upgrade for {ip}: {e}")
 
     def zero_calibration(self, box_index: int):
-        """ZERO 버튼: 40092 BIT0 = 1"""
+        """ZERO 버튼: 40092 BIT0 펄스"""
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
@@ -1111,13 +1122,18 @@ class ModbusUI:
             return
         try:
             with lock:
-                client.write_register(40092 - 1, 1)
-            self.console.print(f"[ZERO] Zero calibration requested for box {box_index} ({ip})")
+                res = client.read_holding_registers(40092 - 1, 1)
+                cur = res.registers[0] if (res and not res.isError()) else 0
+                new_val = cur | 0x0001
+                client.write_register(40092 - 1, new_val)
+                time.sleep(0.1)
+                client.write_register(40092 - 1, cur)
+            self.console.print(f"[ZERO] Zero calibration pulse sent for box {box_index} ({ip})")
         except Exception as e:
             self.console.print(f"[ZERO] Error on zero calibration for {ip}: {e}")
 
     def reboot_device(self, box_index: int):
-        """RST 버튼: 40093 BIT0 = 1 (재부팅)"""
+        """RST 버튼: 40093 BIT0 펄스 (재부팅)"""
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
@@ -1126,8 +1142,13 @@ class ModbusUI:
             return
         try:
             with lock:
-                client.write_register(40093 - 1, 1)
-            self.console.print(f"[RST] Reboot requested for box {box_index} ({ip})")
+                res = client.read_holding_registers(40093 - 1, 1)
+                cur = res.registers[0] if (res and not res.isError()) else 0
+                new_val = cur | 0x0001
+                client.write_register(40093 - 1, new_val)
+                time.sleep(0.1)
+                client.write_register(40093 - 1, cur)
+            self.console.print(f"[RST] Reboot pulse sent for box {box_index} ({ip})")
         except Exception as e:
             self.console.print(f"[RST] Error on reboot for {ip}: {e}")
 
