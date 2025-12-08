@@ -212,16 +212,6 @@ class ModbusUI:
     # 박스 UI 생성 / 갱신
     # -------------------------
 
-    def _create_labeled_circle(self, canvas, center_x, center_y, text, text_anchor, text_offset=(0, 0)):
-        """원(램프) + 텍스트 생성 헬퍼"""
-        r = sx(5)
-        circle = canvas.create_oval(center_x - r, center_y - r,
-                                    center_x + r, center_y + r)
-        tx = center_x + text_offset[0]
-        ty = center_y + text_offset[1]
-        canvas.create_text(tx, ty, text=text, fill="#cccccc", anchor=text_anchor)
-        return circle
-
     def create_modbus_box(self, index):
         """아날로그박스(캔버스+테두리+IP입력+알람램프 등) 생성"""
 
@@ -250,7 +240,7 @@ class ModbusUI:
             fill='black', outline='grey', tags='border'
         )
 
-        # 세그먼트 디스플레이 생성 (common 모듈)
+        # 세그먼트 디스플레이 생성
         create_segment_display(box_canvas)
 
         gas_key = self.gas_types.get(f"modbus_box_{index}", "ORG")
@@ -307,22 +297,52 @@ class ModbusUI:
         disconnection_label.grid_remove()
         reconnect_label.grid_remove()
 
+        # -----------------------------
         # AL1, AL2, PWR, FUT 원(램프)
-        circle_al1 = self._create_labeled_circle(
-            box_canvas, sx(77) - sx(20), sy(200) - sy(22),
-            "AL1", "e", text_offset=(sx(18), sy(22))
+        # 👉 기존 코드 좌표 그대로
+        # -----------------------------
+        circle_al1 = box_canvas.create_oval(
+            sx(77) - sx(20), sy(200) - sy(32),
+            sx(87) - sx(20), sy(190) - sy(32)
         )
-        circle_al2 = self._create_labeled_circle(
-            box_canvas, sx(133) - sx(30), sy(200) - sy(22),
-            "AL2", "e", text_offset=(sx(7), sy(22))
+        box_canvas.create_text(
+            sx(95) - sx(25), sy(222) - sy(40),
+            text="AL1",
+            fill="#cccccc",
+            anchor="e"
         )
-        circle_pwr = self._create_labeled_circle(
-            box_canvas, sx(30) - sx(10), sy(200) - sy(22),
-            "PWR", "center", text_offset=(0, sy(22))
+
+        circle_al2 = box_canvas.create_oval(
+            sx(133) - sx(30), sy(200) - sy(32),
+            sx(123) - sx(30), sy(190) - sy(32)
         )
-        circle_fut = self._create_labeled_circle(
-            box_canvas, sx(171) - sx(40), sy(200) - sy(22),
-            "FUT", "n", text_offset=(0, sy(17))
+        box_canvas.create_text(
+            sx(140) - sx(35), sy(222) - sy(40),
+            text="AL2",
+            fill="#cccccc",
+            anchor="e"
+        )
+
+        circle_pwr = box_canvas.create_oval(
+            sx(30) - sx(10), sy(200) - sy(32),
+            sx(40) - sx(10), sy(190) - sy(32)
+        )
+        box_canvas.create_text(
+            sx(35) - sx(10), sy(222) - sy(40),
+            text="PWR",
+            fill="#cccccc",
+            anchor="center"
+        )
+
+        circle_fut = box_canvas.create_oval(
+            sx(171) - sx(40), sy(200) - sy(32),
+            sx(181) - sx(40), sy(190) - sy(32)
+        )
+        box_canvas.create_text(
+            sx(175) - sx(40), sy(217) - sy(40),
+            text="FUT",
+            fill="#cccccc",
+            anchor="n"
         )
 
         # GAS 타입 표시
