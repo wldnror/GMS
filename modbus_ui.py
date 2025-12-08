@@ -16,6 +16,9 @@ import queue
 
 SCALE_FACTOR = 1.65
 
+# ▼ 필요시 여기 TFTP 서버 IP만 바꿔주면 모든 박스에 공통 적용됨
+DEFAULT_TFTP_IP = "109.3.55.2"
+
 
 def sx(x: float) -> int:
     """가로 방향 스케일 헬퍼"""
@@ -91,6 +94,9 @@ class ModbusUI:
         # 공통 Bar 이미지
         self.gradient_bar = create_gradient_bar(sx(120), sy(5))
         self.gas_types = gas_types
+
+        # FW 업그레이드용 TFTP 서버 IP (상단 상수에서 초기화)
+        self.tftp_ip = DEFAULT_TFTP_IP
 
         # 연결 끊김 관련 관리
         self.disconnection_counts = [0] * num_boxes
@@ -311,6 +317,47 @@ class ModbusUI:
         )
         reconnect_label.grid(row=2, column=0, columnspan=2, pady=(2, 0))
         self.reconnect_attempt_labels[index] = reconnect_label
+
+        # --- 유지보수 버튼(FW / ZERO / RST) : 기존 아래에 자연스럽게 추가 ---
+        maint_frame = Frame(control_frame, bg="black")
+        maint_frame.grid(row=3, column=0, columnspan=2, pady=(4, 0))
+
+        fw_button = Button(
+            maint_frame,
+            text="FW",
+            command=lambda idx=index: self.start_firmware_upgrade(idx, self.tftp_ip),
+            width=int(3 * SCALE_FACTOR),
+            bg="#444444",
+            fg="white",
+            relief='raised',
+            bd=1
+        )
+        fw_button.grid(row=0, column=0, padx=1)
+
+        zero_button = Button(
+            maint_frame,
+            text="ZERO",
+            command=lambda idx=index: self.zero_calibration(idx),
+            width=int(4 * SCALE_FACTOR),
+            bg="#444444",
+            fg="white",
+            relief='raised',
+            bd=1
+        )
+        zero_button.grid(row=0, column=1, padx=1)
+
+        rst_button = Button(
+            maint_frame,
+            text="RST",
+            command=lambda idx=index: self.reboot_device(idx),
+            width=int(3 * SCALE_FACTOR),
+            bg="#444444",
+            fg="white",
+            relief='raised',
+            bd=1
+        )
+        rst_button.grid(row=0, column=2, padx=1)
+        # ------------------------------------------------------------------
 
         # 시작 시 라벨 숨김
         disconnection_label.grid_remove()
@@ -1011,13 +1058,13 @@ class ModbusUI:
         self.console.print(msg)
 
     # -------------------------
-    # FW 업그레이드 시작 (UI는 건드리지 않고 메서드만 제공)
+    # FW 업그레이드 / ZERO / REBOOT
     # -------------------------
 
     def start_firmware_upgrade(self, box_index: int, tftp_ip: str):
         """
-        외부에서 호출용:
-        modbus_ui.start_firmware_upgrade(0, "109.3.55.2")
+        FW 버튼에서 호출:
+        self.start_firmware_upgrade(box_index, self.tftp_ip)
         """
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
@@ -1039,6 +1086,32 @@ class ModbusUI:
             self.console.print(f"[FW] Upgrade started for box {box_index} ({ip}) via {tftp_ip}")
         except Exception as e:
             self.console.print(f"[FW] Error starting upgrade for {ip}: {e}")
+
+    def zero_calibration(self, box_index: int):
+        """ZERO 버튼: 40092 BIT0 = 1"""
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        if client is None:
+            self.console.print(f"[ZERO] Box {box_index} ({ip}) not connected.")
+            return
+        try:
+            client.write_register(40092 - 1, 1)
+            self.console.print(f"[ZERO] Zero calibration requested for box {box_index} ({ip})")
+        except Exception as e:
+            self.console.print(f"[ZERO] Error on zero calibration for {ip}: {e}")
+
+    def reboot_device(self, box_index: int):
+        """RST 버튼: 40093 BIT0 = 1 (재부팅)"""
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        if client is None:
+            self.console.print(f"[RST] Box {box_index} ({ip}) not connected.")
+            return
+        try:
+            client.write_register(40093 - 1, 1)
+            self.console.print(f"[RST] Reboot requested for box {box_index} ({ip})")
+        except Exception as e:
+            self.console.print(f"[RST] Error on reboot for {ip}: {e}")
 
 
 def main():
