@@ -381,7 +381,7 @@ class ModbusUI:
 
         circle_al2 = box_canvas.create_oval(
             sx(133) - sx(30), sy(200) - sy(32),
-            sx(123) - sy(30), sy(190) - sy(32)
+            sx(123) - sx(30), sy(190) - sy(32)
         )
         box_canvas.create_text(
             sx(140) - sx(35), sy(222) - sy(40),
@@ -798,6 +798,7 @@ class ModbusUI:
             item = self.ui_update_queue.get_nowait()
             typ = item[0]
 
+        # NOTE: 이 while 안에서 꺼낸 item을 바로 처리해야 함
             if typ == 'circle_state':
                 _, box_index, states = item
                 self.update_circle_state(states, box_index=box_index)
@@ -1138,13 +1139,15 @@ class ModbusUI:
     def zero_calibration(self, box_index: int):
         """
         ZERO 버튼: 40092 BIT0 = 1
-        - 장비가 내부에서 이 비트를 감지하고 제로 캘리브레이션 실행 후
-          필요하면 스스로 0으로 클리어하는 방식으로 가정
-        - 여기서는 '펄스(1→0)'를 만들지 않고 1만 써준다.
+        - 여기서는 1만 써 주고, 0으로는 다시 내리지 않는다.
+        - 버튼 눌림 / 레지스터 값 디버깅 로그 추가.
         """
+        self.console.print(f"[ZERO] button clicked (box_index={box_index})")
+
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
+
         if client is None or lock is None:
             self.console.print(f"[ZERO] Box {box_index} ({ip}) not connected.")
             return
@@ -1153,8 +1156,7 @@ class ModbusUI:
             with lock:
                 client.write_register(40092 - 1, 1)
 
-                # 디버깅용으로 한 번 읽어보면 실제로 1이 써졌는지 확인 가능
-                # (문제 없으면 이 부분은 주석 처리해도 됨)
+                # 디버깅: 실제로 1이 써졌는지 확인
                 try:
                     rr = client.read_holding_registers(40092 - 1, 1)
                     self.console.print(f"[ZERO] Reg40092 after write: 0x{rr.registers[0]:04X}")
@@ -1162,6 +1164,7 @@ class ModbusUI:
                     self.console.print(f"[ZERO] Readback failed (ignored): {e}")
 
             self.console.print(f"[ZERO] Zero calibration command sent for box {box_index} ({ip})")
+
         except Exception as e:
             self.console.print(f"[ZERO] Error on zero calibration for {ip}: {e}")
 
