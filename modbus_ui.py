@@ -27,6 +27,25 @@ def sy(y: float) -> int:
     return int(y * SCALE_FACTOR)
 
 
+# === FW 이미지 관련: TFTP IP 인코딩 헬퍼 =====================================
+def encode_ip_to_words(ip: str):
+    """
+    'A.B.C.D' → (word1, word2)
+    word1 = A<<8 | B, word2 = C<<8 | D
+    """
+    try:
+        a, b, c, d = map(int, ip.split("."))
+    except ValueError:
+        raise ValueError(f"Invalid IP format: {ip}")
+    for octet in (a, b, c, d):
+        if not 0 <= octet <= 255:
+            raise ValueError(f"Invalid octet in IP: {ip}")
+    word1 = (a << 8) | b
+    word2 = (c << 8) | d
+    return word1, word2
+# ============================================================================
+
+
 class ModbusUI:
     SETTINGS_FILE = "modbus_settings.json"
 
@@ -299,7 +318,6 @@ class ModbusUI:
 
         # -----------------------------
         # AL1, AL2, PWR, FUT 원(램프)
-        # 👉 기존 코드 좌표 그대로
         # -----------------------------
         circle_al1 = box_canvas.create_oval(
             sx(77) - sx(20), sy(200) - sy(32),
@@ -542,30 +560,41 @@ class ModbusUI:
             ).start()
 
     def disconnect_client(self, ip, i, manual=False):
-        """실제 해제 로직"""
-        self.stop_flags[ip].set()
-        self.connected_clients[ip].join(timeout=5)
+        """실제 해제 로직 (스레드 안전)"""
+        stop_flag = self.stop_flags.get(ip)
+        if stop_flag is not None:
+            stop_flag.set()
 
-        if self.connected_clients[ip].is_alive():
-            self.console.print(f"Thread for {ip} did not terminate in time.")
+        t = self.connected_clients.get(ip)
+        current = threading.current_thread()
+        if t is not None and t is not current:
+            t.join(timeout=5)
+            if t.is_alive():
+                self.console.print(f"Thread for {ip} did not terminate in time.")
+        else:
+            if t is not None:
+                self.console.print(f"Skipping join on current thread for {ip}")
 
-        self.clients[ip].close()
+        client = self.clients.get(ip)
+        if client is not None:
+            client.close()
         self.console.print(f"Disconnected from {ip}")
         self.cleanup_client(ip)
 
-        self.parent.after(0, lambda idx=i: self.reset_ui_elements(idx))
-        self.parent.after(
-            0,
-            lambda idx=i: self.action_buttons[idx].config(
-                image=self.connect_image,
-                relief='flat',
-                borderwidth=0
-            )
-        )
-        self.parent.after(0, lambda idx=i: self.entries[idx].config(state="normal"))
-        self.parent.after(0, lambda idx=i: self.box_frames[idx].config(highlightthickness=1))
-
+        # UI 작업은 메인 스레드에서만
+        self.parent.after(0, lambda idx=i, m=manual: self._after_disconnect(idx, m))
         self.save_ip_settings()
+
+    def _after_disconnect(self, i, manual):
+        """disconnect 이후 UI 처리 (메인 스레드 전용)"""
+        self.reset_ui_elements(i)
+        self.action_buttons[i].config(
+            image=self.connect_image,
+            relief='flat',
+            borderwidth=0
+        )
+        self.entries[i].config(state="normal")
+        self.box_frames[i].config(highlightthickness=1)
 
         if manual:
             box_canvas = self.box_data[i][0]
@@ -583,9 +612,9 @@ class ModbusUI:
 
     def cleanup_client(self, ip):
         """내부 dict들 정리"""
-        del self.connected_clients[ip]
-        del self.clients[ip]
-        del self.stop_flags[ip]
+        self.connected_clients.pop(ip, None)
+        self.clients.pop(ip, None)
+        self.stop_flags.pop(ip, None)
 
     def connect_to_server(self, ip, client):
         """여러번 시도해서 연결"""
@@ -605,7 +634,8 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         """주기적으로 holding register 읽어서 큐에 넣고, 끊김 발생하면 reconnect"""
         start_address = 40001 - 1
-        num_registers = 11
+        # 40001 ~ 40024 까지 읽기
+        num_registers = 24
 
         while not stop_flag.is_set():
             try:
@@ -614,7 +644,7 @@ class ModbusUI:
 
                 response = client.read_holding_registers(start_address, num_registers)
                 if response.isError():
-                    raise ModbusIOException(f"Error reading from {ip}, address 40001~40011")
+                    raise ModbusIOException(f"Error reading from {ip}, address 40001~40024")
 
                 raw_regs = response.registers
                 value_40001 = raw_regs[0]
@@ -622,6 +652,12 @@ class ModbusUI:
                 value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
 
+                # FW 관련 레지스터
+                value_40022 = raw_regs[21]
+                value_40023 = raw_regs[22]
+                value_40024 = raw_regs[23]
+
+                # AL1/AL2 상태
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
 
@@ -629,6 +665,7 @@ class ModbusUI:
                 self.box_states[box_index]["alarm2_on"] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
 
+                # 에러/값 디스플레이
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
                     formatted_value = f"{value_40005}"
@@ -653,7 +690,12 @@ class ModbusUI:
                             ('circle_state', box_index, [False, False, True, False])
                         )
 
+                # Bar 값
                 self.ui_update_queue.put(('bar', box_index, value_40011))
+
+                # FW 상태 갱신 (UI/로그)
+                self.ui_update_queue.put(('fw_status', box_index, value_40022, value_40023, value_40024))
+
                 time.sleep(self.communication_interval)
 
             except (ConnectionException, ModbusIOException) as e:
@@ -700,6 +742,9 @@ class ModbusUI:
             elif typ == 'alarm_check':
                 _, box_index = item
                 self.check_alarms(box_index)
+            elif typ == 'fw_status':
+                _, box_index, v_40022, v_40023, v_40024 = item
+                self.update_fw_status(box_index, v_40022, v_40023, v_40024)
 
         self.schedule_ui_update()
 
@@ -711,10 +756,15 @@ class ModbusUI:
         pass
 
     def handle_disconnection(self, box_index):
-        """연결 끊겼을 때 처리"""
+        """연결 끊겼을 때 처리 (스레드 → UI 분리)"""
         self.disconnection_counts[box_index] += 1
-        self.disconnection_labels[box_index].config(
-            text=f"DC: {self.disconnection_counts[box_index]}"
+        count = self.disconnection_counts[box_index]
+
+        # 라벨 텍스트 변경을 메인 스레드에 위임
+        self.parent.after(
+            0,
+            lambda idx=box_index, c=count:
+            self.disconnection_labels[idx].config(text=f"DC: {c}")
         )
 
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
@@ -736,9 +786,12 @@ class ModbusUI:
         self.box_states[box_index]["pwr_blink_state"] = False
         self.box_states[box_index]["pwr_blinking"] = False
 
-        box_canvas = self.box_data[box_index][0]
-        circle_items = self.box_data[box_index][1]
-        box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+        def _set_pwr_default(idx=box_index):
+            box_canvas = self.box_data[idx][0]
+            circle_items = self.box_data[idx][1]
+            box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
+
+        self.parent.after(0, _set_pwr_default)
         self.console.print(f"PWR lamp set to default green for box {box_index} due to disconnection.")
 
     def reconnect(self, ip, client, stop_flag, box_index):
@@ -918,6 +971,74 @@ class ModbusUI:
             )
 
         self.parent.after(self.alarm_blink_interval, lambda idx=box_index: self.blink_alarms(idx))
+
+    # -------------------------
+    # FW 상태 해석 (UI는 그대로, 콘솔 로그만)
+    # -------------------------
+
+    def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
+        """40022~40024 값으로 FW 상태를 간단히 로그"""
+        version = v_40022
+        error_code = (v_40023 >> 8) & 0xFF
+        progress = v_40024 & 0xFF
+        remain = (v_40024 >> 8) & 0xFF
+
+        upgrading = bool(v_40023 & (1 << 2))
+        upgrade_ok = bool(v_40023 & (1 << 0))
+        upgrade_fail = bool(v_40023 & (1 << 1))
+        rollback_running = bool(v_40023 & (1 << 6))
+        rollback_ok = bool(v_40023 & (1 << 4))
+        rollback_fail = bool(v_40023 & (1 << 5))
+
+        msg = f"[FW][box {box_index}] ver={version}, progress={progress}%, remain={remain}s"
+        states = []
+        if upgrading:
+            states.append("UPGRADING")
+        if upgrade_ok:
+            states.append("UPGRADE_OK")
+        if upgrade_fail:
+            states.append(f"UPGRADE_FAIL(err={error_code})")
+        if rollback_running:
+            states.append("ROLLBACK")
+        if rollback_ok:
+            states.append("ROLLBACK_OK")
+        if rollback_fail:
+            states.append(f"ROLLBACK_FAIL(err={error_code})")
+
+        if states:
+            msg += " [" + ", ".join(states) + "]"
+
+        self.console.print(msg)
+
+    # -------------------------
+    # FW 업그레이드 시작 (UI는 건드리지 않고 메서드만 제공)
+    # -------------------------
+
+    def start_firmware_upgrade(self, box_index: int, tftp_ip: str):
+        """
+        외부에서 호출용:
+        modbus_ui.start_firmware_upgrade(0, "109.3.55.2")
+        """
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        if client is None:
+            self.console.print(f"[FW] Box {box_index} ({ip}) not connected.")
+            return
+
+        try:
+            w1, w2 = encode_ip_to_words(tftp_ip)
+        except ValueError as e:
+            self.console.print(f"[FW] Invalid TFTP IP '{tftp_ip}': {e}")
+            return
+
+        try:
+            # 40088, 40089 : TFTP 서버 IP
+            client.write_registers(40088 - 1, [w1, w2])
+            # 40091 BIT0~1 : 1 = 업그레이드 시작
+            client.write_register(40091 - 1, 1)
+            self.console.print(f"[FW] Upgrade started for box {box_index} ({ip}) via {tftp_ip}")
+        except Exception as e:
+            self.console.print(f"[FW] Error starting upgrade for {ip}: {e}")
 
 
 def main():
