@@ -261,6 +261,7 @@ class ModbusUI:
                 'border_blink_state': False,
                 'gms1000_text_id': None,
                 'fw_file_name_var': fw_name_var,
+                'fw_upgrading': False,   # 🔵 FW 업그레이드 진행 중인지 여부
             }
         )
 
@@ -309,7 +310,7 @@ class ModbusUI:
         )
         rst_button.grid(row=0, column=2, padx=1)
 
-        # 🔵 TFTP 관련 UI는 표시하지 않음 (라벨/입력/버튼 전부 제거)
+        # 🔵 TFTP 관련 UI는 표시하지 않음
 
         fw_file_label = Label(
             maint_frame,
@@ -388,7 +389,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='center',
         )
-        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sx(40), sy(190) - sy(32))
+        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sy(40), sy(190) - sy(32))
         box_canvas.create_text(
             sx(175) - sx(40),
             sy(217) - sy(40),
@@ -741,6 +742,11 @@ class ModbusUI:
         while True:
             try:
                 box_index, value, blink = self.data_queue.get(timeout=1)
+
+                # 🔵 FW 업그레이드 중이면 센서 값으로 7세그를 덮어쓰지 않는다
+                if self.box_states[box_index].get('fw_upgrading'):
+                    continue
+
                 self.ui_update_queue.put(('segment_display', box_index, value, blink))
             except queue.Empty:
                 continue
@@ -1082,6 +1088,33 @@ class ModbusUI:
             msg += ' [' + ', '.join(states) + ']'
         self.console.print(msg)
 
+        # 🔵 FW 진행 상황을 UI에 반영
+        self.box_states[box_index]['fw_upgrading'] = upgrading
+
+        if upgrading:
+            # 0~100% 를 "  0", " 15", "100" 이런 식으로 4자리 맞춰서 표시
+            disp = f"{progress:3d} "  # 예: '  0 ', ' 15 ', '100 '
+            self.ui_update_queue.put(
+                ('segment_display', box_index, disp, False)
+            )
+            # 바도 FW 진행률로 사용
+            self.ui_update_queue.put(
+                ('bar', box_index, progress)
+            )
+        else:
+            # 업그레이드 끝
+            self.box_states[box_index]['fw_upgrading'] = False
+            if upgrade_ok:
+                # 성공 시
+                self.ui_update_queue.put(
+                    ('segment_display', box_index, ' End', False)
+                )
+            elif upgrade_fail or rollback_fail:
+                # 실패 시
+                self.ui_update_queue.put(
+                    ('segment_display', box_index, 'Err ', True)
+                )
+
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
         """
         연결/재연결 직후 바로 말고, 약간 기다렸다가 TFTP IP를 읽어오는 함수.
@@ -1132,19 +1165,33 @@ class ModbusUI:
             else:
                 self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
 
+    # 🔵 FW 버튼 → 스레드에서 실제 작업 수행 (UI 멈춤 방지)
     def start_firmware_upgrade(self, box_index: int):
+        threading.Thread(
+            target=self._do_firmware_upgrade,
+            args=(box_index,),
+            daemon=True,
+        ).start()
+
+    def _do_firmware_upgrade(self, box_index: int):
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
 
         if client is None or lock is None:
             self.console.print(f'[FW] Box {box_index} ({ip}) not connected.')
-            messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.')
+            self.parent.after(
+                0,
+                lambda: messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.')
+            )
             return
 
         src_path = self.fw_file_paths[box_index]
         if not src_path or not os.path.isfile(src_path):
-            messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.')
+            self.parent.after(
+                0,
+                lambda: messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.')
+            )
             return
 
         # 장비가 실제로 RRQ 보내는 경로: GDS/ASGD-3200/asgd3200.bin
@@ -1153,13 +1200,16 @@ class ModbusUI:
             os.makedirs(device_dir, exist_ok=True)
         except Exception as e:
             self.console.print(f'[FW] mkdir error: {e}')
-            messagebox.showerror('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}')
+            self.parent.after(
+                0,
+                lambda e=e: messagebox.showerror('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}')
+            )
             return
 
         dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
 
         try:
-            # 기존 파일이 있으면 먼저 삭제 (디렉터리 쓰기 권한만 있으면 가능)
+            # 기존 파일이 있으면 먼저 삭제
             if os.path.exists(dst_path):
                 try:
                     os.remove(dst_path)
@@ -1167,7 +1217,7 @@ class ModbusUI:
                 except PermissionError as e:
                     self.console.print(f'[FW] warning: cannot remove old file: {e}')
 
-            # 중요: copy2 대신 copyfile 사용해서 chmod/copystat 단계에서 EPERM 안 나게
+            # 중요: copy2 대신 copyfile 사용
             shutil.copyfile(src_path, dst_path)
             self.console.print(
                 f'[FW] box {box_index} file copy: {src_path} → {dst_path} '
@@ -1175,7 +1225,10 @@ class ModbusUI:
             )
         except Exception as e:
             self.console.print(f'[FW] file copy error: {e}')
-            messagebox.showerror('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
+            self.parent.after(
+                0,
+                lambda e=e: messagebox.showerror('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
+            )
             return
 
         tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
@@ -1200,8 +1253,11 @@ class ModbusUI:
                     r2 = client.write_register(addr_ctrl, 1)
                     if isinstance(r2, ExceptionResponse) or r2.isError():
                         self.console.print(f'[FW] write 40091 error: {r2}')
-                        messagebox.showerror(
-                            'FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}'
+                        self.parent.after(
+                            0,
+                            lambda r2=r2: messagebox.showerror(
+                                'FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}'
+                            ),
                         )
                         return
                     self.console.print('[FW] write 40091 = 1 OK')
@@ -1214,14 +1270,20 @@ class ModbusUI:
                 f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
                 f"TFTP IP='{tftp_ip_str}', file={dst_path}"
             )
-            messagebox.showinfo(
-                'FW',
-                'FW 업그레이드 명령을 전송했습니다.\n'
-                '※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
+            self.parent.after(
+                0,
+                lambda: messagebox.showinfo(
+                    'FW',
+                    'FW 업그레이드 명령을 전송했습니다.\n'
+                    '※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
+                ),
             )
         except Exception as e:
             self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
-            messagebox.showerror('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
+            self.parent.after(
+                0,
+                lambda e=e: messagebox.showerror('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
+            )
 
     def zero_calibration(self, box_index: int):
         self.console.print(f'[ZERO] button clicked (box_index={box_index})')
