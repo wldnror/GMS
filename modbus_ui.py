@@ -827,11 +827,12 @@ class ModbusUI:
                 new_client = ModbusTcpClient(ip, port=502, timeout=3)
                 if new_client.connect():
                     self.console.print(f'Reconnected to the Modbus server at {ip}')
+                    # 이전 client 정리
                     try:
                         if client is not None:
                             client.close()
-                        except Exception:
-                            pass
+                    except Exception:
+                        pass
 
                     self.clients[ip] = new_client
                     client = new_client
@@ -1189,7 +1190,7 @@ class ModbusUI:
 
         if client is None or lock is None:
             self.console.print(f'[ZERO] Box {box_index} ({ip}) not connected.')
-            messagebox.show.warning('ZERO', '먼저 Modbus 연결을 해주세요.')
+            messagebox.showwarning('ZERO', '먼저 Modbus 연결을 해주세요.')
             return
 
         addr = self.reg_addr(40092)
