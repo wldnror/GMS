@@ -124,7 +124,7 @@ class ModbusUI:
 
         self.communication_interval = 0.2
         self.blink_interval = int(self.communication_interval * 1000)
-        self.alarm_blink_interval = 1000  # 🔴 알람 깜빡이 주기(1초)
+        self.alarm_blink_interval = 1000  # 알람 깜빡이 주기(1초)
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -242,7 +242,6 @@ class ModbusUI:
         gas_type_var = StringVar(value=gas_key)
         fw_name_var = StringVar(value='(파일 없음)')
 
-        # 🔴 여기 box_states에 alarm_blink_running 추가
         self.box_states.append(
             {
                 'blink_state': False,
@@ -311,8 +310,6 @@ class ModbusUI:
             bd=1,
         )
         rst_button.grid(row=0, column=2, padx=1)
-
-        # 🔵 TFTP 관련 UI는 표시하지 않음
 
         fw_file_label = Label(
             maint_frame,
@@ -537,10 +534,10 @@ class ModbusUI:
                 t.start()
                 self.console.print(f'Started data thread for {ip}')
 
-                # 🔵 장비의 TFTP IP는 바로 읽지 않고, 약간 딜레이를 두고 백그라운드에서 읽기
+                # 장비의 TFTP IP는 약간 딜레이를 두고 백그라운드에서 읽기
                 threading.Thread(
                     target=self.delayed_load_tftp_ip_from_device,
-                    args=(i, 1.0),   # 1초 뒤에 읽기 (필요하면 조절)
+                    args=(i, 1.0),
                     daemon=True,
                 ).start()
 
@@ -672,7 +669,8 @@ class ModbusUI:
                 raw_regs = response.registers
                 value_40001 = raw_regs[0]
                 value_40005 = raw_regs[4]
-                value_40007 = raw_regs[6]
+                # ✅ 에러코드 레지스터: 40008 → raw_regs[7]
+                value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
                 value_40022 = raw_regs[21]
                 value_40023 = raw_regs[22]
@@ -745,7 +743,7 @@ class ModbusUI:
             try:
                 box_index, value, blink = self.data_queue.get(timeout=1)
 
-                # 🔵 FW 업그레이드 중이면 센서 값으로 7세그를 덮어쓰지 않는다
+                # FW 업그레이드 중이면 센서 값으로 7세그를 덮어쓰지 않는다
                 if self.box_states[box_index].get('fw_upgrading'):
                     continue
 
@@ -957,7 +955,7 @@ class ModbusUI:
 
         toggle_color()
 
-    # 🔴 수정된 check_alarms: 상태만 세팅하고, 새로 알람이 켜질 때만 blink_alarms 시작
+    # 수정된 check_alarms: 상태만 세팅하고, 새로 알람이 켜질 때만 blink_alarms 시작
     def check_alarms(self, box_index):
         state = self.box_states[box_index]
 
@@ -1020,7 +1018,7 @@ class ModbusUI:
         else:
             box_canvas.itemconfig(circle_items[1], fill='#fdc8c8', outline='#fdc8c8')
 
-    # 🔴 수정된 blink_alarms: 자기 내부에서만 1초마다 깜빡이고, 중복 루프 방지
+    # 수정된 blink_alarms: 자기 내부에서만 1초마다 깜빡이고, 중복 루프 방지
     def blink_alarms(self, box_index):
         state = self.box_states[box_index]
 
@@ -1081,7 +1079,7 @@ class ModbusUI:
         progress = v_40024 & 0xFF
         remain = (v_40024 >> 8) & 0xFF
 
-        # 🔵 상태가 이전과 완전히 같으면 로그를 찍지 않아서 화면이 더 부드러워짐
+        # 상태가 이전과 완전히 같으면 로그 생략
         current = (version, error_code, progress, remain, v_40023)
         prev = self.last_fw_status[box_index]
         if prev == current:
@@ -1113,7 +1111,7 @@ class ModbusUI:
             msg += ' [' + ', '.join(states) + ']'
         self.console.print(msg)
 
-        # 🔵 FW 진행 상황을 UI에 반영
+        # FW 진행 상황을 UI에 반영
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
@@ -1149,7 +1147,6 @@ class ModbusUI:
         try:
             self.load_tftp_ip_from_device(box_index)
         except Exception as e:
-            # 여기서는 심각한 에러로 안 보고 가볍게만 출력
             self.console.print(
                 f'[FW] (ignore) delayed TFTP IP read fail box {box_index}: {e}'
             )
@@ -1182,7 +1179,6 @@ class ModbusUI:
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
         except Exception as e:
             msg = str(e)
-            # 연결 직후 장비가 아직 준비 안 된 경우 자주 보이는 에러는 톤 다운
             if "No response received" in msg:
                 self.console.print(
                     f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready yet (ignore).'
@@ -1190,7 +1186,7 @@ class ModbusUI:
             else:
                 self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
 
-    # 🔵 FW 버튼 → 스레드에서 실제 작업 수행 (UI 멈춤 방지)
+    # FW 버튼 → 스레드에서 실제 작업 수행 (UI 멈춤 방지)
     def start_firmware_upgrade(self, box_index: int):
         threading.Thread(
             target=self._do_firmware_upgrade,
@@ -1219,7 +1215,6 @@ class ModbusUI:
             )
             return
 
-        # 장비가 실제로 RRQ 보내는 경로: GDS/ASGD-3200/asgd3200.bin
         device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
         try:
             os.makedirs(device_dir, exist_ok=True)
@@ -1234,7 +1229,6 @@ class ModbusUI:
         dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
 
         try:
-            # 기존 파일이 있으면 먼저 삭제
             if os.path.exists(dst_path):
                 try:
                     os.remove(dst_path)
@@ -1242,7 +1236,6 @@ class ModbusUI:
                 except PermissionError as e:
                     self.console.print(f'[FW] warning: cannot remove old file: {e}')
 
-            # 중요: copy2 대신 copyfile 사용
             shutil.copyfile(src_path, dst_path)
             self.console.print(
                 f'[FW] box {box_index} file copy: {src_path} → {dst_path} '
