@@ -12,10 +12,15 @@ from rich.console import Console
 from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
+
 SCALE_FACTOR = 1.65
 DEFAULT_TFTP_IP = '109.3.55.17'
-TFTP_FW_BASENAME = 'ASGD3200E.bin'
+TFTP_FW_BASENAME = 'ASGD3200E.bin'   # 필요시 참고용 이름
 TFTP_ROOT_DIR = '/srv/tftp'
+
+# 장비가 TFTP로 실제 요청하는 경로: GDS/ASGD-3200/asgd3200.bin
+TFTP_DEVICE_SUBDIR = os.path.join('GDS', 'ASGD-3200')  # -> "GDS/ASGD-3200"
+TFTP_DEVICE_FILENAME = 'asgd3200.bin'                  # RRQ "GDS/ASGD-3200/asgd3200.bin"
 
 
 def sx(x: float) -> int:
@@ -59,9 +64,11 @@ class ModbusUI:
         self.parent = parent
         self.alarm_callback = alarm_callback
         self.virtual_keyboard = VirtualKeyboard(parent)
+
         self.ip_vars = [StringVar() for _ in range(num_boxes)]
         self.tftp_ip_vars = [StringVar(value=DEFAULT_TFTP_IP) for _ in range(num_boxes)]
         self.fw_file_paths = [None for _ in range(num_boxes)]
+
         self.entries = []
         self.action_buttons = []
         self.clients = {}
@@ -76,21 +83,27 @@ class ModbusUI:
         self.box_data = []
         self.gradient_bar = create_gradient_bar(sx(120), sy(5))
         self.gas_types = gas_types
+
         self.disconnection_counts = [0] * num_boxes
         self.disconnection_labels = [None] * num_boxes
         self.auto_reconnect_failed = [False] * num_boxes
         self.reconnect_attempt_labels = [None] * num_boxes
+
         self.load_ip_settings(num_boxes)
+
         script_dir = os.path.dirname(os.path.abspath(__file__))
         connect_image_path = os.path.join(script_dir, 'img/on.png')
         disconnect_image_path = os.path.join(script_dir, 'img/off.png')
         self.connect_image = self.load_image(connect_image_path, (sx(50), sy(70)))
         self.disconnect_image = self.load_image(disconnect_image_path, (sx(50), sy(70)))
+
         for i in range(num_boxes):
             self.create_modbus_box(i)
+
         self.communication_interval = 0.2
         self.blink_interval = int(self.communication_interval * 1000)
         self.alarm_blink_interval = 1000
+
         self.start_data_processing_thread()
         self.schedule_ui_update()
         self.parent.bind('<Button-1>', self.check_click)
@@ -160,6 +173,7 @@ class ModbusUI:
         entry.bind('<FocusIn>', on_focus_in)
         entry.bind('<FocusOut>', on_focus_out)
         entry.bind('<Button-1>', on_entry_click)
+
         action_button = Button(
             frame,
             image=self.connect_image,
@@ -186,6 +200,7 @@ class ModbusUI:
         box_frame = Frame(self.parent, highlightthickness=7)
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
+
         box_canvas = Canvas(
             inner_frame,
             width=sx(150),
@@ -198,10 +213,13 @@ class ModbusUI:
         box_canvas.pack()
         box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill='black', outline='grey', tags='border')
+
         create_segment_display(box_canvas)
+
         gas_key = self.gas_types.get(f'modbus_box_{index}', 'ORG')
         gas_type_var = StringVar(value=gas_key)
         fw_name_var = StringVar(value='(파일 없음)')
+
         self.box_states.append(
             {
                 'blink_state': False,
@@ -223,12 +241,16 @@ class ModbusUI:
                 'fw_file_name_var': fw_name_var,
             }
         )
+
         control_frame = Frame(box_canvas, bg='black')
         control_frame.place(x=sx(10), y=sy(210))
+
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
+
         maint_frame = Frame(control_frame, bg='black')
         maint_frame.grid(row=1, column=0, columnspan=2, pady=(2, 0))
+
         fw_button = Button(
             maint_frame,
             text='FW',
@@ -240,6 +262,7 @@ class ModbusUI:
             bd=1,
         )
         fw_button.grid(row=0, column=0, padx=1)
+
         zero_button = Button(
             maint_frame,
             text='ZERO',
@@ -251,6 +274,7 @@ class ModbusUI:
             bd=1,
         )
         zero_button.grid(row=0, column=1, padx=1)
+
         rst_button = Button(
             maint_frame,
             text='RST',
@@ -262,6 +286,7 @@ class ModbusUI:
             bd=1,
         )
         rst_button.grid(row=0, column=2, padx=1)
+
         tftp_label = Label(
             maint_frame,
             text='TFTP',
@@ -270,6 +295,7 @@ class ModbusUI:
             font=('Helvetica', int(8 * SCALE_FACTOR)),
         )
         tftp_label.grid(row=1, column=0, padx=1, pady=(2, 0), sticky='e')
+
         tftp_entry = Entry(
             maint_frame,
             textvariable=self.tftp_ip_vars[index],
@@ -284,6 +310,7 @@ class ModbusUI:
             justify='center',
         )
         tftp_entry.grid(row=1, column=1, columnspan=2, padx=1, pady=(2, 0), sticky='w')
+
         fw_file_label = Label(
             maint_frame,
             text='FW파일',
@@ -292,6 +319,7 @@ class ModbusUI:
             font=('Helvetica', int(8 * SCALE_FACTOR)),
         )
         fw_file_label.grid(row=2, column=0, padx=1, pady=(2, 0), sticky='e')
+
         fw_file_button = Button(
             maint_frame,
             text='선택',
@@ -303,6 +331,7 @@ class ModbusUI:
             bd=1,
         )
         fw_file_button.grid(row=2, column=1, padx=1, pady=(2, 0), sticky='w')
+
         fw_file_name_label = Label(
             maint_frame,
             textvariable=fw_name_var,
@@ -311,6 +340,7 @@ class ModbusUI:
             font=('Helvetica', int(7 * SCALE_FACTOR)),
         )
         fw_file_name_label.grid(row=2, column=2, padx=1, pady=(2, 0), sticky='w')
+
         disconnection_label = Label(
             control_frame,
             text=f'DC: {self.disconnection_counts[index]}',
@@ -320,6 +350,7 @@ class ModbusUI:
         )
         disconnection_label.grid(row=3, column=0, columnspan=2, pady=(2, 0))
         self.disconnection_labels[index] = disconnection_label
+
         reconnect_label = Label(
             control_frame,
             text='Reconnect: 0/5',
@@ -329,8 +360,10 @@ class ModbusUI:
         )
         reconnect_label.grid(row=4, column=0, columnspan=2, pady=(2, 0))
         self.reconnect_attempt_labels[index] = reconnect_label
+
         disconnection_label.grid_remove()
         reconnect_label.grid_remove()
+
         circle_al1 = box_canvas.create_oval(sx(77) - sx(20), sy(200) - sy(32), sx(87) - sx(20), sy(190) - sy(32))
         box_canvas.create_text(
             sx(95) - sx(25),
@@ -363,6 +396,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='n',
         )
+
         gas_pos = self.GAS_TYPE_POSITIONS[gas_type_var.get()]
         gas_type_text_id = box_canvas.create_text(
             *gas_pos,
@@ -372,6 +406,7 @@ class ModbusUI:
             anchor='center',
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
+
         gms1000_text_id = box_canvas.create_text(
             sx(80),
             sy(270),
@@ -381,6 +416,7 @@ class ModbusUI:
             anchor='center',
         )
         self.box_states[index]['gms1000_text_id'] = gms1000_text_id
+
         box_canvas.create_text(
             sx(80),
             sy(295),
@@ -389,12 +425,15 @@ class ModbusUI:
             fill='#cccccc',
             anchor='center',
         )
+
         bar_canvas = Canvas(box_canvas, width=sx(120), height=sy(5), bg='white', highlightthickness=0)
         bar_canvas.place(x=sx(18.5), y=sy(75))
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
         bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
+
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, [circle_al1, circle_al2, circle_pwr, circle_fut], bar_canvas, bar_image, bar_item))
+
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
 
@@ -478,6 +517,7 @@ class ModbusUI:
             self.disconnection_counts[i] = 0
             self.disconnection_labels[i].config(text='DC: 0')
             self.auto_reconnect_failed[i] = False
+
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
@@ -493,19 +533,26 @@ class ModbusUI:
                 self.connected_clients[ip] = t
                 t.start()
                 self.console.print(f'Started data thread for {ip}')
+
                 self.load_tftp_ip_from_device(i)
+
                 box_canvas = self.box_data[i][0]
                 gms1000_id = self.box_states[i]['gms1000_text_id']
                 box_canvas.itemconfig(gms1000_id, state='hidden')
+
                 self.disconnection_labels[i].grid()
                 self.reconnect_attempt_labels[i].grid()
+
                 self.parent.after(
                     0,
                     lambda idx=i: self.action_buttons[idx].config(
-                        image=self.disconnect_image, relief='flat', borderwidth=0
+                        image=self.disconnect_image,
+                        relief='flat',
+                        borderwidth=0,
                     ),
                 )
                 self.parent.after(0, lambda idx=i: self.entries[idx].config(state='disabled'))
+
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -534,6 +581,7 @@ class ModbusUI:
         stop_flag = self.stop_flags.get(ip)
         if stop_flag is not None:
             stop_flag.set()
+
         t = self.connected_clients.get(ip)
         current = threading.current_thread()
         if t is not None and t is not current:
@@ -542,10 +590,12 @@ class ModbusUI:
                 self.console.print(f'Thread for {ip} did not terminate in time.')
         elif t is not None:
             self.console.print(f'Skipping join on current thread for {ip}')
+
         client = self.clients.get(ip)
         if client is not None:
             client.close()
         self.console.print(f'Disconnected from {ip}')
+
         self.cleanup_client(ip)
         self.parent.after(0, lambda idx=i, m=manual: self._after_disconnect(idx, m))
         self.save_ip_settings()
@@ -593,19 +643,24 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
         num_registers = 24
+
         while not stop_flag.is_set():
             try:
                 if client is None or not client.is_socket_open():
                     raise ConnectionException('Socket is closed')
+
                 lock = self.modbus_locks.get(ip)
                 if lock is None:
                     break
+
                 with lock:
                     response = client.read_holding_registers(start_address, num_registers)
+
                 if response.isError():
                     raise ModbusIOException(
                         f'Error reading from {ip}, address 40001~40024'
                     )
+
                 raw_regs = response.registers
                 value_40001 = raw_regs[0]
                 value_40005 = raw_regs[4]
@@ -614,11 +669,13 @@ class ModbusUI:
                 value_40022 = raw_regs[21]
                 value_40023 = raw_regs[22]
                 value_40024 = raw_regs[23]
+
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
                 self.box_states[box_index]['alarm1_on'] = bit_6_on
                 self.box_states[box_index]['alarm2_on'] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
+
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
                     formatted_value = f'{value_40005}'
@@ -630,6 +687,7 @@ class ModbusUI:
                             error_display = BIT_TO_SEGMENT[bit_index]
                             break
                     error_display = error_display.ljust(4)
+
                     if 'E' in error_display:
                         self.box_states[box_index]['blinking_error'] = True
                         self.data_queue.put((box_index, error_display, True))
@@ -646,11 +704,14 @@ class ModbusUI:
                         self.ui_update_queue.put(
                             ('circle_state', box_index, [False, False, True, False])
                         )
+
                 self.ui_update_queue.put(('bar', box_index, value_40011))
                 self.ui_update_queue.put(
                     ('fw_status', box_index, value_40022, value_40023, value_40024)
                 )
+
                 time.sleep(self.communication_interval)
+
             except ConnectionException as e:
                 self.console.print(f'Connection to {ip} lost: {e}')
                 self.handle_disconnection(box_index)
@@ -701,6 +762,7 @@ class ModbusUI:
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
                 self.update_fw_status(box_index, v_40022, v_40023, v_40024)
+
         self.schedule_ui_update()
 
     def check_click(self, event):
@@ -718,6 +780,7 @@ class ModbusUI:
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, '    ', False))
         self.ui_update_queue.put(('bar', box_index, 0))
+
         self.parent.after(
             0,
             lambda idx=box_index: self.action_buttons[idx].config(
@@ -734,6 +797,7 @@ class ModbusUI:
             lambda idx=box_index: self.box_frames[idx].config(highlightthickness=1),
         )
         self.parent.after(0, lambda idx=box_index: self.reset_ui_elements(idx))
+
         self.box_states[box_index]['pwr_blink_state'] = False
         self.box_states[box_index]['pwr_blinking'] = False
 
@@ -750,6 +814,7 @@ class ModbusUI:
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
         max_retries = 5
+
         while not stop_flag.is_set() and retries < max_retries:
             time.sleep(2)
             self.console.print(
@@ -770,10 +835,13 @@ class ModbusUI:
                             client.close()
                     except Exception:
                         pass
+
                     self.clients[ip] = new_client
                     client = new_client
+
                     if ip not in self.modbus_locks:
                         self.modbus_locks[ip] = threading.Lock()
+
                     stop_flag.clear()
                     t = threading.Thread(
                         target=self.read_modbus_data,
@@ -782,7 +850,9 @@ class ModbusUI:
                     )
                     self.connected_clients[ip] = t
                     t.start()
+
                     self.load_tftp_ip_from_device(box_index)
+
                     self.parent.after(
                         0,
                         lambda idx=box_index: self.action_buttons[idx].config(
@@ -803,6 +873,7 @@ class ModbusUI:
                             highlightthickness=0
                         ),
                     )
+
                     self.ui_update_queue.put(
                         ('circle_state', box_index, [False, False, True, False])
                     )
@@ -815,12 +886,14 @@ class ModbusUI:
                         ),
                     )
                     break
+
                 new_client.close()
                 retries += 1
                 self.console.print(f'Reconnect attempt to {ip} failed.')
             except Exception as e:
                 retries += 1
                 self.console.print(f'Reconnect exception for {ip}: {e}')
+
         if retries >= max_retries:
             self.console.print(
                 f'Failed to reconnect to {ip} after {max_retries} attempts.'
@@ -843,6 +916,7 @@ class ModbusUI:
             state = self.box_states[idx]
             if not state['pwr_blinking']:
                 return
+
             if self.ip_vars[idx].get() not in self.connected_clients:
                 box_canvas = self.box_data[idx][0]
                 circle_items = self.box_data[idx][1]
@@ -850,6 +924,7 @@ class ModbusUI:
                 state['pwr_blink_state'] = False
                 state['pwr_blinking'] = False
                 return
+
             box_canvas = self.box_data[idx][0]
             circle_items = self.box_data[idx][1]
             if state['pwr_blink_state']:
@@ -857,6 +932,7 @@ class ModbusUI:
             else:
                 box_canvas.itemconfig(circle_items[2], fill='green', outline='green')
             state['pwr_blink_state'] = not state['pwr_blink_state']
+
             if self.ip_vars[idx].get() in self.connected_clients:
                 self.parent.after(self.blink_interval, toggle_color)
 
@@ -865,6 +941,7 @@ class ModbusUI:
     def check_alarms(self, box_index):
         alarm1 = self.box_states[box_index]['alarm1_on']
         alarm2 = self.box_states[box_index]['alarm2_on']
+
         if alarm2:
             self.box_states[box_index]['alarm1_blinking'] = False
             self.box_states[box_index]['alarm2_blinking'] = True
@@ -909,6 +986,7 @@ class ModbusUI:
                 box_canvas.itemconfig(circle_items[0], fill='red', outline='red')
         else:
             box_canvas.itemconfig(circle_items[0], fill='#fdc8c8', outline='#fdc8c8')
+
         if alarm2_on:
             if blink2:
                 box_canvas.itemconfig(circle_items[1], fill='#fdc8c8', outline='#fdc8c8')
@@ -925,13 +1003,16 @@ class ModbusUI:
             or state['alarm_border_blink']
         ):
             return
+
         box_canvas, circle_items, *_ = self.box_data[box_index]
         border_state = state['border_blink_state']
         state['border_blink_state'] = not border_state
+
         if state['alarm_border_blink']:
             box_canvas.config(
                 highlightbackground='#000000' if border_state else '#ff0000'
             )
+
         if state['alarm1_blinking']:
             fill_now = box_canvas.itemcget(circle_items[0], 'fill')
             box_canvas.itemconfig(
@@ -939,6 +1020,7 @@ class ModbusUI:
                 fill='#fdc8c8' if fill_now == 'red' else 'red',
                 outline='#fdc8c8' if fill_now == 'red' else 'red',
             )
+
         if state['alarm2_blinking']:
             fill_now = box_canvas.itemcget(circle_items[1], 'fill')
             box_canvas.itemconfig(
@@ -946,6 +1028,7 @@ class ModbusUI:
                 fill='#fdc8c8' if fill_now == 'red' else 'red',
                 outline='#fdc8c8' if fill_now == 'red' else 'red',
             )
+
         self.parent.after(
             self.alarm_blink_interval, lambda idx=box_index: self.blink_alarms(idx)
         )
@@ -955,12 +1038,14 @@ class ModbusUI:
         error_code = (v_40023 >> 8) & 0xFF
         progress = v_40024 & 0xFF
         remain = (v_40024 >> 8) & 0xFF
+
         upgrading = bool(v_40023 & (1 << 2))
         upgrade_ok = bool(v_40023 & (1 << 0))
         upgrade_fail = bool(v_40023 & (1 << 1))
         rollback_running = bool(v_40023 & (1 << 6))
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
+
         msg = f'[FW] ver={version}, progress={progress}%, remain={remain}s'
         states = []
         if upgrading:
@@ -985,6 +1070,7 @@ class ModbusUI:
         lock = self.modbus_locks.get(ip)
         if client is None or lock is None:
             return
+
         addr_ip1 = self.reg_addr(40088)
         try:
             with lock:
@@ -1007,25 +1093,42 @@ class ModbusUI:
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
+
         if client is None or lock is None:
             self.console.print(f'[FW] Box {box_index} ({ip}) not connected.')
             messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.')
             return
+
         src_path = self.fw_file_paths[box_index]
         if not src_path or not os.path.isfile(src_path):
             messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.')
             return
-        dst_path = os.path.join(TFTP_ROOT_DIR, TFTP_FW_BASENAME)
+
+        # 장비가 실제로 RRQ 보내는 경로: GDS/ASGD-3200/asgd3200.bin
+        device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
+        try:
+            os.makedirs(device_dir, exist_ok=True)
+        except Exception as e:
+            self.console.print(f'[FW] mkdir error: {e}')
+            messagebox.showerror('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}')
+            return
+
+        dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
         try:
             shutil.copy2(src_path, dst_path)
-            self.console.print(f'[FW] box {box_index} file copy: {src_path} → {dst_path}')
+            self.console.print(
+                f'[FW] box {box_index} file copy: {src_path} → {dst_path} '
+                f'(RRQ path: {TFTP_DEVICE_SUBDIR}/{TFTP_DEVICE_FILENAME})'
+            )
         except Exception as e:
             self.console.print(f'[FW] file copy error: {e}')
             messagebox.showerror('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
             return
+
         tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
         addr_ip1 = self.reg_addr(40088)
         addr_ctrl = self.reg_addr(40091)
+
         try:
             with lock:
                 try:
@@ -1037,13 +1140,9 @@ class ModbusUI:
                         self.console.print(
                             f'[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})'
                         )
-                except (
-                    ValueError,
-                    ModbusIOException,
-                    ConnectionException,
-                    Exception,
-                ) as e:
+                except (ValueError, ModbusIOException, ConnectionException, Exception) as e:
                     self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
+
                 try:
                     r2 = client.write_register(addr_ctrl, 1)
                     if isinstance(r2, ExceptionResponse) or r2.isError():
@@ -1057,12 +1156,15 @@ class ModbusUI:
                     self.console.print(
                         f'[FW] write 40091 exception (treated as non-fatal): {e}'
                     )
+
             self.console.print(
-                f"[FW] Upgrade start command sent for box {box_index} ({ip}) via TFTP IP='{tftp_ip_str}', file={dst_path}"
+                f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
+                f"TFTP IP='{tftp_ip_str}', file={dst_path}"
             )
             messagebox.showinfo(
                 'FW',
-                'FW 업그레이드 명령을 전송했습니다.\n※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
+                'FW 업그레이드 명령을 전송했습니다.\n'
+                '※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
             )
         except Exception as e:
             self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
@@ -1073,10 +1175,12 @@ class ModbusUI:
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
+
         if client is None or lock is None:
             self.console.print(f'[ZERO] Box {box_index} ({ip}) not connected.')
             messagebox.showwarning('ZERO', '먼저 Modbus 연결을 해주세요.')
             return
+
         addr = self.reg_addr(40092)
         try:
             with lock:
@@ -1086,6 +1190,7 @@ class ModbusUI:
                     messagebox.showerror('ZERO', f'ZERO 명령 전송 실패.\n{r}')
                     return
                 self.console.print('[ZERO] write 40092 = 1 OK')
+
             self.console.print(
                 f'[ZERO] Zero calibration command sent for box {box_index} ({ip})'
             )
@@ -1099,10 +1204,12 @@ class ModbusUI:
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
+
         if client is None or lock is None:
             self.console.print(f'[RST] Box {box_index} ({ip}) not connected.')
             messagebox.showwarning('RST', '먼저 Modbus 연결을 해주세요.')
             return
+
         addr = self.reg_addr(40093)
         try:
             with lock:
@@ -1112,6 +1219,7 @@ class ModbusUI:
                     messagebox.showerror('RST', f'RST 명령 전송 실패.\n{r}')
                     return
                 self.console.print('[RST] write 40093 = 1 OK')
+
             self.console.print(
                 f'[RST] Reboot command written to 40093 for box {box_index} ({ip})'
             )
@@ -1126,6 +1234,7 @@ def main():
     root.title('Modbus UI')
     root.geometry('1200x600')
     root.configure(bg='#1e1e1e')
+
     num_boxes = 4
     gas_types = {
         'modbus_box_0': 'ORG',
@@ -1141,6 +1250,7 @@ def main():
             print(f'[Callback] Alarm cleared in {box_id}')
 
     modbus_ui = ModbusUI(root, num_boxes, gas_types, alarm_callback)
+
     row = 0
     col = 0
     max_col = 2
@@ -1150,6 +1260,7 @@ def main():
         if col >= max_col:
             col = 0
             row += 1
+
     root.mainloop()
 
 
