@@ -28,6 +28,9 @@ DEFAULT_TFTP_IP = "109.3.55.17"
 # 장비가 TFTP에서 가져갈 FW 파일명 (고정)
 TFTP_FW_BASENAME = "ASGD3200.bin"
 
+# TFTP 서버 루트 디렉터리 (tftpd-hpa 설정과 일치해야 함)
+TFTP_ROOT_DIR = "/srv/tftp"
+
 
 def sx(x: float) -> int:
     """가로 방향 스케일 헬퍼"""
@@ -1278,7 +1281,7 @@ class ModbusUI:
     def start_firmware_upgrade(self, box_index: int):
         """
         FW 버튼:
-        - 선택된 FW 파일을 같은 폴더에 ASGD3200.bin 이름으로 복사
+        - 선택된 FW 파일을 TFTP 서버 루트(/srv/tftp)에 ASGD3200.bin 이름으로 복사
         - TFTP IP(40088/40089)는 가능하면 쓰고, 실패해도 로그만 남김(비치명적)
         - 40091 = 1 써서 업그레이드 트리거
         """
@@ -1296,9 +1299,8 @@ class ModbusUI:
             messagebox.showwarning("FW", "FW 파일을 먼저 선택해주세요.")
             return
 
-        # 선택된 파일을 같은 폴더에 ASGD3200.bin 이름으로 복사
-        fw_dir = os.path.dirname(src_path)
-        dst_path = os.path.join(fw_dir, TFTP_FW_BASENAME)
+        # 선택된 파일을 TFTP 서버 루트에 ASGD3200.bin 이름으로 복사
+        dst_path = os.path.join(TFTP_ROOT_DIR, TFTP_FW_BASENAME)
 
         try:
             shutil.copy2(src_path, dst_path)
