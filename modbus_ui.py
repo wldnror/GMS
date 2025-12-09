@@ -1114,8 +1114,18 @@ class ModbusUI:
             return
 
         dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
+
         try:
-            shutil.copy2(src_path, dst_path)
+            # 기존 파일이 있으면 먼저 삭제 (디렉터리 쓰기 권한만 있으면 가능)
+            if os.path.exists(dst_path):
+                try:
+                    os.remove(dst_path)
+                    self.console.print(f'[FW] old TFTP file removed: {dst_path}')
+                except PermissionError as e:
+                    self.console.print(f'[FW] warning: cannot remove old file: {e}')
+
+            # 중요: copy2 대신 copyfile 사용해서 chmod/copystat 단계에서 EPERM 안 나게
+            shutil.copyfile(src_path, dst_path)
             self.console.print(
                 f'[FW] box {box_index} file copy: {src_path} → {dst_path} '
                 f'(RRQ path: {TFTP_DEVICE_SUBDIR}/{TFTP_DEVICE_FILENAME})'
