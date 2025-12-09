@@ -124,7 +124,7 @@ class ModbusUI:
 
         self.communication_interval = 0.2
         self.blink_interval = int(self.communication_interval * 1000)
-        self.alarm_blink_interval = 1000
+        self.alarm_blink_interval = 1000  # 🔴 알람 깜빡이 주기(1초)
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -242,6 +242,7 @@ class ModbusUI:
         gas_type_var = StringVar(value=gas_key)
         fw_name_var = StringVar(value='(파일 없음)')
 
+        # 🔴 여기 box_states에 alarm_blink_running 추가
         self.box_states.append(
             {
                 'blink_state': False,
@@ -261,7 +262,8 @@ class ModbusUI:
                 'border_blink_state': False,
                 'gms1000_text_id': None,
                 'fw_file_name_var': fw_name_var,
-                'fw_upgrading': False,   # 🔵 FW 업그레이드 진행 중인지 여부
+                'fw_upgrading': False,   # FW 업그레이드 진행 중인지 여부
+                'alarm_blink_running': False,  # 알람 깜빡이 루프 동작 여부
             }
         )
 
@@ -375,7 +377,7 @@ class ModbusUI:
         )
         circle_al2 = box_canvas.create_oval(sx(133) - sx(30), sy(200) - sy(32), sx(123) - sx(30), sy(190) - sy(32))
         box_canvas.create_text(
-            sx(140) - sx(35),
+            sx(140) - sy(35),
             sy(222) - sy(40),
             text='AL2',
             fill='#cccccc',
@@ -955,44 +957,50 @@ class ModbusUI:
 
         toggle_color()
 
+    # 🔴 수정된 check_alarms: 상태만 세팅하고, 새로 알람이 켜질 때만 blink_alarms 시작
     def check_alarms(self, box_index):
-        alarm1 = self.box_states[box_index]['alarm1_on']
-        alarm2 = self.box_states[box_index]['alarm2_on']
+        state = self.box_states[box_index]
+
+        alarm1 = state['alarm1_on']
+        alarm2 = state['alarm2_on']
+
+        # 이전에 깜빡이던 상태 기록
+        prev_active = (
+            state['alarm1_blinking']
+            or state['alarm2_blinking']
+            or state['alarm_border_blink']
+        )
 
         if alarm2:
-            self.box_states[box_index]['alarm1_blinking'] = False
-            self.box_states[box_index]['alarm2_blinking'] = True
-            self.set_alarm_lamp(
-                box_index,
-                alarm1_on=True,
-                blink1=False,
-                alarm2_on=True,
-                blink2=True,
-            )
-            self.box_states[box_index]['alarm_border_blink'] = True
-            self.blink_alarms(box_index)
+            # AL2 우선
+            state['alarm1_blinking'] = False
+            state['alarm2_blinking'] = True
+            state['alarm_border_blink'] = True
+
         elif alarm1:
-            self.box_states[box_index]['alarm1_blinking'] = True
-            self.box_states[box_index]['alarm2_blinking'] = False
-            self.box_states[box_index]['alarm_border_blink'] = True
-            self.set_alarm_lamp(
-                box_index,
-                alarm1_on=True,
-                blink1=True,
-                alarm2_on=False,
-                blink2=False,
-            )
-            self.blink_alarms(box_index)
+            state['alarm1_blinking'] = True
+            state['alarm2_blinking'] = False
+            state['alarm_border_blink'] = True
+
         else:
-            self.box_states[box_index]['alarm1_blinking'] = False
-            self.box_states[box_index]['alarm2_blinking'] = False
-            self.box_states[box_index]['alarm_border_blink'] = False
+            # 알람 없음 → 깜빡이 정지 + 램프/테두리 리셋
+            state['alarm1_blinking'] = False
+            state['alarm2_blinking'] = False
+            state['alarm_border_blink'] = False
+            state['alarm_blink_running'] = False
+
             self.set_alarm_lamp(
                 box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False
             )
             box_canvas = self.box_data[box_index][0]
             box_canvas.config(highlightbackground='#000000')
-            self.box_states[box_index]['border_blink_state'] = False
+            state['border_blink_state'] = False
+            return
+
+        # 여기까지 왔다는 건 알람이 1개 이상 ON
+        # 방금 전에 알람이 없었다가, 이번에 새로 알람이 들어온 경우에만 깜빡이 루프 시작
+        if not prev_active and not state['alarm_blink_running']:
+            self.blink_alarms(box_index)
 
     def set_alarm_lamp(self, box_index, alarm1_on, blink1, alarm2_on, blink2):
         box_canvas, circle_items, *_ = self.box_data[box_index]
@@ -1012,43 +1020,60 @@ class ModbusUI:
         else:
             box_canvas.itemconfig(circle_items[1], fill='#fdc8c8', outline='#fdc8c8')
 
+    # 🔴 수정된 blink_alarms: 자기 내부에서만 1초마다 깜빡이고, 중복 루프 방지
     def blink_alarms(self, box_index):
         state = self.box_states[box_index]
-        if not (
-            state['alarm1_blinking']
-            or state['alarm2_blinking']
-            or state['alarm_border_blink']
-        ):
+
+        # 이미 깜빡이 루프가 돌고 있으면 또 시작하지 않음
+        if state.get('alarm_blink_running'):
             return
+        state['alarm_blink_running'] = True
 
-        box_canvas, circle_items, *_ = self.box_data[box_index]
-        border_state = state['border_blink_state']
-        state['border_blink_state'] = not border_state
+        def _blink():
+            st = self.box_states[box_index]
 
-        if state['alarm_border_blink']:
-            box_canvas.config(
-                highlightbackground='#000000' if border_state else '#ff0000'
-            )
+            # 더 이상 깜빡일 필요가 없으면 루프 종료
+            if not (
+                st['alarm1_blinking']
+                or st['alarm2_blinking']
+                or st['alarm_border_blink']
+            ):
+                st['alarm_blink_running'] = False
+                return
 
-        if state['alarm1_blinking']:
-            fill_now = box_canvas.itemcget(circle_items[0], 'fill')
-            box_canvas.itemconfig(
-                circle_items[0],
-                fill='#fdc8c8' if fill_now == 'red' else 'red',
-                outline='#fdc8c8' if fill_now == 'red' else 'red',
-            )
+            box_canvas, circle_items, *_ = self.box_data[box_index]
+            border_state = st['border_blink_state']
+            st['border_blink_state'] = not border_state
 
-        if state['alarm2_blinking']:
-            fill_now = box_canvas.itemcget(circle_items[1], 'fill')
-            box_canvas.itemconfig(
-                circle_items[1],
-                fill='#fdc8c8' if fill_now == 'red' else 'red',
-                outline='#fdc8c8' if fill_now == 'red' else 'red',
-            )
+            # 테두리 깜빡임
+            if st['alarm_border_blink']:
+                box_canvas.config(
+                    highlightbackground='#000000' if border_state else '#ff0000'
+                )
 
-        self.parent.after(
-            self.alarm_blink_interval, lambda idx=box_index: self.blink_alarms(idx)
-        )
+            # AL1 램프 깜빡임
+            if st['alarm1_blinking']:
+                fill_now = box_canvas.itemcget(circle_items[0], 'fill')
+                box_canvas.itemconfig(
+                    circle_items[0],
+                    fill='#fdc8c8' if fill_now == 'red' else 'red',
+                    outline='#fdc8c8' if fill_now == 'red' else 'red',
+                )
+
+            # AL2 램프 깜빡임
+            if st['alarm2_blinking']:
+                fill_now = box_canvas.itemcget(circle_items[1], 'fill')
+                box_canvas.itemconfig(
+                    circle_items[1],
+                    fill='#fdc8c8' if fill_now == 'red' else 'red',
+                    outline='#fdc8c8' if fill_now == 'red' else 'red',
+                )
+
+            # 여기서만 1초 간격으로 다음 토글 예약
+            self.parent.after(self.alarm_blink_interval, _blink)
+
+        # 첫 번째 토글 호출
+        _blink()
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         version = v_40022
