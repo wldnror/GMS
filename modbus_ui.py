@@ -5,6 +5,7 @@ from tkinter import Frame, Canvas, StringVar, Entry, Button, Tk, Label
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
+from pymodbus.pdu import ExceptionResponse  # ★ 추가
 from rich.console import Console
 from PIL import Image, ImageTk
 
@@ -513,7 +514,7 @@ class ModbusUI:
             for j, seg_on in enumerate(segments):
                 color = '#fc0c0c' if seg_on == '1' else '#424242'
                 segment_tag = f'segment_{idx}_{chr(97 + j)}'
-                if box_canvas.segment_canvas.find_withtag(segment_tag):
+                if hasattr(box_canvas, "segment_canvas") and box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
@@ -1122,6 +1123,24 @@ class ModbusUI:
         self.console.print(msg)
 
     # -------------------------
+    # 디버그용 단일 레지스터 읽기 헬퍼
+    # -------------------------
+
+    def _read_debug_register(self, client, addr, name):
+        """단일 레지스터 디버깅용 읽기"""
+        try:
+            rr = client.read_holding_registers(addr, 1)
+            if isinstance(rr, ExceptionResponse) or rr.isError():
+                self.console.print(f"[DBG] read {name} (addr={addr}) error: {rr}")
+            else:
+                val = rr.registers[0]
+                self.console.print(
+                    f"[DBG] {name} (addr={addr}) = 0x{val:04X} ({val})"
+                )
+        except Exception as e:
+            self.console.print(f"[DBG] read {name} (addr={addr}) exception: {e}")
+
+    # -------------------------
     # FW 업그레이드 / ZERO / REBOOT
     # -------------------------
 
@@ -1143,21 +1162,46 @@ class ModbusUI:
             self.console.print(f"[FW] Invalid TFTP IP '{tftp_ip}': {e}")
             return
 
+        addr_ip1 = 40088 - 1
+        addr_ip2 = 40089 - 1
+        addr_ctrl = 40091 - 1
+
         try:
             with lock:
+                # 디버그: 기존 값
+                self._read_debug_register(client, addr_ip1, "FW IP1 before")
+                self._read_debug_register(client, addr_ip2, "FW IP2 before")
+                self._read_debug_register(client, addr_ctrl, "FW CTRL before")
+
                 # 40088, 40089 : TFTP 서버 IP
-                client.write_registers(40088 - 1, [w1, w2])
+                r1 = client.write_registers(addr_ip1, [w1, w2])
+                if isinstance(r1, ExceptionResponse) or r1.isError():
+                    self.console.print(f"[FW] write 40088/40089 error: {r1}")
+                    return
+                self.console.print(f"[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})")
+
                 # 40091 BIT0~1 : 1 = 업그레이드 시작
-                client.write_register(40091 - 1, 1)
-            self.console.print(f"[FW] Upgrade started for box {box_index} ({ip}) via {tftp_ip}")
+                r2 = client.write_register(addr_ctrl, 1)
+                if isinstance(r2, ExceptionResponse) or r2.isError():
+                    self.console.print(f"[FW] write 40091 error: {r2}")
+                    return
+                self.console.print(f"[FW] write 40091 = 1 OK")
+
+                # 디버그: 다시 읽기
+                self._read_debug_register(client, addr_ip1, "FW IP1 after")
+                self._read_debug_register(client, addr_ip2, "FW IP2 after")
+                self._read_debug_register(client, addr_ctrl, "FW CTRL after")
+
+            self.console.print(f"[FW] Upgrade start command sent for box {box_index} ({ip}) via {tftp_ip}")
+
         except Exception as e:
             self.console.print(f"[FW] Error starting upgrade for {ip}: {e}")
 
     def zero_calibration(self, box_index: int):
         """
         ZERO 버튼: 40092 BIT0 = 1
-        - 여기서는 1만 써 주고, 0으로는 다시 내리지 않는다.
-        - 버튼 눌림 / 레지스터 값 디버깅 로그 추가.
+        - 1을 잠깐 쓴 다음 다시 0으로 내려서 펄스처럼 전송.
+        - 쓰기 전/후 값을 모두 로그로 남김.
         """
         self.console.print(f"[ZERO] button clicked (box_index={box_index})")
 
@@ -1169,34 +1213,72 @@ class ModbusUI:
             self.console.print(f"[ZERO] Box {box_index} ({ip}) not connected.")
             return
 
+        addr = 40092 - 1
+
         try:
             with lock:
-                client.write_register(40092 - 1, 1)
+                # 쓰기 전 값 확인
+                self._read_debug_register(client, addr, "ZERO before")
 
-                # 디버깅: 실제로 1이 써졌는지 확인
-                try:
-                    rr = client.read_holding_registers(40092 - 1, 1)
-                    self.console.print(f"[ZERO] Reg40092 after write: 0x{rr.registers[0]:04X}")
-                except Exception as e:
-                    self.console.print(f"[ZERO] Readback failed (ignored): {e}")
+                # 1 쓰기
+                w1 = client.write_register(addr, 1)
+                if isinstance(w1, ExceptionResponse) or w1.isError():
+                    self.console.print(f"[ZERO] write 40092=1 error: {w1}")
+                    return
+                self.console.print(f"[ZERO] write 40092 = 1 OK")
 
-            self.console.print(f"[ZERO] Zero calibration command sent for box {box_index} ({ip})")
+                # 잠깐 기다렸다가
+                time.sleep(0.2)
+
+                # 다시 0으로 내려줌(펄스)
+                w0 = client.write_register(addr, 0)
+                if isinstance(w0, ExceptionResponse) or w0.isError():
+                    self.console.print(f"[ZERO] write 40092=0 error: {w0}")
+                else:
+                    self.console.print(f"[ZERO] write 40092 = 0 OK")
+
+                # 쓰기 후 값 확인
+                self._read_debug_register(client, addr, "ZERO after")
+
+            self.console.print(f"[ZERO] Zero calibration pulse sent for box {box_index} ({ip})")
 
         except Exception as e:
             self.console.print(f"[ZERO] Error on zero calibration for {ip}: {e}")
 
     def reboot_device(self, box_index: int):
-        """RST 버튼: 40093 BIT0 = 1 (재부팅)"""
+        """
+        RST 버튼: 40093 BIT0 = 1 (재부팅)
+        - 쓰기 전/후 레지스터를 읽어서 진짜로 1이 들어갔는지 확인.
+        """
+        self.console.print(f"[RST] button clicked (box_index={box_index})")
+
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
         if client is None or lock is None:
             self.console.print(f"[RST] Box {box_index} ({ip}) not connected.")
             return
+
+        addr = 40093 - 1
+
         try:
             with lock:
-                client.write_register(40093 - 1, 1)
-            self.console.print(f"[RST] Reboot requested for box {box_index} ({ip})")
+                # 쓰기 전 값
+                self._read_debug_register(client, addr, "RST before")
+
+                # 1 쓰기
+                r = client.write_register(addr, 1)
+                if isinstance(r, ExceptionResponse) or r.isError():
+                    self.console.print(f"[RST] write 40093=1 error: {r}")
+                    return
+                self.console.print(f"[RST] write 40093 = 1 OK")
+
+                # 아주 짧게 기다린 뒤 값 다시 확인
+                time.sleep(0.2)
+                self._read_debug_register(client, addr, "RST after")
+
+            self.console.print(f"[RST] Reboot command written to 40093 for box {box_index} ({ip})")
+
         except Exception as e:
             self.console.print(f"[RST] Error on reboot for {ip}: {e}")
 
@@ -1233,7 +1315,5 @@ def main():
             row += 1
 
     root.mainloop()
-
-
 if __name__ == "__main__":
     main()
