@@ -14,7 +14,7 @@ from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_grad
 from virtual_keyboard import VirtualKeyboard
 SCALE_FACTOR = 1.65
 DEFAULT_TFTP_IP = '109.3.55.17'
-TFTP_FW_BASENAME = 'ASGD3200.bin'
+TFTP_FW_BASENAME = 'ASGD3200E.bin'
 TFTP_ROOT_DIR = '/srv/tftp'
 
 
