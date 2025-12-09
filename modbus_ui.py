@@ -71,6 +71,18 @@ class ModbusUI:
     LAMP_COLORS_ON = ['red', 'red', 'green', 'yellow']
     LAMP_COLORS_OFF = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
 
+    # -------------------------
+    # 주소 변환 헬퍼 (매뉴얼 40001 기준)
+    # -------------------------
+    @staticmethod
+    def reg_addr(addr_4xxxx: int) -> int:
+        """
+        매뉴얼의 '40001, 40092' 같은 주소를
+        Modbus PDU 0-based 주소로 변환.
+        40001 → 0, 40002 → 1, ..., 40092 → 91
+        """
+        return addr_4xxxx - 40001
+
     def __init__(self, parent, num_boxes, gas_types, alarm_callback):
         self.parent = parent
         self.alarm_callback = alarm_callback
@@ -693,7 +705,7 @@ class ModbusUI:
         주기적으로 holding register 읽기.
         ConnectionException(소켓 끊김)만 재연결, ModbusIOException은 일시 에러로 취급.
         """
-        start_address = 40001 - 1
+        start_address = self.reg_addr(40001)  # → 0
         # 40001 ~ 40024 까지 읽기
         num_registers = 24
 
@@ -714,17 +726,18 @@ class ModbusUI:
                     raise ModbusIOException(f"Error reading from {ip}, address 40001~40024")
 
                 raw_regs = response.registers
-                value_40001 = raw_regs[0]
-                value_40005 = raw_regs[4]
-                value_40007 = raw_regs[7]
-                value_40011 = raw_regs[10]
+                # 40001 기준 offset
+                value_40001 = raw_regs[0]   # 40001
+                value_40005 = raw_regs[4]   # 40005
+                value_40007 = raw_regs[6]   # 40007 (주의: 40001에서 +6)
+                value_40011 = raw_regs[10]  # 40011
 
-                # FW 관련 레지스터
+                # FW 관련 레지스터 (40022~40024)
                 value_40022 = raw_regs[21]
                 value_40023 = raw_regs[22]
                 value_40024 = raw_regs[23]
 
-                # AL1/AL2 상태
+                # AL1/AL2 상태 (BIT6,7)
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
 
@@ -1144,8 +1157,8 @@ class ModbusUI:
             self.console.print(f"[FW] Invalid TFTP IP '{tftp_ip}': {e}")
             return
 
-        addr_ip1 = 40088 - 1
-        addr_ctrl = 40091 - 1
+        addr_ip1 = self.reg_addr(40088)   # 40088 → 87
+        addr_ctrl = self.reg_addr(40091)  # 40091 → 90
 
         try:
             with lock:
@@ -1171,7 +1184,6 @@ class ModbusUI:
     def zero_calibration(self, box_index: int):
         """
         ZERO 버튼: 40092 BIT0 = 1
-        - 1을 한 번 써서 장비에 전달만 함.
         """
         self.console.print(f"[ZERO] button clicked (box_index={box_index})")
 
@@ -1183,7 +1195,7 @@ class ModbusUI:
             self.console.print(f"[ZERO] Box {box_index} ({ip}) not connected.")
             return
 
-        addr = 40092 - 1
+        addr = self.reg_addr(40092)  # 40092 → 91
 
         try:
             with lock:
@@ -1200,9 +1212,7 @@ class ModbusUI:
 
     def reboot_device(self, box_index: int):
         """
-        RST 버튼: 40093 BIT0 = 1 (재부팅 명령만 보냄)
-        - 장비가 바로 소켓을 끊고 재부팅할 수 있으므로,
-          여기서는 write 시도만 하고 에러는 로그만 남김.
+        RST 버튼: 40093 BIT0 = 1 (재부팅 명령)
         """
         self.console.print(f"[RST] button clicked (box_index={box_index})")
 
@@ -1213,7 +1223,7 @@ class ModbusUI:
             self.console.print(f"[RST] Box {box_index} ({ip}) not connected.")
             return
 
-        addr = 40093 - 1
+        addr = self.reg_addr(40093)  # 40093 → 92
 
         try:
             with lock:
@@ -1262,4 +1272,4 @@ def main():
 
     root.mainloop()
 if __name__ == "__main__":
-    main()
+    main
