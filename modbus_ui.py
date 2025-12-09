@@ -2,6 +2,7 @@ import json
 import os
 import time
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Tk, Label
+from tkinter import filedialog
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
@@ -17,7 +18,7 @@ import queue
 
 SCALE_FACTOR = 1.65
 
-# ▼ 필요시 여기 TFTP 서버 IP만 바꿔주면 모든 박스에 공통 적용됨
+# ▼ 필요시 여기 TFTP 서버 IP만 바꿔주면 모든 박스에 공통 기본값으로 적용됨
 DEFAULT_TFTP_IP = "109.3.55.17"
 
 
@@ -92,6 +93,11 @@ class ModbusUI:
         self.entries = []
         self.action_buttons = []
 
+        # 박스별 TFTP IP / FW 파일 경로
+        self.tftp_ip_vars = [StringVar(value=DEFAULT_TFTP_IP) for _ in range(num_boxes)]
+        self.fw_file_paths = [""] * num_boxes
+        self.fw_file_labels = [None] * num_boxes
+
         self.clients = {}
         self.connected_clients = {}
         self.stop_flags = {}
@@ -110,7 +116,7 @@ class ModbusUI:
         self.gradient_bar = create_gradient_bar(sx(120), sy(5))
         self.gas_types = gas_types
 
-        # FW 업그레이드용 TFTP 서버 IP
+        # FW 업그레이드용 기본 TFTP 서버 IP
         self.tftp_ip = DEFAULT_TFTP_IP
 
         # 연결 끊김 관련 관리
@@ -151,13 +157,19 @@ class ModbusUI:
     def load_ip_settings(self, num_boxes):
         """settings 파일에서 IP 목록을 읽어서 self.ip_vars에 저장"""
         if os.path.exists(self.SETTINGS_FILE):
-            with open(self.SETTINGS_FILE, 'r') as file:
-                ip_settings = json.load(file)
-                for i in range(min(num_boxes, len(ip_settings))):
-                    self.ip_vars[i].set(ip_settings[i])
+            try:
+                with open(self.SETTINGS_FILE, 'r') as file:
+                    ip_settings = json.load(file)
+                    # 기존 포맷: ["192.168.0.10", "192.168.0.11", ...]
+                    for i in range(min(num_boxes, len(ip_settings))):
+                        if isinstance(ip_settings[i], str):
+                            self.ip_vars[i].set(ip_settings[i])
+            except Exception:
+                # 포맷 꼬여도 UI 깨지지 않도록 무시
+                pass
 
     def save_ip_settings(self):
-        """IP 리스트를 json으로 저장"""
+        """IP 리스트를 json으로 저장 (장비 IP만)"""
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
         with open(self.SETTINGS_FILE, 'w') as file:
             json.dump(ip_settings, file)
@@ -249,6 +261,31 @@ class ModbusUI:
         entry.focus_set()
 
     # -------------------------
+    # FW 파일 선택 다이얼로그
+    # -------------------------
+
+    def select_fw_file(self, box_index: int):
+        """해당 박스에 사용할 FW 파일 선택 (경로만 저장/표시)"""
+        filepath = filedialog.askopenfilename(
+            title=f"Select firmware file for box {box_index}",
+            filetypes=[("Firmware/Binary", "*.bin"), ("All files", "*.*")]
+        )
+        if not filepath:
+            return
+
+        self.fw_file_paths[box_index] = filepath
+        basename = os.path.basename(filepath)
+
+        label = self.fw_file_labels[box_index]
+        if label is not None:
+            label.config(text=basename)
+
+        self.console.print(f"[FW] box {box_index} selected file: {filepath}")
+
+        # 실제로 TFTP 서버 루트 디렉토리로 복사하는 기능은
+        # 환경마다 달라서 여기서는 경로만 기록/표시만 함.
+
+    # -------------------------
     # 박스 UI 생성 / 갱신
     # -------------------------
 
@@ -319,7 +356,7 @@ class ModbusUI:
         fw_button = Button(
             maint_frame,
             text="FW",
-            command=lambda idx=index: self.start_firmware_upgrade(idx, self.tftp_ip),
+            command=lambda idx=index: self.start_firmware_upgrade(idx),
             width=int(3 * SCALE_FACTOR),
             bg="#444444",
             fg="white",
@@ -353,7 +390,61 @@ class ModbusUI:
         rst_button.grid(row=0, column=2, padx=1)
         # ------------------------------------------------------------------
 
-        # DC/재연결 라벨 (maint_frame 아래로 한 칸씩 내림)
+        # ▼ 박스별 TFTP IP 입력
+        tftp_frame = Frame(control_frame, bg="black")
+        tftp_frame.grid(row=2, column=0, columnspan=2, pady=(1, 0), sticky="w")
+
+        Label(
+            tftp_frame,
+            text="TFTP:",
+            fg="#cccccc",
+            bg="black",
+            font=("Helvetica", int(8 * SCALE_FACTOR))
+        ).grid(row=0, column=0, padx=(0, 2))
+
+        tftp_entry = Entry(
+            tftp_frame,
+            textvariable=self.tftp_ip_vars[index],
+            width=int(9 * SCALE_FACTOR),
+            highlightthickness=0,
+            bd=0,
+            relief='flat',
+            bg="#2e2e2e",
+            fg="white",
+            insertbackground="white",
+            font=("Helvetica", int(8 * SCALE_FACTOR)),
+            justify='center'
+        )
+        tftp_entry.grid(row=0, column=1)
+
+        # ▼ 박스별 FW 파일 선택 (FILE 버튼 + 파일명 라벨)
+        fw_file_frame = Frame(control_frame, bg="black")
+        fw_file_frame.grid(row=3, column=0, columnspan=2, pady=(1, 0), sticky="w")
+
+        fw_file_button = Button(
+            fw_file_frame,
+            text="FILE",
+            command=lambda idx=index: self.select_fw_file(idx),
+            width=int(4 * SCALE_FACTOR),
+            bg="#444444",
+            fg="white",
+            relief='raised',
+            bd=1
+        )
+        fw_file_button.grid(row=0, column=0, padx=(0, 2))
+
+        fw_file_label = Label(
+            fw_file_frame,
+            text="(선택 안됨)",
+            fg="#cccccc",
+            bg="black",
+            font=("Helvetica", int(7 * SCALE_FACTOR)),
+            anchor="w"
+        )
+        fw_file_label.grid(row=0, column=1, sticky="w")
+        self.fw_file_labels[index] = fw_file_label
+
+        # DC/재연결 라벨 (아래로 한 칸씩 내려감: row=4,5)
         disconnection_label = Label(
             control_frame,
             text=f"DC: {self.disconnection_counts[index]}",
@@ -361,7 +452,7 @@ class ModbusUI:
             bg="black",
             font=("Helvetica", int(10 * SCALE_FACTOR))
         )
-        disconnection_label.grid(row=2, column=0, columnspan=2, pady=(2, 0))
+        disconnection_label.grid(row=4, column=0, columnspan=2, pady=(2, 0))
         self.disconnection_labels[index] = disconnection_label
 
         reconnect_label = Label(
@@ -371,7 +462,7 @@ class ModbusUI:
             bg="black",
             font=("Helvetica", int(10 * SCALE_FACTOR))
         )
-        reconnect_label.grid(row=3, column=0, columnspan=2, pady=(2, 0))
+        reconnect_label.grid(row=5, column=0, columnspan=2, pady=(2, 0))
         self.reconnect_attempt_labels[index] = reconnect_label
 
         # 시작 시 라벨 숨김
@@ -1115,7 +1206,7 @@ class ModbusUI:
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
 
-        msg = f"[FW] ver={version}, progress={progress}%, remain={remain}s"
+        msg = f"[FW][box {box_index}] ver={version}, progress={progress}%, remain={remain}s"
         states = []
         if upgrading:
             states.append("UPGRADING")
@@ -1139,10 +1230,11 @@ class ModbusUI:
     # FW 업그레이드 / ZERO / REBOOT
     # -------------------------
 
-    def start_firmware_upgrade(self, box_index: int, tftp_ip: str):
+    def start_firmware_upgrade(self, box_index: int):
         """
         FW 버튼에서 호출:
-        self.start_firmware_upgrade(box_index, self.tftp_ip)
+        - 박스별 TFTP IP Entry 값 사용 (없으면 DEFAULT_TFTP_IP)
+        - 선택한 FW 파일 경로는 로그용으로만 사용 (장비는 IP만 필요)
         """
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
@@ -1150,6 +1242,16 @@ class ModbusUI:
         if client is None or lock is None:
             self.console.print(f"[FW] Box {box_index} ({ip}) not connected.")
             return
+
+        # 박스별 TFTP IP 우선, 비어 있으면 기본값 사용
+        tftp_ip = self.tftp_ip_vars[box_index].get().strip() or DEFAULT_TFTP_IP
+
+        # FW 파일 경로는 장비랑 직접 연동되는 건 아니고, 어떤 파일을 쓸 건지 기록용
+        fw_path = self.fw_file_paths[box_index]
+        if fw_path:
+            self.console.print(f"[FW] box {box_index} using file: {fw_path}")
+        else:
+            self.console.print(f"[FW] box {box_index} has no FW file selected (TFTP 서버에서 기본 파일 사용).")
 
         try:
             w1, w2 = encode_ip_to_words(tftp_ip)
@@ -1176,7 +1278,9 @@ class ModbusUI:
                     return
                 self.console.print(f"[FW] write 40091 = 1 OK")
 
-            self.console.print(f"[FW] Upgrade start command sent for box {box_index} ({ip}) via {tftp_ip}")
+            self.console.print(
+                f"[FW] Upgrade start command sent for box {box_index} ({ip}) via {tftp_ip}"
+            )
 
         except Exception as e:
             self.console.print(f"[FW] Error starting upgrade for {ip}: {e}")
@@ -1272,4 +1376,4 @@ def main():
 
     root.mainloop()
 if __name__ == "__main__":
-    main
+    main()
