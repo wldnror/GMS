@@ -227,7 +227,7 @@ class ModbusUI:
             inner_frame,
             width=sx(150),
             height=sy(300),
-            highlightthickness=sx(3),
+            highlightthickness=0,          # 테두리는 내부 rect 로 처리
             highlightbackground='#000000',
             highlightcolor='#000000',
             bg='#1e1e1e',
@@ -263,6 +263,7 @@ class ModbusUI:
                 'fw_file_name_var': fw_name_var,
                 'fw_upgrading': False,   # FW 업그레이드 진행 중인지 여부
                 'alarm_blink_running': False,  # 알람 깜빡이 루프 동작 여부
+                'border_rect_id': None,        # 알람 테두리 rect id
             }
         )
 
@@ -372,7 +373,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='e',
         )
-        circle_al2 = box_canvas.create_oval(sx(133) - sx(30), sy(200) - sy(32), sx(123) - sx(30), sy(190) - sy(32))
+        circle_al2 = box_canvas.create_oval(sx(133) - sx(30), sy(200) - sy(32), sx(123) - sy(30), sy(190) - sy(32))
         box_canvas.create_text(
             sx(140) - sy(35),
             sy(222) - sy(40),
@@ -434,6 +435,18 @@ class ModbusUI:
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, [circle_al1, circle_al2, circle_pwr, circle_fut], bar_canvas, bar_image, bar_item))
 
+        # 알람용 테두리 사각형 (항상 맨 위)
+        border_rect_id = box_canvas.create_rectangle(
+            0,
+            0,
+            sx(150) - 1,
+            sy(300) - 1,
+            outline='#000000',
+            width=3,
+            tags='alarm_border',
+        )
+        self.box_states[index]['border_rect_id'] = border_rect_id
+
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
 
@@ -457,12 +470,28 @@ class ModbusUI:
         box_canvas.coords(self.box_states[box_index]['gas_type_text_id'], *position)
         box_canvas.itemconfig(self.box_states[box_index]['gas_type_text_id'], text=gas_type)
 
+    # ★ 알람 루프와 충돌하지 않도록 수정된 함수
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
+        st = self.box_states[box_index]
+
+        # 알람 깜빡임이 동작 중이면 AL1/AL2는 여기서 건드리지 않음
+        alarms_active = (
+            st.get('alarm1_blinking', False)
+            or st.get('alarm2_blinking', False)
+            or st.get('alarm_border_blink', False)
+        )
+
         for i, state in enumerate(states):
+            # 0: AL1, 1: AL2 → 알람 루프가 담당하므로 건너뜀
+            if alarms_active and i in (0, 1):
+                continue
+
             color = self.LAMP_COLORS_ON[i] if state else self.LAMP_COLORS_OFF[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
-        alarm_active = states[0] or states[1]
+
+        # 콜백은 실제 알람 상태 기준으로 호출
+        alarm_active = st.get('alarm1_on', False) or st.get('alarm2_on', False)
         self.alarm_callback(alarm_active, f'modbus_{box_index}')
 
     def update_segment_display(self, value, box_index=0, blink=False):
@@ -955,7 +984,7 @@ class ModbusUI:
 
         toggle_color()
 
-    # 수정된 check_alarms: 상태만 세팅하고, 새로 알람이 켜질 때만 blink_alarms 시작
+    # ★ 수정된 check_alarms: AL2 우선, AL1/AL2 상태를 명확히 지정
     def check_alarms(self, box_index):
         state = self.box_states[box_index]
 
@@ -970,15 +999,33 @@ class ModbusUI:
         )
 
         if alarm2:
-            # AL2 우선
+            # AL2 우선 (보통 AL1 비트도 같이 들어옴 → AL1은 고정 ON)
             state['alarm1_blinking'] = False
             state['alarm2_blinking'] = True
             state['alarm_border_blink'] = True
 
+            # AL1: 고정 빨간불, AL2: 깜빡이
+            self.set_alarm_lamp(
+                box_index,
+                alarm1_on=alarm1,
+                blink1=False,
+                alarm2_on=True,
+                blink2=True,
+            )
+
         elif alarm1:
+            # AL1만 알람일 때 → AL1만 깜빡이, 테두리도 깜빡이
             state['alarm1_blinking'] = True
             state['alarm2_blinking'] = False
             state['alarm_border_blink'] = True
+
+            self.set_alarm_lamp(
+                box_index,
+                alarm1_on=True,
+                blink1=True,
+                alarm2_on=False,
+                blink2=False,
+            )
 
         else:
             # 알람 없음 → 깜빡이 정지 + 램프/테두리 리셋
@@ -990,8 +1037,12 @@ class ModbusUI:
             self.set_alarm_lamp(
                 box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False
             )
+
             box_canvas = self.box_data[box_index][0]
-            box_canvas.config(highlightbackground='#000000')
+            rect_id = state.get('border_rect_id')
+            if rect_id:
+                box_canvas.itemconfig(rect_id, outline='#000000')
+
             state['border_blink_state'] = False
             return
 
@@ -1018,7 +1069,7 @@ class ModbusUI:
         else:
             box_canvas.itemconfig(circle_items[1], fill='#fdc8c8', outline='#fdc8c8')
 
-    # 수정된 blink_alarms: 자기 내부에서만 1초마다 깜빡이고, 중복 루프 방지
+    # 수정된 blink_alarms: 내부 rect 로 테두리를 깜빡이기
     def blink_alarms(self, box_index):
         state = self.box_states[box_index]
 
@@ -1043,10 +1094,12 @@ class ModbusUI:
             border_state = st['border_blink_state']
             st['border_blink_state'] = not border_state
 
-            # 테두리 깜빡임
-            if st['alarm_border_blink']:
-                box_canvas.config(
-                    highlightbackground='#000000' if border_state else '#ff0000'
+            # 테두리 깜빡임: highlightbackground 대신 border_rect 사용
+            rect_id = st.get('border_rect_id')
+            if st['alarm_border_blink'] and rect_id:
+                box_canvas.itemconfig(
+                    rect_id,
+                    outline='#000000' if border_state else '#ff0000',
                 )
 
             # AL1 램프 깜빡임
