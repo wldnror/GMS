@@ -1332,6 +1332,7 @@ class ModbusUI:
             self.console.print(f'[ZERO] Error on zero calibration for {ip}: {e}')
             messagebox.showerror('ZERO', f'ZERO 중 오류가 발생했습니다.\n{e}')
 
+    # ★ 수정된 RST 처리: 장비 리셋으로 응답이 끊긴 경우를 정상으로 간주
     def reboot_device(self, box_index: int):
         self.console.print(f'[RST] button clicked (box_index={box_index})')
         ip = self.ip_vars[box_index].get()
@@ -1344,22 +1345,47 @@ class ModbusUI:
             return
 
         addr = self.reg_addr(40093)
+
+        # 공통으로 사용할 “응답 없음 = 장비 리셋 중” 처리용 함수
+        def _treat_as_ok(msg: str):
+            self.console.print(
+                f'[RST] no/invalid response after write (device is rebooting): {msg}'
+            )
+            messagebox.showinfo(
+                'RST',
+                '재부팅 명령을 전송했습니다.\n'
+                '장비가 재부팅되는 동안 잠시 통신 오류가 발생할 수 있습니다.',
+            )
+
         try:
             with lock:
                 r = client.write_register(addr, 1)
-                if isinstance(r, ExceptionResponse) or r.isError():
-                    self.console.print(f'[RST] write 40093=1 error: {r}')
-                    messagebox.showerror('RST', f'RST 명령 전송 실패.\n{r}')
-                    return
-                self.console.print('[RST] write 40093 = 1 OK')
 
-            self.console.print(
-                f'[RST] Reboot command written to 40093 for box {box_index} ({ip})'
-            )
+            # pymodbus 응답 객체에 대해 isError() 검사
+            if isinstance(r, ExceptionResponse) or getattr(r, "isError", lambda: False)():
+                msg = str(r)
+                # 응답이 아예 없어서 나는 에러는 “성공 후 리셋”으로 간주
+                if "No response received" in msg or "Invalid Message" in msg:
+                    _treat_as_ok(msg)
+                    return
+
+                # 그 외는 진짜 에러로 처리
+                self.console.print(f'[RST] write 40093=1 error: {msg}')
+                messagebox.showerror('RST', f'RST 명령 전송 실패.\n{msg}')
+                return
+
+            # 정상 응답
+            self.console.print('[RST] write 40093 = 1 OK')
             messagebox.showinfo('RST', '재부팅 명령을 전송했습니다.')
+
         except Exception as e:
-            self.console.print(f'[RST] Error on reboot for {ip}: {e}')
-            messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
+            msg = str(e)
+            # 예외가 났어도 “응답 없음/0바이트” 계열이면 장비가 리셋된 것으로 보고 성공 처리
+            if "No response received" in msg or "Invalid Message" in msg:
+                _treat_as_ok(msg)
+            else:
+                self.console.print(f'[RST] Error on reboot for {ip}: {e}')
+                messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
 
 
 def main():
