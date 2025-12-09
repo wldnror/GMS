@@ -1328,13 +1328,19 @@ class ModbusUI:
                     # 형식 오류나 통신 오류 모두 비치명적: 장비에 이미 설정된 값 사용
                     self.console.print(f"[FW] write 40088/40089 failed (non-fatal): {e}")
 
-                # --- 2) FW 시작 명령 (치명적) ---
-                r2 = client.write_register(addr_ctrl, 1)
-                if isinstance(r2, ExceptionResponse) or r2.isError():
-                    self.console.print(f"[FW] write 40091 error: {r2}")
-                    messagebox.showerror("FW", f"장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}")
-                    return
-                self.console.print(f"[FW] write 40091 = 1 OK")
+                # --- 2) FW 시작 명령 ---
+                try:
+                    r2 = client.write_register(addr_ctrl, 1)
+                    if isinstance(r2, ExceptionResponse) or r2.isError():
+                        # 장비가 명령 자체를 거부한 경우는 치명적
+                        self.console.print(f"[FW] write 40091 error: {r2}")
+                        messagebox.showerror("FW", f"장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}")
+                        return
+                    self.console.print(f"[FW] write 40091 = 1 OK")
+                except Exception as e:
+                    # 여기서 'unpack requires a buffer of 4 bytes' 같은 예외 발생 가능
+                    # 대부분 장비 쪽에는 이미 명령이 전달된 상태이므로 비치명적으로 처리
+                    self.console.print(f"[FW] write 40091 exception (treated as non-fatal): {e}")
 
             self.console.print(
                 f"[FW] Upgrade start command sent for box {box_index} "
