@@ -1279,7 +1279,7 @@ class ModbusUI:
         """
         FW 버튼:
         - 선택된 FW 파일을 같은 폴더에 ASGD3200.bin 이름으로 복사
-        - TFTP IP(40088/40089)에 self.tftp_ip_vars 값을 써줌
+        - TFTP IP(40088/40089)는 가능하면 쓰고, 실패해도 로그만 남김(비치명적)
         - 40091 = 1 써서 업그레이드 트리거
         """
         ip = self.ip_vars[box_index].get()
@@ -1308,29 +1308,27 @@ class ModbusUI:
             messagebox.showerror("FW", f"FW 파일 복사에 실패했습니다:\n{e}")
             return
 
-        # TFTP IP 문자열 → word1/word2
+        # UI에 적힌 TFTP IP (쓰기 실패해도 계속 진행)
         tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
-        try:
-            w1, w2 = encode_ip_to_words(tftp_ip_str)
-        except ValueError as e:
-            self.console.print(f"[FW] Invalid TFTP IP '{tftp_ip_str}': {e}")
-            messagebox.showerror("FW", f"TFTP IP 형식이 잘못되었습니다:\n{tftp_ip_str}")
-            return
 
         addr_ip1 = self.reg_addr(40088)   # 40088 → 87
         addr_ctrl = self.reg_addr(40091)  # 40091 → 90
 
         try:
             with lock:
-                # 40088, 40089 : TFTP 서버 IP
-                r1 = client.write_registers(addr_ip1, [w1, w2])
-                if isinstance(r1, ExceptionResponse) or r1.isError():
-                    self.console.print(f"[FW] write 40088/40089 error: {r1}")
-                    messagebox.showerror("FW", f"장비에 TFTP IP를 쓰는 데 실패했습니다.\n{r1}")
-                    return
-                self.console.print(f"[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})")
+                # --- 1) TFTP IP 쓰기(비치명적) ---
+                try:
+                    w1, w2 = encode_ip_to_words(tftp_ip_str)
+                    r1 = client.write_registers(addr_ip1, [w1, w2])
+                    if isinstance(r1, ExceptionResponse) or r1.isError():
+                        self.console.print(f"[FW] write 40088/40089 error (non-fatal): {r1}")
+                    else:
+                        self.console.print(f"[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})")
+                except (ValueError, ModbusIOException, ConnectionException, Exception) as e:
+                    # 형식 오류나 통신 오류 모두 비치명적: 장비에 이미 설정된 값 사용
+                    self.console.print(f"[FW] write 40088/40089 failed (non-fatal): {e}")
 
-                # 40091 BIT0~1 : 1 = 업그레이드 시작
+                # --- 2) FW 시작 명령 (치명적) ---
                 r2 = client.write_register(addr_ctrl, 1)
                 if isinstance(r2, ExceptionResponse) or r2.isError():
                     self.console.print(f"[FW] write 40091 error: {r2}")
@@ -1340,9 +1338,13 @@ class ModbusUI:
 
             self.console.print(
                 f"[FW] Upgrade start command sent for box {box_index} "
-                f"({ip}) via {tftp_ip_str}, file={dst_path}"
+                f"({ip}) via TFTP IP='{tftp_ip_str}', file={dst_path}"
             )
-            messagebox.showinfo("FW", "FW 업그레이드 명령을 전송했습니다.")
+            messagebox.showinfo(
+                "FW",
+                "FW 업그레이드 명령을 전송했습니다.\n"
+                "※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다."
+            )
 
         except Exception as e:
             self.console.print(f"[FW] Error starting upgrade for {ip}: {e}")
