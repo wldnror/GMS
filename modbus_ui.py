@@ -798,7 +798,7 @@ class ModbusUI:
             item = self.ui_update_queue.get_nowait()
             typ = item[0]
 
-        # NOTE: 이 while 안에서 꺼낸 item을 바로 처리해야 함
+            # NOTE: 이 while 안에서 꺼낸 item을 바로 처리해야 함
             if typ == 'circle_state':
                 _, box_index, states = item
                 self.update_circle_state(states, box_index=box_index)
@@ -951,7 +951,7 @@ class ModbusUI:
             self.disconnect_client(ip, box_index, manual=False)
 
     def blink_pwr(self, box_index):
-        """PWR 램프 깜박임"""
+        """PWR 램프 깜빡임"""
         if self.box_states[box_index].get("pwr_blinking", False):
             return
 
@@ -984,7 +984,7 @@ class ModbusUI:
         toggle_color()
 
     # -------------------------
-    # 알람 램프 / 테두리 깜박임
+    # 알람 램프 / 테두리 깜빡임
     # -------------------------
 
     def check_alarms(self, box_index):
@@ -1036,7 +1036,7 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
 
     def blink_alarms(self, box_index):
-        """AL1/AL2 or 테두리 깜박임"""
+        """AL1/AL2 or 테두리 깜빡임"""
         state = self.box_states[box_index]
         if not (state["alarm1_blinking"] or state["alarm2_blinking"] or state["alarm_border_blink"]):
             return
@@ -1139,7 +1139,7 @@ class ModbusUI:
     def zero_calibration(self, box_index: int):
         """
         ZERO 버튼: 40092 BIT0 = 1
-        - 여기서는 1만 써 주고, 0으로는 다시 내리지 않는다.
+        - 1만 써 주고, 0으로는 다시 내리지 않는다.
         - 버튼 눌림 / 레지스터 값 디버깅 로그 추가.
         """
         self.console.print(f"[ZERO] button clicked (box_index={box_index})")
