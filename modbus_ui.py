@@ -273,6 +273,8 @@ class ModbusUI:
                 'border_blink_state': False,
                 'gms1000_text_id': None,
                 'fw_file_name_var': fw_name_var,
+                # FW 진행률 표시 모드 여부
+                'fw_display_mode': False,
             }
         )
 
@@ -384,7 +386,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='e',
         )
-        circle_al2 = box_canvas.create_oval(sx(133) - sx(30), sy(200) - sy(32), sx(123) - sx(30), sy(190) - sy(32))
+        circle_al2 = box_canvas.create_oval(sx(133) - sx(30), sy(200) - sy(32), sx(123) - sy(30), sy(190) - sy(32))
         box_canvas.create_text(
             sx(140) - sx(35),
             sy(222) - sy(40),
@@ -392,7 +394,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='e',
         )
-        circle_pwr = box_canvas.create_oval(sx(30) - sx(10), sy(200) - sy(32), sx(40) - sx(10), sy(190) - sy(32))
+        circle_pwr = box_canvas.create_oval(sx(30) - sx(10), sy(200) - sy(32), sx(40) - sy(10), sy(190) - sy(32))
         box_canvas.create_text(
             sx(35) - sx(10),
             sy(222) - sy(40),
@@ -400,7 +402,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='center',
         )
-        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sx(40), sy(190) - sy(32))
+        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sy(40), sy(190) - sy(32))
         box_canvas.create_text(
             sx(175) - sx(40),
             sy(217) - sy(40),
@@ -546,10 +548,10 @@ class ModbusUI:
                 t.start()
                 self.console.print(f'Started data thread for {ip}')
 
-                # 🔵 장비의 TFTP IP는 바로 읽지 않고, 약간 딜레이를 두고 백그라운드에서 읽기
+                # 장비의 TFTP IP는 약간 딜레이를 두고 백그라운드에서 읽기
                 threading.Thread(
                     target=self.delayed_load_tftp_ip_from_device,
-                    args=(i, 1.0),   # 1초 뒤에 읽기 (필요하면 조절)
+                    args=(i, 1.0),   # 1초 뒤에 읽기
                     daemon=True,
                 ).start()
 
@@ -687,6 +689,9 @@ class ModbusUI:
                 value_40023 = raw_regs[22]
                 value_40024 = raw_regs[23]
 
+                # FW 진행률 표시 모드 여부
+                fw_mode = self.box_states[box_index].get('fw_display_mode', False)
+
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
                 self.box_states[box_index]['alarm1_on'] = bit_6_on
@@ -695,32 +700,36 @@ class ModbusUI:
 
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
-                    formatted_value = f'{value_40005}'
-                    self.data_queue.put((box_index, formatted_value, False))
+                    # 에러 비트 없고, FW 모드가 아니면 가스값 표시
+                    if not fw_mode:
+                        formatted_value = f'{value_40005}'
+                        self.data_queue.put((box_index, formatted_value, False))
                 else:
-                    error_display = ''
-                    for bit_index, bit_flag in enumerate(bits):
-                        if bit_flag:
-                            error_display = BIT_TO_SEGMENT[bit_index]
-                            break
-                    error_display = error_display.ljust(4)
+                    # 에러 비트가 있을 때도 FW 모드면 FW 진행률 유지
+                    if not fw_mode:
+                        error_display = ''
+                        for bit_index, bit_flag in enumerate(bits):
+                            if bit_flag:
+                                error_display = BIT_TO_SEGMENT[bit_index]
+                                break
+                        error_display = error_display.ljust(4)
 
-                    if 'E' in error_display:
-                        self.box_states[box_index]['blinking_error'] = True
-                        self.data_queue.put((box_index, error_display, True))
-                        self.ui_update_queue.put(
-                            (
-                                'circle_state',
-                                box_index,
-                                [False, False, True, self.box_states[box_index]['blink_state']],
+                        if 'E' in error_display:
+                            self.box_states[box_index]['blinking_error'] = True
+                            self.data_queue.put((box_index, error_display, True))
+                            self.ui_update_queue.put(
+                                (
+                                    'circle_state',
+                                    box_index,
+                                    [False, False, True, self.box_states[box_index]['blink_state']],
+                                )
                             )
-                        )
-                    else:
-                        self.box_states[box_index]['blinking_error'] = False
-                        self.data_queue.put((box_index, error_display, False))
-                        self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, False])
-                        )
+                        else:
+                            self.box_states[box_index]['blinking_error'] = False
+                            self.data_queue.put((box_index, error_display, False))
+                            self.ui_update_queue.put(
+                                ('circle_state', box_index, [False, False, True, False])
+                            )
 
                 self.ui_update_queue.put(('bar', box_index, value_40011))
                 self.ui_update_queue.put(
@@ -833,6 +842,7 @@ class ModbusUI:
 
         self.box_states[box_index]['pwr_blink_state'] = False
         self.box_states[box_index]['pwr_blinking'] = False
+        self.box_states[box_index]['fw_display_mode'] = False
 
         def _set_pwr_default(idx=box_index):
             box_canvas = self.box_data[idx][0]
@@ -1078,13 +1088,6 @@ class ModbusUI:
         progress = v_40024 & 0xFF
         remain = (v_40024 >> 8) & 0xFF
 
-        # 🔵 상태가 이전과 완전히 같으면 로그를 찍지 않아서 화면이 더 부드러워짐
-        current = (version, error_code, progress, remain, v_40023)
-        prev = self.last_fw_status[box_index]
-        if prev == current:
-            return
-        self.last_fw_status[box_index] = current
-
         upgrading = bool(v_40023 & (1 << 2))
         upgrade_ok = bool(v_40023 & (1 << 0))
         upgrade_fail = bool(v_40023 & (1 << 1))
@@ -1092,23 +1095,39 @@ class ModbusUI:
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
 
-        msg = f'[FW] ver={version}, progress={progress}%, remain={remain}s'
-        states = []
-        if upgrading:
-            states.append('UPGRADING')
-        if upgrade_ok:
-            states.append('UPGRADE_OK')
-        if upgrade_fail:
-            states.append(f'UPGRADE_FAIL(err={error_code})')
-        if rollback_running:
-            states.append('ROLLBACK')
-        if rollback_ok:
-            states.append('ROLLBACK_OK')
-        if rollback_fail:
-            states.append(f'ROLLBACK_FAIL(err={error_code})')
-        if states:
-            msg += ' [' + ', '.join(states) + ']'
-        self.console.print(msg)
+        # FW 진행률 표시 모드 플래그 갱신
+        fw_mode = upgrading or rollback_running
+        self.box_states[box_index]['fw_display_mode'] = fw_mode
+
+        # 상태가 이전과 완전히 같으면 로그를 찍지 않아서 화면이 더 부드러워짐
+        current = (version, error_code, progress, remain, v_40023)
+        prev = self.last_fw_status[box_index]
+        if prev != current:
+            self.last_fw_status[box_index] = current
+
+            msg = f'[FW] ver={version}, progress={progress}%, remain={remain}s'
+            states = []
+            if upgrading:
+                states.append('UPGRADING')
+            if upgrade_ok:
+                states.append('UPGRADE_OK')
+            if upgrade_fail:
+                states.append(f'UPGRADE_FAIL(err={error_code})')
+            if rollback_running:
+                states.append('ROLLBACK')
+            if rollback_ok:
+                states.append('ROLLBACK_OK')
+            if rollback_fail:
+                states.append(f'ROLLBACK_FAIL(err={error_code})')
+            if states:
+                msg += ' [' + ', '.join(states) + ']'
+            self.console.print(msg)
+
+        # FW 모드일 때는 7-세그에 진행률(0~100)을 깜빡이면서 표시
+        if fw_mode:
+            self.ui_update_queue.put(
+                ('segment_display', box_index, str(progress), True)
+            )
 
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
         """
