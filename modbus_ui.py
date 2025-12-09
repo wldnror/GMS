@@ -108,6 +108,9 @@ class ModbusUI:
         self.auto_reconnect_failed = [False] * num_boxes
         self.reconnect_attempt_labels = [None] * num_boxes
 
+        # FW 상태 로그 중복 방지용
+        self.last_fw_status = [None] * num_boxes
+
         self.load_ip_settings(num_boxes)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -531,7 +534,12 @@ class ModbusUI:
                 t.start()
                 self.console.print(f'Started data thread for {ip}')
 
-                self.load_tftp_ip_from_device(i)
+                # 🔵 장비의 TFTP IP는 바로 읽지 않고, 약간 딜레이를 두고 백그라운드에서 읽기
+                threading.Thread(
+                    target=self.delayed_load_tftp_ip_from_device,
+                    args=(i, 1.0),   # 1초 뒤에 읽기 (필요하면 조절)
+                    daemon=True,
+                ).start()
 
                 box_canvas = self.box_data[i][0]
                 gms1000_id = self.box_states[i]['gms1000_text_id']
@@ -849,7 +857,12 @@ class ModbusUI:
                     self.connected_clients[ip] = t
                     t.start()
 
-                    self.load_tftp_ip_from_device(box_index)
+                    # 재연결 후에도 TFTP IP는 살짝 딜레이 줘서 읽기
+                    threading.Thread(
+                        target=self.delayed_load_tftp_ip_from_device,
+                        args=(box_index, 1.0),
+                        daemon=True,
+                    ).start()
 
                     self.parent.after(
                         0,
@@ -1037,6 +1050,13 @@ class ModbusUI:
         progress = v_40024 & 0xFF
         remain = (v_40024 >> 8) & 0xFF
 
+        # 🔵 상태가 이전과 완전히 같으면 로그를 찍지 않아서 화면이 더 부드러워짐
+        current = (version, error_code, progress, remain, v_40023)
+        prev = self.last_fw_status[box_index]
+        if prev == current:
+            return
+        self.last_fw_status[box_index] = current
+
         upgrading = bool(v_40023 & (1 << 2))
         upgrade_ok = bool(v_40023 & (1 << 0))
         upgrade_fail = bool(v_40023 & (1 << 1))
@@ -1061,6 +1081,20 @@ class ModbusUI:
         if states:
             msg += ' [' + ', '.join(states) + ']'
         self.console.print(msg)
+
+    def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
+        """
+        연결/재연결 직후 바로 말고, 약간 기다렸다가 TFTP IP를 읽어오는 함수.
+        장비가 준비되기 전에 읽어서 에러 나는 걸 줄여줌.
+        """
+        time.sleep(delay)
+        try:
+            self.load_tftp_ip_from_device(box_index)
+        except Exception as e:
+            # 여기서는 심각한 에러로 안 보고 가볍게만 출력
+            self.console.print(
+                f'[FW] (ignore) delayed TFTP IP read fail box {box_index}: {e}'
+            )
 
     def load_tftp_ip_from_device(self, box_index: int):
         """
@@ -1089,7 +1123,14 @@ class ModbusUI:
             self.tftp_ip_vars[box_index].set(tftp_ip)
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
         except Exception as e:
-            self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
+            msg = str(e)
+            # 연결 직후 장비가 아직 준비 안 된 경우 자주 보이는 에러는 톤 다운
+            if "No response received" in msg:
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready yet (ignore).'
+                )
+            else:
+                self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
 
     def start_firmware_upgrade(self, box_index: int):
         ip = self.ip_vars[box_index].get()
