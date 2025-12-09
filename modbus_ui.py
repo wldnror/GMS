@@ -5,7 +5,7 @@ from tkinter import Frame, Canvas, StringVar, Entry, Button, Tk, Label
 import threading
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
-from pymodbus.pdu import ExceptionResponse  # ★ 추가
+from pymodbus.pdu import ExceptionResponse
 from rich.console import Console
 from PIL import Image, ImageTk
 
@@ -1123,24 +1123,6 @@ class ModbusUI:
         self.console.print(msg)
 
     # -------------------------
-    # 디버그용 단일 레지스터 읽기 헬퍼
-    # -------------------------
-
-    def _read_debug_register(self, client, addr, name):
-        """단일 레지스터 디버깅용 읽기"""
-        try:
-            rr = client.read_holding_registers(addr, 1)
-            if isinstance(rr, ExceptionResponse) or rr.isError():
-                self.console.print(f"[DBG] read {name} (addr={addr}) error: {rr}")
-            else:
-                val = rr.registers[0]
-                self.console.print(
-                    f"[DBG] {name} (addr={addr}) = 0x{val:04X} ({val})"
-                )
-        except Exception as e:
-            self.console.print(f"[DBG] read {name} (addr={addr}) exception: {e}")
-
-    # -------------------------
     # FW 업그레이드 / ZERO / REBOOT
     # -------------------------
 
@@ -1163,16 +1145,10 @@ class ModbusUI:
             return
 
         addr_ip1 = 40088 - 1
-        addr_ip2 = 40089 - 1
         addr_ctrl = 40091 - 1
 
         try:
             with lock:
-                # 디버그: 기존 값
-                self._read_debug_register(client, addr_ip1, "FW IP1 before")
-                self._read_debug_register(client, addr_ip2, "FW IP2 before")
-                self._read_debug_register(client, addr_ctrl, "FW CTRL before")
-
                 # 40088, 40089 : TFTP 서버 IP
                 r1 = client.write_registers(addr_ip1, [w1, w2])
                 if isinstance(r1, ExceptionResponse) or r1.isError():
@@ -1187,11 +1163,6 @@ class ModbusUI:
                     return
                 self.console.print(f"[FW] write 40091 = 1 OK")
 
-                # 디버그: 다시 읽기
-                self._read_debug_register(client, addr_ip1, "FW IP1 after")
-                self._read_debug_register(client, addr_ip2, "FW IP2 after")
-                self._read_debug_register(client, addr_ctrl, "FW CTRL after")
-
             self.console.print(f"[FW] Upgrade start command sent for box {box_index} ({ip}) via {tftp_ip}")
 
         except Exception as e:
@@ -1200,8 +1171,7 @@ class ModbusUI:
     def zero_calibration(self, box_index: int):
         """
         ZERO 버튼: 40092 BIT0 = 1
-        - 1을 잠깐 쓴 다음 다시 0으로 내려서 펄스처럼 전송.
-        - 쓰기 전/후 값을 모두 로그로 남김.
+        - 1을 한 번 써서 장비에 전달만 함.
         """
         self.console.print(f"[ZERO] button clicked (box_index={box_index})")
 
@@ -1217,38 +1187,22 @@ class ModbusUI:
 
         try:
             with lock:
-                # 쓰기 전 값 확인
-                self._read_debug_register(client, addr, "ZERO before")
-
-                # 1 쓰기
-                w1 = client.write_register(addr, 1)
-                if isinstance(w1, ExceptionResponse) or w1.isError():
-                    self.console.print(f"[ZERO] write 40092=1 error: {w1}")
+                r = client.write_register(addr, 1)
+                if isinstance(r, ExceptionResponse) or r.isError():
+                    self.console.print(f"[ZERO] write 40092=1 error: {r}")
                     return
                 self.console.print(f"[ZERO] write 40092 = 1 OK")
 
-                # 잠깐 기다렸다가
-                time.sleep(0.2)
-
-                # 다시 0으로 내려줌(펄스)
-                w0 = client.write_register(addr, 0)
-                if isinstance(w0, ExceptionResponse) or w0.isError():
-                    self.console.print(f"[ZERO] write 40092=0 error: {w0}")
-                else:
-                    self.console.print(f"[ZERO] write 40092 = 0 OK")
-
-                # 쓰기 후 값 확인
-                self._read_debug_register(client, addr, "ZERO after")
-
-            self.console.print(f"[ZERO] Zero calibration pulse sent for box {box_index} ({ip})")
+            self.console.print(f"[ZERO] Zero calibration command sent for box {box_index} ({ip})")
 
         except Exception as e:
             self.console.print(f"[ZERO] Error on zero calibration for {ip}: {e}")
 
     def reboot_device(self, box_index: int):
         """
-        RST 버튼: 40093 BIT0 = 1 (재부팅)
-        - 쓰기 전/후 레지스터를 읽어서 진짜로 1이 들어갔는지 확인.
+        RST 버튼: 40093 BIT0 = 1 (재부팅 명령만 보냄)
+        - 장비가 바로 소켓을 끊고 재부팅할 수 있으므로,
+          여기서는 write 시도만 하고 에러는 로그만 남김.
         """
         self.console.print(f"[RST] button clicked (box_index={box_index})")
 
@@ -1263,19 +1217,11 @@ class ModbusUI:
 
         try:
             with lock:
-                # 쓰기 전 값
-                self._read_debug_register(client, addr, "RST before")
-
-                # 1 쓰기
                 r = client.write_register(addr, 1)
                 if isinstance(r, ExceptionResponse) or r.isError():
                     self.console.print(f"[RST] write 40093=1 error: {r}")
                     return
                 self.console.print(f"[RST] write 40093 = 1 OK")
-
-                # 아주 짧게 기다린 뒤 값 다시 확인
-                time.sleep(0.2)
-                self._read_debug_register(client, addr, "RST after")
 
             self.console.print(f"[RST] Reboot command written to 40093 for box {box_index} ({ip})")
 
