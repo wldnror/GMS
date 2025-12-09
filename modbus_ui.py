@@ -519,9 +519,13 @@ class ModbusUI:
         self.box_states[box_index]["blink_state"] = not self.box_states[box_index]["blink_state"]
 
     def update_bar(self, value, box_index):
-        """Bar 그래프 업데이트"""
+        """Bar 그래프 업데이트 (value: 0~100)"""
         _, _, bar_canvas, _, bar_item = self.box_data[box_index]
         percentage = value / 100.0
+        if percentage < 0:
+            percentage = 0
+        if percentage > 1:
+            percentage = 1
         bar_length = int(153 * SCALE_FACTOR * percentage)
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, sy(5)))
         bar_image = ImageTk.PhotoImage(cropped_image)
@@ -684,8 +688,10 @@ class ModbusUI:
     # -------------------------
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        """주기적으로 holding register 읽기.
-        ConnectionException(소켓 끊김)만 재연결, ModbusIOException은 일시 에러로 취급."""
+        """
+        주기적으로 holding register 읽기.
+        ConnectionException(소켓 끊김)만 재연결, ModbusIOException은 일시 에러로 취급.
+        """
         start_address = 40001 - 1
         # 40001 ~ 40024 까지 읽기
         num_registers = 24
@@ -741,7 +747,8 @@ class ModbusUI:
                         self.box_states[box_index]["blinking_error"] = True
                         self.data_queue.put((box_index, error_display, True))
                         self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, self.box_states[box_index]["blink_state"]])
+                            ('circle_state', box_index,
+                             [False, False, True, self.box_states[box_index]["blink_state"]])
                         )
                     else:
                         self.box_states[box_index]["blinking_error"] = False
@@ -750,7 +757,7 @@ class ModbusUI:
                             ('circle_state', box_index, [False, False, True, False])
                         )
 
-                # Bar 값
+                # Bar 값 (여기서는 0~100 이라고 가정)
                 self.ui_update_queue.put(('bar', box_index, value_40011))
 
                 # FW 상태 갱신 (UI/로그)
@@ -798,23 +805,27 @@ class ModbusUI:
             item = self.ui_update_queue.get_nowait()
             typ = item[0]
 
-            # NOTE: 이 while 안에서 꺼낸 item을 바로 처리해야 함
             if typ == 'circle_state':
                 _, box_index, states = item
                 self.update_circle_state(states, box_index=box_index)
+
             elif typ == 'bar':
                 _, box_index, value = item
                 self.update_bar(value, box_index)
+
             elif typ == 'segment_display':
                 _, box_index, value, blink = item
                 self.update_segment_display(value, box_index=box_index, blink=blink)
+
             elif typ == 'alarm_check':
                 _, box_index = item
                 self.check_alarms(box_index)
+
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
                 self.update_fw_status(box_index, v_40022, v_40023, v_40024)
 
+        # 다음 UI 업데이트 예약
         self.schedule_ui_update()
 
     # -------------------------
@@ -951,7 +962,7 @@ class ModbusUI:
             self.disconnect_client(ip, box_index, manual=False)
 
     def blink_pwr(self, box_index):
-        """PWR 램프 깜빡임"""
+        """PWR 램프 깜박임"""
         if self.box_states[box_index].get("pwr_blinking", False):
             return
 
@@ -984,7 +995,7 @@ class ModbusUI:
         toggle_color()
 
     # -------------------------
-    # 알람 램프 / 테두리 깜빡임
+    # 알람 램프 / 테두리 깜박임
     # -------------------------
 
     def check_alarms(self, box_index):
@@ -1036,7 +1047,7 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
 
     def blink_alarms(self, box_index):
-        """AL1/AL2 or 테두리 깜빡임"""
+        """AL1/AL2 or 테두리 깜박임"""
         state = self.box_states[box_index]
         if not (state["alarm1_blinking"] or state["alarm2_blinking"] or state["alarm_border_blink"]):
             return
@@ -1071,7 +1082,13 @@ class ModbusUI:
     # -------------------------
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
-        """40022~40024 값으로 FW 상태를 간단히 로그"""
+        """
+        40022~40024 값으로 FW 상태를 로그.
+        - ver  : 40022 (Unsigned)
+        - 40023 BIT0,1,2,4,5,6 : 상태 플래그 (매뉴얼 기준)
+        - 40023 BIT8~15 : 에러 코드
+        - 40024 BIT0~7 : 진행률(%), BIT8~15 : 남은 시간(sec)
+        """
         version = v_40022
         error_code = (v_40023 >> 8) & 0xFF
         progress = v_40024 & 0xFF
@@ -1084,7 +1101,7 @@ class ModbusUI:
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
 
-        msg = f"[FW][box {box_index}] ver={version}, progress={progress}%, remain={remain}s"
+        msg = f"[FW] ver={version}, progress={progress}%, remain={remain}s"
         states = []
         if upgrading:
             states.append("UPGRADING")
@@ -1139,7 +1156,7 @@ class ModbusUI:
     def zero_calibration(self, box_index: int):
         """
         ZERO 버튼: 40092 BIT0 = 1
-        - 1만 써 주고, 0으로는 다시 내리지 않는다.
+        - 여기서는 1만 써 주고, 0으로는 다시 내리지 않는다.
         - 버튼 눌림 / 레지스터 값 디버깅 로그 추가.
         """
         self.console.print(f"[ZERO] button clicked (box_index={box_index})")
