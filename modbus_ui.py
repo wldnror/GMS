@@ -4,6 +4,7 @@ import time
 import shutil
 import threading
 import queue
+import socket
 from tkinter import Frame, Canvas, StringVar, Entry, Button, Tk, Label, filedialog, messagebox
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
@@ -13,8 +14,25 @@ from PIL import Image, ImageTk
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
 
+
+def get_local_ip() -> str:
+    """
+    라즈베리파이(해당 장비)의 IP를 구해서 반환.
+    실패하면 127.0.0.1로 fallback.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # 실제 연결은 안 되고 라우팅 정보만 사용
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
 SCALE_FACTOR = 1.65
-DEFAULT_TFTP_IP = '109.3.55.17'
+# 기본 TFTP IP를 장비(라즈베리파이)의 IP로 설정
+DEFAULT_TFTP_IP = get_local_ip()
 TFTP_FW_BASENAME = 'ASGD3200E.bin'   # 필요시 참고용 이름
 TFTP_ROOT_DIR = '/srv/tftp'
 
@@ -68,6 +86,11 @@ class ModbusUI:
         self.ip_vars = [StringVar() for _ in range(num_boxes)]
         self.tftp_ip_vars = [StringVar(value=DEFAULT_TFTP_IP) for _ in range(num_boxes)]
         self.fw_file_paths = [None for _ in range(num_boxes)]
+
+        # TFTP UI 요소 관리용 리스트들
+        self.tftp_entries = []
+        self.tftp_display_labels = []
+        self.tftp_edit_buttons = []
 
         self.entries = []
         self.action_buttons = []
@@ -296,6 +319,29 @@ class ModbusUI:
         )
         tftp_label.grid(row=1, column=0, padx=1, pady=(2, 0), sticky='e')
 
+        # 기본은 Text 라벨만 보여주고, 필요할 때만 Entry를 열어서 수정
+        tftp_display = Label(
+            maint_frame,
+            textvariable=self.tftp_ip_vars[index],
+            fg='#cccccc',
+            bg='black',
+            font=('Helvetica', int(8 * SCALE_FACTOR)),
+            anchor='w',
+        )
+        tftp_display.grid(row=1, column=1, padx=1, pady=(2, 0), sticky='w')
+
+        tftp_edit_btn = Button(
+            maint_frame,
+            text='편집',
+            command=lambda idx=index: self.toggle_tftp_edit(idx),
+            width=int(3 * SCALE_FACTOR),
+            bg='#333333',
+            fg='white',
+            relief='raised',
+            bd=1,
+        )
+        tftp_edit_btn.grid(row=1, column=2, padx=1, pady=(2, 0), sticky='w')
+
         tftp_entry = Entry(
             maint_frame,
             textvariable=self.tftp_ip_vars[index],
@@ -309,7 +355,11 @@ class ModbusUI:
             font=('Helvetica', int(8 * SCALE_FACTOR)),
             justify='center',
         )
-        tftp_entry.grid(row=1, column=1, columnspan=2, padx=1, pady=(2, 0), sticky='w')
+        # 처음에는 grid() 호출하지 않고 숨긴 상태로 두기
+
+        self.tftp_entries.append(tftp_entry)
+        self.tftp_display_labels.append(tftp_display)
+        self.tftp_edit_buttons.append(tftp_edit_btn)
 
         fw_file_label = Label(
             maint_frame,
@@ -388,7 +438,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='center',
         )
-        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sx(40), sy(190) - sy(32))
+        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sy(40), sy(190) - sy(32))
         box_canvas.create_text(
             sx(175) - sx(40),
             sy(217) - sy(40),
@@ -436,6 +486,27 @@ class ModbusUI:
 
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
+
+    def toggle_tftp_edit(self, box_index: int):
+        """
+        TFTP IP를 수정할 때만 Entry를 보여주고,
+        평소에는 표시 라벨만 보이게 토글.
+        """
+        entry = self.tftp_entries[box_index]
+        display_label = self.tftp_display_labels[box_index]
+        edit_btn = self.tftp_edit_buttons[box_index]
+
+        if entry.winfo_ismapped():
+            # Entry가 보이는 상태면 숨기고 라벨만 보이게
+            entry.grid_remove()
+            display_label.grid(row=1, column=1, padx=1, pady=(2, 0), sticky='w')
+            edit_btn.config(text='편집')
+        else:
+            # 라벨 숨기고 Entry 표시
+            display_label.grid_remove()
+            entry.grid(row=1, column=1, columnspan=2, padx=1, pady=(2, 0), sticky='w')
+            edit_btn.config(text='닫기')
+            entry.focus_set()
 
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
