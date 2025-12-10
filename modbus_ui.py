@@ -139,8 +139,13 @@ class ModbusUI:
         # 박스별 TFTP 지원 여부 (기본값: True, 에러 나면 False로 바꿔서 이후 무시)
         # ─────────────────────────────────────────
         self.tftp_supported = [True] * num_boxes
-        # 박스별로 40088/40089를 한 번이라도 읽어봤는지 여부 (탐색 완료 플래그)
-        self.tftp_probe_done = [False] * num_boxes
+
+        # ─────────────────────────────────────────
+        # 박스별 확장 레지스터(40012~40024, FW 상태 포함) 지원 여부
+        #   True : 40001~40024 한 번에 읽음
+        #   False: 40001~40011만 읽고 FW 상태는 사용 안 함
+        # ─────────────────────────────────────────
+        self.extended_regs_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
 
@@ -536,8 +541,8 @@ class ModbusUI:
                 self.console.print(f'Started data thread for {ip}')
 
                 # 장비의 TFTP IP는 약간 딜레이를 두고 백그라운드에서 읽기
-                # ▶ 아직 탐색 안 했거나, 탐색 결과 지원된 장치만 시도
-                if (not self.tftp_probe_done[i]) or self.tftp_supported[i]:
+                # ▶ 이 박스가 TFTP 미지원으로 판정된 경우는 아예 시도하지 않음
+                if self.tftp_supported[i]:
                     threading.Thread(
                         target=self.delayed_load_tftp_ip_from_device,
                         args=(i, 1.0),
@@ -649,9 +654,16 @@ class ModbusUI:
             time.sleep(2)
         return False
 
+    # -------------------------------------------------------------------------
+    #   멀티 레지스터 리드
+    #   - 기본: 40001 ~ 40024 (새 모델, FW 상태 포함)
+    #   - 구형/특정 모델에서 40012~40024 미지원 시:
+    #       → 한 번 감지 후, 이후로는 40001~40011만 읽기 (예전 코드와 동일)
+    # -------------------------------------------------------------------------
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        start_address = self.reg_addr(40001)
-        num_registers = 24
+        base_addr = self.reg_addr(40001)
+        basic_regs = 11    # 40001 ~ 40011
+        ext_regs = 24      # 40001 ~ 40024
 
         while not stop_flag.is_set():
             try:
@@ -662,31 +674,83 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                with lock:
-                    response = client.read_holding_registers(start_address, num_registers)
+                # ─────────────────────────────────────────
+                # 1) 확장 레지스터 시도 (40001~40024)
+                #    - 에러나면 이 박스는 앞으로 40001~40011만 사용
+                # ─────────────────────────────────────────
+                has_fw_status = False
 
-                if response.isError():
-                    raise ModbusIOException(
-                        f'Error reading from {ip}, address 40001~40024'
-                    )
+                if self.extended_regs_supported[box_index]:
+                    with lock:
+                        response = client.read_holding_registers(base_addr, ext_regs)
 
-                raw_regs = response.registers
-                value_40001 = raw_regs[0]
-                value_40005 = raw_regs[4]
+                    if isinstance(response, ExceptionResponse) or response.isError():
+                        # 이 모델은 확장 레지스터 미지원으로 간주하고, 한 번만 로그
+                        self.console.print(
+                            f'[Modbus] box {box_index} ({ip}) extended regs 40012~40024 read error: {response} '
+                            f'→ basic(40001~40011) only mode로 전환.'
+                        )
+                        self.extended_regs_supported[box_index] = False
+                        # 기본 영역 다시 시도
+                        with lock:
+                            response = client.read_holding_registers(base_addr, basic_regs)
+                        if isinstance(response, ExceptionResponse) or response.isError():
+                            # 기본 영역도 에러면 진짜 I/O 문제 → 예전처럼 처리
+                            raise ModbusIOException(
+                                f'Error reading from {ip}, address 40001~40011 (after extended fallback)'
+                            )
+                        raw_regs = response.registers
+                        has_fw_status = False
+                    else:
+                        # 확장+기본 모두 읽기 성공
+                        raw_regs = response.registers
+                        if len(raw_regs) < ext_regs:
+                            # 응답 길이가 부족하면 위험하니 이 경우도 기본 모드로 다운그레이드
+                            self.console.print(
+                                f'[Modbus] box {box_index} ({ip}) extended regs len={len(raw_regs)} < {ext_regs} '
+                                f'→ basic only mode로 전환.'
+                            )
+                            self.extended_regs_supported[box_index] = False
+                            # 다시 basic만 읽기
+                            with lock:
+                                response = client.read_holding_registers(base_addr, basic_regs)
+                            if isinstance(response, ExceptionResponse) or response.isError():
+                                raise ModbusIOException(
+                                    f'Error reading from {ip}, address 40001~40011 (after len fallback)'
+                                )
+                            raw_regs = response.registers
+                            has_fw_status = False
+                        else:
+                            # 정상적으로 24개 읽었으면 FW 상태도 사용 가능
+                            has_fw_status = True
+                else:
+                    # ─────────────────────────────────────────
+                    # 2) 이미 basic-only 모드인 박스 → 예전처럼 40001~40011만 읽기
+                    # ─────────────────────────────────────────
+                    with lock:
+                        response = client.read_holding_registers(base_addr, basic_regs)
+                    if isinstance(response, ExceptionResponse) or response.isError():
+                        raise ModbusIOException(
+                            f'Error reading from {ip}, address 40001~40011'
+                        )
+                    raw_regs = response.registers
+                    has_fw_status = False
+
+                # 받은 레지스터에서 필요한 값 추출 (기본 영역은 항상 동일)
+                value_40001 = raw_regs[0]   # AL 비트
+                value_40005 = raw_regs[4]   # 측정값
                 # 에러코드/에러 비트 레지스터: 40008 → raw_regs[7]
                 value_40007 = raw_regs[7]
-                value_40011 = raw_regs[10]
-                value_40022 = raw_regs[21]
-                value_40023 = raw_regs[22]
-                value_40024 = raw_regs[23]
+                value_40011 = raw_regs[10]  # bar 표시용 값
 
+                # Alarm1(bit6), Alarm2(bit7)
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
                 self.box_states[box_index]['alarm1_on'] = bit_6_on
                 self.box_states[box_index]['alarm2_on'] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
 
-                # 값 / AL1 / AL2 / 에러레지스터 변화만 로그로 기록
+                # 로그 기록 (값 / 알람 / 에러레지스터)
                 self.maybe_log_event(
                     box_index,
                     value_40005,
@@ -724,10 +788,17 @@ class ModbusUI:
                             ('circle_state', box_index, [False, False, True, False])
                         )
 
+                # bar 표시
                 self.ui_update_queue.put(('bar', box_index, value_40011))
-                self.ui_update_queue.put(
-                    ('fw_status', box_index, value_40022, value_40023, value_40024)
-                )
+
+                # FW 상태 레지스터(40022~40024)는 extended 지원 모델에서만 사용
+                if has_fw_status:
+                    value_40022 = raw_regs[21]
+                    value_40023 = raw_regs[22]
+                    value_40024 = raw_regs[23]
+                    self.ui_update_queue.put(
+                        ('fw_status', box_index, value_40022, value_40023, value_40024)
+                    )
 
                 time.sleep(self.communication_interval)
 
@@ -737,6 +808,7 @@ class ModbusUI:
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
             except ModbusIOException as e:
+                # 실제 통신 I/O 문제 (서버가 죽었거나 등)를 위한 예외
                 self.console.print(
                     f'Temporary Modbus I/O error from {ip}: {e}. Will retry...'
                 )
@@ -1081,8 +1153,8 @@ class ModbusUI:
                     t.start()
 
                     # 재연결 후에도 TFTP IP는 살짝 딜레이 줘서 읽기
-                    # ▶ 아직 탐색 안 했거나, 탐색 결과 지원된 장치만 시도
-                    if (not self.tftp_probe_done[box_index]) or self.tftp_supported[box_index]:
+                    # ▶ 다만 이 장치가 TFTP 미지원으로 판정된 경우는 더 이상 시도하지 않음
+                    if self.tftp_supported[box_index]:
                         threading.Thread(
                             target=self.delayed_load_tftp_ip_from_device,
                             args=(box_index, 1.0),
@@ -1364,18 +1436,9 @@ class ModbusUI:
             )
 
     def load_tftp_ip_from_device(self, box_index: int):
-        """
-        40088/40089를 통해 장비에 설정된 TFTP IP를 읽어온다.
-        - 이 함수를 처음 호출하는 순간 tftp_probe_done[box_index] = True 로 표시.
-        - 첫 시도에서 에러가 나거나 레지스터 개수가 부족하면,
-          해당 박스는 TFTP 미지원 장비로 간주하고 tftp_supported[box_index] = False 로 고정.
-        """
-        # 이미 TFTP 미지원으로 표시되어 있다면 바로 리턴
+        # TFTP가 이미 미지원으로 표시되어 있다면 바로 리턴
         if not self.tftp_supported[box_index]:
             return
-
-        # 이번 호출을 "탐색 완료"로 간주
-        self.tftp_probe_done[box_index] = True
 
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
@@ -1387,21 +1450,16 @@ class ModbusUI:
         try:
             with lock:
                 rr = client.read_holding_registers(addr_ip1, 2)
-
-            # 예외 응답이거나, 에러이거나, 레지스터가 2개 미만이면 미지원으로 본다.
             if isinstance(rr, ExceptionResponse) or rr.isError():
+                # 장치에서 기능 미지원(Illegal Function / Illegal Data Address) 등의 응답일 수 있음
+                msg = str(rr)
                 self.console.print(f'[FW] read 40088/40089 error: {rr}')
-                self.console.print(
-                    f'[FW] box {box_index} ({ip}) : TFTP 관련 레지스터 미지원으로 판단 → 이후 자동 TFTP IP 읽기 비활성화.'
-                )
-                self.tftp_supported[box_index] = False
-                return
-
-            if not hasattr(rr, "registers") or len(rr.registers) < 2:
-                self.console.print(
-                    f'[FW] box {box_index} ({ip}) : TFTP 레지스터 응답 개수 부족 → 미지원으로 간주.'
-                )
-                self.tftp_supported[box_index] = False
+                # 레지스터 자체를 지원하지 않는 경우로 보고 자동 TFTP 기능 끔
+                if 'Illegal' in msg or 'ILLEGAL' in msg:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : TFTP 관련 레지스터 미지원으로 판단 → 이후 자동 TFTP IP 읽기 비활성화.'
+                    )
+                    self.tftp_supported[box_index] = False
                 return
 
             w1, w2 = rr.registers
@@ -1411,17 +1469,23 @@ class ModbusUI:
             d = w2 & 0xFF
             tftp_ip = f'{a}.{b}.{c}.{d}'
             self.tftp_ip_vars[box_index].set(tftp_ip)
-            self.tftp_supported[box_index] = True
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
-
         except Exception as e:
             msg = str(e)
-            self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {msg}')
-            # 첫 시도에서의 예외는 전부 "이 장치는 TFTP 미지원"으로 본다.
-            self.console.print(
-                f'[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 중 예외 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
-            )
-            self.tftp_supported[box_index] = False
+            # 장치가 응답을 안 하는 정도는 "장비 아직 준비 안 됨"으로 간주
+            if "No response received" in msg:
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready yet (ignore).'
+                )
+            else:
+                self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
+                # 여기서 "Failed to connect" / "Socket is closed" 같은 연결 오류가 반복된다면,
+                # 이 장치에서는 TFTP 레지스터 접근이 안정적이지 않은 것으로 보고 자동 기능 끔
+                if 'Failed to connect' in msg or 'Socket is closed' in msg:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
+                    )
+                    self.tftp_supported[box_index] = False
 
     def start_firmware_upgrade(self, box_index: int):
         # 자동 판정 상 TFTP 미지원이면, FW 업그레이드도 안내 후 바로 리턴
