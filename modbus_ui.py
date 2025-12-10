@@ -269,7 +269,7 @@ class ModbusUI:
         box_canvas.create_rectangle(
             seg_x1, seg_y1, seg_x2, seg_y2,
             outline='red',
-            fill='',
+            fill='red',
             tags='segment_click_area'
         )
 
