@@ -128,7 +128,10 @@ class ModbusUI:
         self.log_popup_texts = [None] * num_boxes
         self.box_logs = [[] for _ in range(num_boxes)]
 
+        # TFTP/FW/ZERO/RST 지원 여부 (초기엔 True, 통신 중 자동 판단)
         self.tftp_supported = [True] * num_boxes
+        # FW 상태 레지스터(40023/40024) 지원 여부
+        self.fw_status_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
 
@@ -516,6 +519,10 @@ class ModbusUI:
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
+                # 새로 연결할 때는 지원 여부를 다시 자동 감지하도록 리셋
+                self.tftp_supported[i] = True
+                self.fw_status_supported[i] = True
+
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
@@ -638,7 +645,7 @@ class ModbusUI:
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
-        num_registers = 24
+        BASE_REG_COUNT = 22  # 40001 ~ 40022
 
         while not stop_flag.is_set():
             try:
@@ -649,27 +656,51 @@ class ModbusUI:
                 if lock is None:
                     break
 
+                # FW 상태 레지스터를 지원하면 40023/40024까지, 아니면 40001~40022만 읽기
+                if self.fw_status_supported[box_index]:
+                    num_registers = 24  # 40001 ~ 40024
+                else:
+                    num_registers = BASE_REG_COUNT  # 40001 ~ 40022
+
                 with lock:
                     response = client.read_holding_registers(start_address, num_registers)
 
                 if isinstance(response, ExceptionResponse) or response.isError():
                     raise ModbusIOException(
-                        f'Error reading from {ip}, address 40001~40024'
+                        f'Error reading from {ip}, address 40001~400{num_registers}'
                     )
 
-                raw_regs = response.registers
-                if len(raw_regs) < num_registers:
+                raw_regs = getattr(response, "registers", []) or []
+
+                # 공통 레지스터(40001~40022)는 반드시 있어야 함
+                if len(raw_regs) < BASE_REG_COUNT:
                     raise ModbusIOException(
-                        f'Error reading from {ip}: expected {num_registers} regs, got {len(raw_regs)}'
+                        f'Error reading from {ip}: expected at least {BASE_REG_COUNT} regs, got {len(raw_regs)}'
                     )
 
+                # FW 상태 레지스터 미지원 장비 자동 감지:
+                #  - 24개 요청했는데 22개만 주거나, I/O 에러에서 40001~40024 언급되면
+                #    fw_status_supported / tftp_supported 를 False로 내리고 이후부터는 40022까지만 사용
+                value_40023 = None
+                value_40024 = None
+
+                if self.fw_status_supported[box_index] and len(raw_regs) < 24:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : 40023/40024 레지스터가 없는 장비로 판단 → '
+                        f'FW 상태/TFTP/ZERO/RST 기능 비활성화.'
+                    )
+                    self.fw_status_supported[box_index] = False
+                    self.tftp_supported[box_index] = False
+                elif self.fw_status_supported[box_index] and len(raw_regs) >= 24:
+                    value_40023 = raw_regs[22]
+                    value_40024 = raw_regs[23]
+
+                # 공통 레지스터
                 value_40001 = raw_regs[0]
                 value_40005 = raw_regs[4]
                 value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
                 value_40022 = raw_regs[21]
-                value_40023 = raw_regs[22]
-                value_40024 = raw_regs[23]
 
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
@@ -718,9 +749,11 @@ class ModbusUI:
                 if not self.box_states[box_index].get('fw_upgrading', False):
                     self.ui_update_queue.put(('bar', box_index, value_40011))
 
-                self.ui_update_queue.put(
-                    ('fw_status', box_index, value_40022, value_40023, value_40024)
-                )
+                # FW 상태 레지스터를 지원하는 장비에서만 fw_status 업데이트
+                if self.fw_status_supported[box_index] and value_40023 is not None and value_40024 is not None:
+                    self.ui_update_queue.put(
+                        ('fw_status', box_index, value_40022, value_40023, value_40024)
+                    )
 
                 time.sleep(self.communication_interval)
 
@@ -738,6 +771,20 @@ class ModbusUI:
                 break
 
             except ModbusIOException as e:
+                msg = str(e)
+
+                # 40001~40024 읽기에서 에러가 난 경우 → FW 상태/확장 레지스터 미지원으로 판단하고
+                # 이후부터는 40001~40022까지만 읽으면서 통신 계속
+                if self.fw_status_supported[box_index] and '40001~40024' in msg:
+                    self.console.print(
+                        f'[Modbus] box {box_index} ({ip}) : 40023/40024 등 확장 레지스터 미지원으로 판단, '
+                        f'FW/TFTP/ZERO/RST 기능을 비활성화하고 통신은 계속 진행합니다. ({e})'
+                    )
+                    self.fw_status_supported[box_index] = False
+                    self.tftp_supported[box_index] = False
+                    time.sleep(self.communication_interval * 2)
+                    continue
+
                 self.console.print(
                     f'Temporary Modbus I/O error from {ip}: {e}. Will retry...'
                 )
@@ -839,7 +886,9 @@ class ModbusUI:
                 self.check_alarms(box_index)
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
-                self.update_fw_status(box_index, v_40022, v_40023, v_40024)
+                # FW 상태 레지스터 미지원 장비면 그냥 무시
+                if self.fw_status_supported[box_index]:
+                    self.update_fw_status(box_index, v_40022, v_40023, v_40024)
 
         self.schedule_ui_update()
 
@@ -1302,6 +1351,10 @@ class ModbusUI:
         _blink()
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
+        # FW 상태 레지스터 미지원 장비라면 아무 것도 하지 않음
+        if not self.fw_status_supported[box_index]:
+            return
+
         version = v_40022
         error_code = (v_40023 >> 8) & 0xFF
 
@@ -1429,9 +1482,10 @@ class ModbusUI:
                     self.tftp_supported[box_index] = False
 
     def start_firmware_upgrade(self, box_index: int):
+        # 이 박스가 TFTP/FW 기능을 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
             self.console.print(
-                f'[FW] box {box_index} : TFTP 기능 미지원으로 FW 업그레이드 요청을 무시합니다.'
+                f'[FW] box {box_index} : TFTP/FW 기능 미지원으로 FW 업그레이드 요청을 무시합니다.'
             )
             messagebox.showwarning(
                 'FW',
@@ -1560,6 +1614,19 @@ class ModbusUI:
 
     def zero_calibration(self, box_index: int):
         self.console.print(f'[ZERO] button clicked (box_index={box_index})')
+
+        # 이 박스가 ZERO(40092)를 지원하지 않는다고 판단되면 애초에 pass
+        if not self.tftp_supported[box_index]:
+            self.console.print(
+                f'[ZERO] box {box_index} : ZERO 기능(40092) 미지원으로 판단, 명령 전송을 무시합니다.'
+            )
+            messagebox.showwarning(
+                'ZERO',
+                '이 장치는 ZERO 명령(40092)을 지원하지 않는 것으로 판단되어,\n'
+                'ZERO 기능을 수행하지 않습니다.'
+            )
+            return
+
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
@@ -1589,6 +1656,19 @@ class ModbusUI:
 
     def reboot_device(self, box_index: int):
         self.console.print(f'[RST] button clicked (box_index={box_index})')
+
+        # 이 박스가 RST(40093)를 지원하지 않는다고 판단되면 애초에 pass
+        if not self.tftp_supported[box_index]:
+            self.console.print(
+                f'[RST] box {box_index} : 재부팅 기능(40093) 미지원으로 판단, 명령 전송을 무시합니다.'
+            )
+            messagebox.showwarning(
+                'RST',
+                '이 장치는 재부팅 명령(40093)을 지원하지 않는 것으로 판단되어,\n'
+                'RST 기능을 수행하지 않습니다.'
+            )
+            return
+
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
