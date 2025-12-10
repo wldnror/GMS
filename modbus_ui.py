@@ -5,7 +5,20 @@ import shutil
 import threading
 import queue
 import socket
-from tkinter import Frame, Canvas, StringVar, Entry, Button, Tk, Label, filedialog, messagebox, Toplevel
+from tkinter import (
+    Frame,
+    Canvas,
+    StringVar,
+    Entry,
+    Button,
+    Tk,
+    Label,
+    filedialog,
+    messagebox,
+    Toplevel,
+    Text,
+    Scrollbar,
+)
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from pymodbus.pdu import ExceptionResponse
@@ -74,6 +87,8 @@ class ModbusUI:
     LAMP_COLORS_ON = ['red', 'red', 'green', 'yellow']
     LAMP_COLORS_OFF = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
 
+    LOG_MAX_ENTRIES = 1000  # 박스별 최대 로그 라인 수
+
     @staticmethod
     def reg_addr(addr_4xxxx: int) -> int:
         return addr_4xxxx - 40001
@@ -113,6 +128,10 @@ class ModbusUI:
 
         # 세그먼트 팝업 (박스별 1개씩)
         self.segment_popups = [None] * num_boxes
+        # 세그먼트 로그 뷰어 Text 위젯
+        self.segment_popup_texts = [None] * num_boxes
+        # 박스별 로그 (메모리 내 순환 버퍼)
+        self.box_logs = [[] for _ in range(num_boxes)]
 
         self.load_ip_settings(num_boxes)
 
@@ -246,7 +265,7 @@ class ModbusUI:
         # 세그먼트 클릭 영역(대략적인 위치) 지정
         segment_click_area = (sx(15), sy(110), sx(145), sy(170))
 
-        # ▶ 세그먼트 / 박스 캔버스에 직접 클릭 이벤트 바인딩
+        # ▶ 세그먼트 / 박스 캔버스에 직접 클릭 이벤트 바인딩 (로그 팝업)
         def _on_segment_click(event, idx=index):
             # 클릭 위치가 segment 영역 안일 때만 팝업
             x1, y1, x2, y2 = self.box_states[idx]['segment_click_area']
@@ -286,6 +305,11 @@ class ModbusUI:
                 'fw_upgrading': False,   # FW 업그레이드 진행 중인지 여부
                 'alarm_blink_running': False,  # 알람 깜빡이 루프 동작 여부
                 'segment_click_area': segment_click_area,  # 세그먼트 클릭 영역
+                # 로그 비교용 이전 상태
+                'last_log_value': None,
+                'last_log_alarm1': None,
+                'last_log_alarm2': None,
+                'last_log_error_reg': None,
             }
         )
 
@@ -294,16 +318,6 @@ class ModbusUI:
 
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
-
-        # 🔻🔻🔻 기존 FW / ZERO / RST / FW 파일 버튼들 제거 (이제 팝업에서만 조작)
-        # maint_frame = Frame(control_frame, bg='black')
-        # maint_frame.grid(row=1, column=0, columnspan=2, pady=(2, 0))
-        #
-        # fw_button = Button(...)
-        # zero_button = Button(...)
-        # rst_button = Button(...)
-        # fw_file_label / fw_file_button / fw_file_name_label ...
-        # 🔺🔺🔺
 
         disconnection_label = Label(
             control_frame,
@@ -646,6 +660,15 @@ class ModbusUI:
                 self.box_states[box_index]['alarm2_on'] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
 
+                # 🔴 로그 기록 (값 / AL1 / AL2 / 에러 레지스터가 변할 때만)
+                self.maybe_log_event(
+                    box_index,
+                    value_40005,
+                    bit_6_on,
+                    bit_7_on,
+                    value_40007,
+                )
+
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
                     formatted_value = f'{value_40005}'
@@ -699,6 +722,41 @@ class ModbusUI:
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
+    # ─────────────────────────────────────────────────────────
+    # 로그 기록 로직
+    # ─────────────────────────────────────────────────────────
+    def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
+        """
+        값 / AL1 / AL2 / 에러레지스터 중 하나라도 변하면 로그 1줄 추가.
+        박스별 최대 LOG_MAX_ENTRIES까지만 유지.
+        """
+        state = self.box_states[box_index]
+        last_val = state.get('last_log_value')
+        last_a1 = state.get('last_log_alarm1')
+        last_a2 = state.get('last_log_alarm2')
+        last_err = state.get('last_log_error_reg')
+
+        if (
+            value_40005 == last_val
+            and alarm1 == last_a1
+            and alarm2 == last_a2
+            and error_reg == last_err
+        ):
+            return  # 변화 없음
+
+        # 이전 상태 업데이트
+        state['last_log_value'] = value_40005
+        state['last_log_alarm1'] = alarm1
+        state['last_log_alarm2'] = alarm2
+        state['last_log_error_reg'] = error_reg
+
+        ts = time.strftime('%Y-%m-%d %H:%M:%S')
+        entry = (ts, value_40005, alarm1, alarm2, error_reg)
+        logs = self.box_logs[box_index]
+        logs.append(entry)
+        if len(logs) > self.LOG_MAX_ENTRIES:
+            del logs[0]
+
     def start_data_processing_thread(self):
         threading.Thread(target=self.process_data, daemon=True).start()
 
@@ -741,110 +799,136 @@ class ModbusUI:
         self.schedule_ui_update()
 
     # ─────────────────────────────────────────────────────────
-    # 세그먼트 팝업 생성
+    # 세그먼트 로그 팝업 생성
     # ─────────────────────────────────────────────────────────
     def open_segment_popup(self, box_index: int):
-        # 이미 열려 있으면 앞으로 가져오기만
+        # 이미 열려 있으면 앞으로 가져오고, 로그 갱신
         existing = self.segment_popups[box_index]
         if existing is not None and existing.winfo_exists():
             existing.lift()
             existing.focus_set()
+            self.refresh_log_view(box_index)
             return
 
         win = Toplevel(self.parent)
-        win.title(f'Box {box_index + 1} 설정')
+        win.title(f'Box {box_index + 1} 로그 뷰어')
         win.configure(bg='#1e1e1e')
-        win.resizable(False, False)
+        win.resizable(True, True)
 
         self.segment_popups[box_index] = win
 
         def on_close():
             self.segment_popups[box_index] = None
+            self.segment_popup_texts[box_index] = None
             win.destroy()
 
         win.protocol("WM_DELETE_WINDOW", on_close)
 
-        # IP 표시
         Label(
             win,
-            text=f'IP: {self.ip_vars[box_index].get()}',
+            text=f'장치 {box_index + 1} 로그 (IP: {self.ip_vars[box_index].get()})',
             fg='white',
             bg='#1e1e1e',
             font=('Helvetica', 12, 'bold'),
         ).pack(padx=10, pady=(10, 5))
 
-        # 현재 FW 파일명 표시
-        Label(
+        header = Label(
             win,
-            text='현재 FW 파일:',
-            fg='white',
+            text='시간                 값      AL1  AL2  ERR',
+            fg='#aaaaaa',
             bg='#1e1e1e',
-            font=('Helvetica', 10),
-        ).pack(padx=10, pady=(5, 0))
+            font=('Consolas', 10),
+        )
+        header.pack(padx=10, pady=(0, 0), anchor='w')
 
-        Label(
-            win,
-            textvariable=self.box_states[box_index]['fw_file_name_var'],
-            fg='#cccccc',
-            bg='#1e1e1e',
-            font=('Helvetica', 10),
-        ).pack(padx=10, pady=(0, 10))
+        log_frame = Frame(win, bg='#1e1e1e')
+        log_frame.pack(fill='both', expand=True, padx=10, pady=(0, 10))
+
+        scrollbar = Scrollbar(log_frame)
+        scrollbar.pack(side='right', fill='y')
+
+        text = Text(
+            log_frame,
+            bg='#121212',
+            fg='#f0f0f0',
+            insertbackground='white',
+            font=('Consolas', 10),
+            yscrollcommand=scrollbar.set,
+            wrap='none',
+        )
+        text.pack(side='left', fill='both', expand=True)
+        scrollbar.config(command=text.yview)
+
+        self.segment_popup_texts[box_index] = text
 
         # 버튼 영역
         btn_frame = Frame(win, bg='#1e1e1e')
-        btn_frame.pack(padx=10, pady=10)
+        btn_frame.pack(padx=10, pady=(0, 10))
 
-        # FW 파일 선택
+        def clear_log():
+            if messagebox.askyesno('로그 삭제', '이 장치의 로그를 모두 삭제할까요?'):
+                self.box_logs[box_index].clear()
+                self.refresh_log_view(box_index)
+
+        def export_log():
+            logs = self.box_logs[box_index]
+            if not logs:
+                messagebox.showinfo('로그 저장', '저장할 로그가 없습니다.')
+                return
+            path = filedialog.asksaveasfilename(
+                title='로그 파일 저장',
+                defaultextension='.txt',
+                filetypes=[('Text files', '*.txt'), ('All files', '*.*')],
+            )
+            if not path:
+                return
+            try:
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write('시간,값,AL1,AL2,ERR\n')
+                    for ts, val, a1, a2, err_reg in logs:
+                        a1_str = 'ON' if a1 else 'OFF'
+                        a2_str = 'ON' if a2 else 'OFF'
+                        err_str = f'0x{err_reg:04X}'
+                        f.write(f'{ts},{val},{a1_str},{a2_str},{err_str}\n')
+                messagebox.showinfo('로그 저장', '로그 파일이 저장되었습니다.')
+            except Exception as e:
+                messagebox.showerror('로그 저장', f'로그 저장 중 오류가 발생했습니다.\n{e}')
+
         Button(
             btn_frame,
-            text='FW 파일 선택',
-            command=lambda idx=box_index: self.select_fw_file(idx),
-            width=18,
+            text='새로고침',
+            command=lambda idx=box_index: self.refresh_log_view(idx),
+            width=12,
             bg='#555555',
             fg='white',
             relief='raised',
             bd=1,
         ).grid(row=0, column=0, padx=5, pady=5)
 
-        # FW 업그레이드 시작
         Button(
             btn_frame,
-            text='FW 업그레이드 시작',
-            command=lambda idx=box_index: self.start_firmware_upgrade(idx),
-            width=18,
-            bg='#4444aa',
+            text='로그 삭제',
+            command=clear_log,
+            width=12,
+            bg='#aa4444',
             fg='white',
             relief='raised',
             bd=1,
         ).grid(row=0, column=1, padx=5, pady=5)
 
-        # ZERO
         Button(
             btn_frame,
-            text='ZERO',
-            command=lambda idx=box_index: self.zero_calibration(idx),
-            width=18,
-            bg='#444444',
+            text='파일로 저장',
+            command=export_log,
+            width=12,
+            bg='#4444aa',
             fg='white',
             relief='raised',
             bd=1,
-        ).grid(row=1, column=0, padx=5, pady=5)
+        ).grid(row=0, column=2, padx=5, pady=5)
 
-        # RST
         Button(
             btn_frame,
-            text='RST',
-            command=lambda idx=box_index: self.reboot_device(idx),
-            width=18,
-            bg='#aa4444',
-            fg='white',
-            relief='raised',
-            bd=1,
-        ).grid(row=1, column=1, padx=5, pady=5)
-
-        # 닫기 버튼
-        Button(
-            win,
             text='닫기',
             command=on_close,
             width=10,
@@ -852,12 +936,45 @@ class ModbusUI:
             fg='white',
             relief='raised',
             bd=1,
-        ).pack(pady=(0, 10))
+        ).grid(row=0, column=3, padx=5, pady=5)
+
+        # 첫 렌더링
+        self.refresh_log_view(box_index)
+
+        # 일정 주기마다 자동 새로고침
+        def _auto_refresh():
+            if win.winfo_exists() and self.segment_popups[box_index] is win:
+                self.refresh_log_view(box_index)
+                win.after(1000, _auto_refresh)
+
+        win.after(1000, _auto_refresh)
 
         win.transient(self.parent)
         win.grab_set()
         win.focus_set()
-    # ─────────────────────────────────────────────────────────
+
+    def refresh_log_view(self, box_index: int):
+        """
+        로그 팝업 Text 위젯 내용을 현재 box_logs로 갱신.
+        """
+        text = self.segment_popup_texts[box_index]
+        if text is None:
+            return
+
+        logs = self.box_logs[box_index]
+
+        text.config(state='normal')
+        text.delete('1.0', 'end')
+
+        for ts, val, a1, a2, err_reg in logs:
+            a1_str = 'ON ' if a1 else 'OFF'
+            a2_str = 'ON ' if a2 else 'OFF'
+            err_str = f'0x{err_reg:04X}'
+            line = f'{ts}  {val:6d}  {a1_str:>3}  {a2_str:>3}  {err_str}\n'
+            text.insert('end', line)
+
+        text.see('end')
+        text.config(state='disabled')
 
     def handle_disconnection(self, box_index):
         self.disconnection_counts[box_index] += 1
