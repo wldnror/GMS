@@ -139,6 +139,8 @@ class ModbusUI:
         # 박스별 TFTP 지원 여부 (기본값: True, 에러 나면 False로 바꿔서 이후 무시)
         # ─────────────────────────────────────────
         self.tftp_supported = [True] * num_boxes
+        # 박스별로 40088/40089를 한 번이라도 읽어봤는지 여부 (탐색 완료 플래그)
+        self.tftp_probe_done = [False] * num_boxes
 
         self.load_ip_settings(num_boxes)
 
@@ -534,8 +536,8 @@ class ModbusUI:
                 self.console.print(f'Started data thread for {ip}')
 
                 # 장비의 TFTP IP는 약간 딜레이를 두고 백그라운드에서 읽기
-                # ▶ 이 박스가 TFTP 미지원으로 판정된 경우는 아예 시도하지 않음
-                if self.tftp_supported[i]:
+                # ▶ 아직 탐색 안 했거나, 탐색 결과 지원된 장치만 시도
+                if (not self.tftp_probe_done[i]) or self.tftp_supported[i]:
                     threading.Thread(
                         target=self.delayed_load_tftp_ip_from_device,
                         args=(i, 1.0),
@@ -1079,8 +1081,8 @@ class ModbusUI:
                     t.start()
 
                     # 재연결 후에도 TFTP IP는 살짝 딜레이 줘서 읽기
-                    # ▶ 다만 이 장치가 TFTP 미지원으로 판정된 경우는 더 이상 시도하지 않음
-                    if self.tftp_supported[box_index]:
+                    # ▶ 아직 탐색 안 했거나, 탐색 결과 지원된 장치만 시도
+                    if (not self.tftp_probe_done[box_index]) or self.tftp_supported[box_index]:
                         threading.Thread(
                             target=self.delayed_load_tftp_ip_from_device,
                             args=(box_index, 1.0),
@@ -1362,9 +1364,18 @@ class ModbusUI:
             )
 
     def load_tftp_ip_from_device(self, box_index: int):
-        # TFTP가 이미 미지원으로 표시되어 있다면 바로 리턴
+        """
+        40088/40089를 통해 장비에 설정된 TFTP IP를 읽어온다.
+        - 이 함수를 처음 호출하는 순간 tftp_probe_done[box_index] = True 로 표시.
+        - 첫 시도에서 에러가 나거나 레지스터 개수가 부족하면,
+          해당 박스는 TFTP 미지원 장비로 간주하고 tftp_supported[box_index] = False 로 고정.
+        """
+        # 이미 TFTP 미지원으로 표시되어 있다면 바로 리턴
         if not self.tftp_supported[box_index]:
             return
+
+        # 이번 호출을 "탐색 완료"로 간주
+        self.tftp_probe_done[box_index] = True
 
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
@@ -1376,16 +1387,21 @@ class ModbusUI:
         try:
             with lock:
                 rr = client.read_holding_registers(addr_ip1, 2)
+
+            # 예외 응답이거나, 에러이거나, 레지스터가 2개 미만이면 미지원으로 본다.
             if isinstance(rr, ExceptionResponse) or rr.isError():
-                # 장치에서 기능 미지원(Illegal Function / Illegal Data Address) 등의 응답일 수 있음
-                msg = str(rr)
                 self.console.print(f'[FW] read 40088/40089 error: {rr}')
-                # 레지스터 자체를 지원하지 않는 경우로 보고 자동 TFTP 기능 끔
-                if 'Illegal' in msg or 'ILLEGAL' in msg:
-                    self.console.print(
-                        f'[FW] box {box_index} ({ip}) : TFTP 관련 레지스터 미지원으로 판단 → 이후 자동 TFTP IP 읽기 비활성화.'
-                    )
-                    self.tftp_supported[box_index] = False
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) : TFTP 관련 레지스터 미지원으로 판단 → 이후 자동 TFTP IP 읽기 비활성화.'
+                )
+                self.tftp_supported[box_index] = False
+                return
+
+            if not hasattr(rr, "registers") or len(rr.registers) < 2:
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) : TFTP 레지스터 응답 개수 부족 → 미지원으로 간주.'
+                )
+                self.tftp_supported[box_index] = False
                 return
 
             w1, w2 = rr.registers
@@ -1395,23 +1411,17 @@ class ModbusUI:
             d = w2 & 0xFF
             tftp_ip = f'{a}.{b}.{c}.{d}'
             self.tftp_ip_vars[box_index].set(tftp_ip)
+            self.tftp_supported[box_index] = True
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
+
         except Exception as e:
             msg = str(e)
-            # 장치가 응답을 안 하는 정도는 "장비 아직 준비 안 됨"으로 간주
-            if "No response received" in msg:
-                self.console.print(
-                    f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready yet (ignore).'
-                )
-            else:
-                self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
-                # 여기서 "Failed to connect" / "Socket is closed" 같은 연결 오류가 반복된다면,
-                # 이 장치에서는 TFTP 레지스터 접근이 안정적이지 않은 것으로 보고 자동 기능 끔
-                if 'Failed to connect' in msg or 'Socket is closed' in msg:
-                    self.console.print(
-                        f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
-                    )
-                    self.tftp_supported[box_index] = False
+            self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {msg}')
+            # 첫 시도에서의 예외는 전부 "이 장치는 TFTP 미지원"으로 본다.
+            self.console.print(
+                f'[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 중 예외 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
+            )
+            self.tftp_supported[box_index] = False
 
     def start_firmware_upgrade(self, box_index: int):
         # 자동 판정 상 TFTP 미지원이면, FW 업그레이드도 안내 후 바로 리턴
