@@ -793,14 +793,27 @@ class ModbusUI:
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
+
             except ModbusIOException as e:
-                # 실제 통신 I/O 문제
+                # 실제 통신 I/O 문제 (서버가 잠깐 응답 없을 때 등)
                 self.console.print(
                     f'Temporary Modbus I/O error from {ip}: {e}. Will retry...'
                 )
                 time.sleep(self.communication_interval * 2)
                 continue
+
             except Exception as e:
+                msg = str(e)
+
+                # ✅ FW 중에 가끔 나오는 pymodbus decode 에러는 "치명적"으로 보지 말고 재시도
+                if "unpack requires a buffer of 4 bytes" in msg:
+                    self.console.print(
+                        f'[Modbus] transient decode error from {ip}: {e}. Will retry...'
+                    )
+                    time.sleep(self.communication_interval * 2)
+                    continue
+
+                # 그 외 진짜 이상한 에러만 끊고 재연결
                 self.console.print(f'Unexpected error reading data from {ip}: {e}')
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
