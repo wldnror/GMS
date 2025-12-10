@@ -126,7 +126,7 @@ class ModbusUI:
         # FW 상태 로그 중복 방지용
         self.last_fw_status = [None] * num_boxes
 
-        # 설정 팝업 (FW / ZERO / RST / TFTP) - PWR/AL1/AL2/FUT에서 열리는 팝업
+        # 설정 팝업 (FW / ZERO / RST / TFTP) - 램프에서 열리는 팝업
         self.settings_popups = [None] * num_boxes
 
         # 세그먼트 로그 뷰어 팝업
@@ -152,8 +152,6 @@ class ModbusUI:
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
-        # root bind는 사용 안 함 (세그먼트에 직접 bind)
-        # self.parent.bind('<Button-1>', self.check_click)
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
@@ -261,24 +259,19 @@ class ModbusUI:
         box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill='black', outline='grey', tags='border')
 
-        # 7-seg 생성 (common.create_segment_display에서 내부 segment_canvas를 만들 가능성 있음)
+        # 7-Segment 표시 생성
         create_segment_display(box_canvas)
 
-        # 세그먼트 클릭 영역(대략적인 위치) 지정
-        segment_click_area = (sx(15), sy(110), sx(145), sy(170))
-
-        # ▶ 세그먼트 / 박스 캔버스에 직접 클릭 이벤트 바인딩 (로그 뷰어 열기)
-        def _on_segment_click(event, idx=index):
-            x1, y1, x2, y2 = self.box_states[idx]['segment_click_area']
-            if x1 <= event.x <= x2 and y1 <= event.y <= y2:
-                self.open_segment_popup(idx)  # 로그 뷰어
-
-        # box_canvas에 바인딩
-        box_canvas.bind('<Button-1>', _on_segment_click)
-
-        # create_segment_display 내부에서 box_canvas.segment_canvas를 썼다면, 거기도 바인딩
-        if hasattr(box_canvas, 'segment_canvas'):
-            box_canvas.segment_canvas.bind('<Button-1>', _on_segment_click)
+        # 🔹 세그먼트(검은 숫자창) 클릭 영역을 투명 Rect 로 따로 만든다
+        #    필요하면 여기 좌표만 미세조정해서 실제 위치랑 맞추면 됨
+        seg_x1, seg_y1 = sx(10), sy(25)
+        seg_x2, seg_y2 = sx(150 - 10), sy(90)
+        box_canvas.create_rectangle(
+            seg_x1, seg_y1, seg_x2, seg_y2,
+            outline='',
+            fill='',
+            tags='segment_click_area'
+        )
 
         gas_key = self.gas_types.get(f'modbus_box_{index}', 'ORG')
         gas_type_var = StringVar(value=gas_key)
@@ -305,7 +298,7 @@ class ModbusUI:
                 'fw_file_name_var': fw_name_var,
                 'fw_upgrading': False,   # FW 업그레이드 진행 중인지 여부
                 'alarm_blink_running': False,  # 알람 깜빡이 루프 동작 여부
-                'segment_click_area': segment_click_area,  # 세그먼트 클릭 영역
+                'segment_click_area': (seg_x1, seg_y1, seg_x2, seg_y2),
                 # 로그 비교용 이전 상태
                 'last_log_value': None,
                 'last_log_alarm1': None,
@@ -314,13 +307,18 @@ class ModbusUI:
             }
         )
 
+        # 🔹 세그먼트 클릭 → 로그 팝업
+        def _on_segment_click(event, idx=index):
+            self.open_segment_popup(idx)
+
+        box_canvas.tag_bind('segment_click_area', '<Button-1>', _on_segment_click)
+
         control_frame = Frame(box_canvas, bg='black')
         control_frame.place(x=sx(10), y=sy(210))
 
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        # 여기서부터는 기존 UI 그대로 유지
         disconnection_label = Label(
             control_frame,
             text=f'DC: {self.disconnection_counts[index]}',
@@ -377,7 +375,7 @@ class ModbusUI:
             anchor='n',
         )
 
-        # 🔴 램프(원) 클릭 시: 기존 설정 팝업 (FW / ZERO / RST / TFTP) 열기
+        # 램프 클릭 → 설정 팝업(기존 기능 유지)
         def _on_lamp_click(event, idx=index):
             self.open_settings_popup(idx)
 
@@ -733,9 +731,7 @@ class ModbusUI:
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
-    # ─────────────────────────────────────────────────────────
     # 로그 기록 로직
-    # ─────────────────────────────────────────────────────────
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
         """
         숫자 값 / AL1 / AL2 / 에러레지스터 중 하나라도 변하면 로그 1줄 추가.
@@ -808,9 +804,7 @@ class ModbusUI:
 
         self.schedule_ui_update()
 
-    # ─────────────────────────────────────────────────────────
     # 세그먼트 클릭 → 로그 뷰어 팝업
-    # ─────────────────────────────────────────────────────────
     def open_segment_popup(self, box_index: int):
         # 이미 열려 있으면 앞으로 가져오고, 로그 갱신
         existing = self.log_popups[box_index]
@@ -1158,14 +1152,13 @@ class ModbusUI:
 
         toggle_color()
 
-    # 수정된 check_alarms: 상태만 세팅하고, 새로 알람이 켜질 때만 blink_alarms 시작
+    # 알람 처리
     def check_alarms(self, box_index):
         state = self.box_states[box_index]
 
         alarm1 = state['alarm1_on']
         alarm2 = state['alarm2_on']
 
-        # 이전에 깜빡이던 상태 기록
         prev_active = (
             state['alarm1_blinking']
             or state['alarm2_blinking']
@@ -1173,7 +1166,6 @@ class ModbusUI:
         )
 
         if alarm2:
-            # AL2 우선
             state['alarm1_blinking'] = False
             state['alarm2_blinking'] = True
             state['alarm_border_blink'] = True
@@ -1184,7 +1176,6 @@ class ModbusUI:
             state['alarm_border_blink'] = True
 
         else:
-            # 알람 없음 → 깜빡이 정지 + 램프/테두리 리셋
             state['alarm1_blinking'] = False
             state['alarm2_blinking'] = False
             state['alarm_border_blink'] = False
@@ -1198,8 +1189,6 @@ class ModbusUI:
             state['border_blink_state'] = False
             return
 
-        # 여기까지 왔다는 건 알람이 1개 이상 ON
-        # 방금 전에 알람이 없었다가, 이번에 새로 알람이 들어온 경우에만 깜빡이 루프 시작
         if not prev_active and not state['alarm_blink_running']:
             self.blink_alarms(box_index)
 
@@ -1221,11 +1210,9 @@ class ModbusUI:
         else:
             box_canvas.itemconfig(circle_items[1], fill='#fdc8c8', outline='#fdc8c8')
 
-    # 수정된 blink_alarms: 자기 내부에서만 1초마다 깜빡이고, 중복 루프 방지
     def blink_alarms(self, box_index):
         state = self.box_states[box_index]
 
-        # 이미 깜빡이 루프가 돌고 있으면 또 시작하지 않음
         if state.get('alarm_blink_running'):
             return
         state['alarm_blink_running'] = True
@@ -1233,7 +1220,6 @@ class ModbusUI:
         def _blink():
             st = self.box_states[box_index]
 
-            # 더 이상 깜빡일 필요가 없으면 루프 종료
             if not (
                 st['alarm1_blinking']
                 or st['alarm2_blinking']
@@ -1246,13 +1232,11 @@ class ModbusUI:
             border_state = st['border_blink_state']
             st['border_blink_state'] = not border_state
 
-            # 테두리 깜빡임
             if st['alarm_border_blink']:
                 box_canvas.config(
                     highlightbackground='#000000' if border_state else '#ff0000'
                 )
 
-            # AL1 램프 깜빡임
             if st['alarm1_blinking']:
                 fill_now = box_canvas.itemcget(circle_items[0], 'fill')
                 box_canvas.itemconfig(
@@ -1261,7 +1245,6 @@ class ModbusUI:
                     outline='#fdc8c8' if fill_now == 'red' else 'red',
                 )
 
-            # AL2 램프 깜빡임
             if st['alarm2_blinking']:
                 fill_now = box_canvas.itemcget(circle_items[1], 'fill')
                 box_canvas.itemconfig(
@@ -1270,10 +1253,8 @@ class ModbusUI:
                     outline='#fdc8c8' if fill_now == 'red' else 'red',
                 )
 
-            # 여기서만 1초 간격으로 다음 토글 예약
             self.parent.after(self.alarm_blink_interval, _blink)
 
-        # 첫 번째 토글 호출
         _blink()
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
@@ -1282,7 +1263,6 @@ class ModbusUI:
         progress = v_40024 & 0xFF
         remain = (v_40024 >> 8) & 0xFF
 
-        # 상태가 이전과 완전히 같으면 로그 생략
         current = (version, error_code, progress, remain, v_40023)
         prev = self.last_fw_status[box_index]
         if prev == current:
@@ -1314,38 +1294,28 @@ class ModbusUI:
             msg += ' [' + ', '.join(states) + ']'
         self.console.print(msg)
 
-        # FW 진행 상황을 UI에 반영
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
-            # 0~100% 를 "  0", " 15", "100" 이런 식으로 4자리 맞춰서 표시
-            disp = f"{progress:3d} "  # 예: '  0 ', ' 15 ', '100 '
+            disp = f"{progress:3d} "
             self.ui_update_queue.put(
                 ('segment_display', box_index, disp, False)
             )
-            # 바도 FW 진행률로 사용
             self.ui_update_queue.put(
                 ('bar', box_index, progress)
             )
         else:
-            # 업그레이드 끝
             self.box_states[box_index]['fw_upgrading'] = False
             if upgrade_ok:
-                # 성공 시
                 self.ui_update_queue.put(
                     ('segment_display', box_index, ' End', False)
                 )
             elif upgrade_fail or rollback_fail:
-                # 실패 시
                 self.ui_update_queue.put(
                     ('segment_display', box_index, 'Err ', True)
                 )
 
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
-        """
-        연결/재연결 직후 바로 말고, 약간 기다렸다가 TFTP IP를 읽어오는 함수.
-        장비가 준비되기 전에 읽어서 에러 나는 걸 줄여줌.
-        """
         time.sleep(delay)
         try:
             self.load_tftp_ip_from_device(box_index)
@@ -1355,10 +1325,6 @@ class ModbusUI:
             )
 
     def load_tftp_ip_from_device(self, box_index: int):
-        """
-        장비에 설정된 TFTP IP(40088/40089)를 읽어서
-        화면에는 안 보여주지만 내부 변수(self.tftp_ip_vars)에만 반영.
-        """
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
@@ -1389,7 +1355,6 @@ class ModbusUI:
             else:
                 self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
 
-    # FW 버튼 → 스레드에서 실제 작업 수행 (UI 멈춤 방지)
     def start_firmware_upgrade(self, box_index: int):
         threading.Thread(
             target=self._do_firmware_upgrade,
@@ -1535,7 +1500,7 @@ class ModbusUI:
             self.console.print(f'[ZERO] Error on zero calibration for {ip}: {e}')
             messagebox.showerror('ZERO', f'ZERO 중 오류가 발생했습니다.\n{e}')
 
-    # ★ 수정된 RST 처리: 장비 리셋으로 응답이 끊긴 경우를 정상으로 간주
+    # RST
     def reboot_device(self, box_index: int):
         self.console.print(f'[RST] button clicked (box_index={box_index})')
         ip = self.ip_vars[box_index].get()
@@ -1549,7 +1514,6 @@ class ModbusUI:
 
         addr = self.reg_addr(40093)
 
-        # 공통으로 사용할 “응답 없음 = 장비 리셋 중” 처리용 함수
         def _treat_as_ok(msg: str):
             self.console.print(
                 f'[RST] no/invalid response after write (device is rebooting): {msg}'
@@ -1564,37 +1528,29 @@ class ModbusUI:
             with lock:
                 r = client.write_register(addr, 1)
 
-            # pymodbus 응답 객체에 대해 isError() 검사
             if isinstance(r, ExceptionResponse) or getattr(r, "isError", lambda: False)():
                 msg = str(r)
-                # 응답이 아예 없어서 나는 에러는 “성공 후 리셋”으로 간주
                 if "No response received" in msg or "Invalid Message" in msg:
                     _treat_as_ok(msg)
                     return
 
-                # 그 외는 진짜 에러로 처리
                 self.console.print(f'[RST] write 40093=1 error: {msg}')
                 messagebox.showerror('RST', f'RST 명령 전송 실패.\n{msg}')
                 return
 
-            # 정상 응답
             self.console.print('[RST] write 40093 = 1 OK')
             messagebox.showinfo('RST', '재부팅 명령을 전송했습니다.')
 
         except Exception as e:
             msg = str(e)
-            # 예외가 났어도 “응답 없음/0바이트” 계열이면 장비가 리셋된 것으로 보고 성공 처리
             if "No response received" in msg or "Invalid Message" in msg:
                 _treat_as_ok(msg)
             else:
                 self.console.print(f'[RST] Error on reboot for {ip}: {e}')
                 messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
 
-    # ─────────────────────────────────────────────────────────
-    # 기존 세그먼트 팝업 → 설정 팝업 (FW / ZERO / RST / TFTP)
-    # ─────────────────────────────────────────────────────────
+    # 램프 설정 팝업 (기존 기능)
     def open_settings_popup(self, box_index: int):
-        # 이미 열려 있으면 앞으로 가져오기만
         existing = self.settings_popups[box_index]
         if existing is not None and existing.winfo_exists():
             existing.lift()
@@ -1614,7 +1570,6 @@ class ModbusUI:
 
         win.protocol("WM_DELETE_WINDOW", on_close)
 
-        # IP 표시
         Label(
             win,
             text=f'IP: {self.ip_vars[box_index].get()}',
@@ -1623,7 +1578,6 @@ class ModbusUI:
             font=('Helvetica', 12, 'bold'),
         ).pack(padx=10, pady=(10, 5))
 
-        # 현재 FW 파일명 표시
         Label(
             win,
             text='현재 FW 파일:',
@@ -1640,11 +1594,9 @@ class ModbusUI:
             font=('Helvetica', 10),
         ).pack(padx=10, pady=(0, 10))
 
-        # 버튼 영역
         btn_frame = Frame(win, bg='#1e1e1e')
         btn_frame.pack(padx=10, pady=10)
 
-        # FW 파일 선택
         Button(
             btn_frame,
             text='FW 파일 선택',
@@ -1656,7 +1608,6 @@ class ModbusUI:
             bd=1,
         ).grid(row=0, column=0, padx=5, pady=5)
 
-        # FW 업그레이드 시작
         Button(
             btn_frame,
             text='FW 업그레이드 시작',
@@ -1668,7 +1619,6 @@ class ModbusUI:
             bd=1,
         ).grid(row=0, column=1, padx=5, pady=5)
 
-        # ZERO
         Button(
             btn_frame,
             text='ZERO',
@@ -1680,7 +1630,6 @@ class ModbusUI:
             bd=1,
         ).grid(row=1, column=0, padx=5, pady=5)
 
-        # RST
         Button(
             btn_frame,
             text='RST',
@@ -1692,7 +1641,6 @@ class ModbusUI:
             bd=1,
         ).grid(row=1, column=1, padx=5, pady=5)
 
-        # 닫기 버튼
         Button(
             win,
             text='닫기',
