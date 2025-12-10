@@ -242,7 +242,13 @@ class ModbusUI:
         entry.focus_set()
 
     def create_modbus_box(self, index):
-        box_frame = Frame(self.parent, highlightthickness=7)
+        # 🔴 알람 테두리용: box_frame의 highlight를 사용
+        box_frame = Frame(
+            self.parent,
+            highlightthickness=1,
+            highlightbackground='#000000',
+            highlightcolor='#000000',
+        )
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
@@ -310,7 +316,7 @@ class ModbusUI:
         def _on_segment_click(event, idx=index):
             self.open_segment_popup(idx)
 
-        # 1) 같은 캔버스의 투명 영역 (백업용)
+        # 1) 같은 캔버스의 투명 영역
         box_canvas.tag_bind('segment_click_area', '<Button-1>', _on_segment_click)
         # 2) create_segment_display에서 만든 segment_canvas가 위에 떠 있으면, 거기에 직접 바인딩
         if hasattr(box_canvas, 'segment_canvas'):
@@ -603,7 +609,7 @@ class ModbusUI:
             borderwidth=0,
         )
         self.entries[i].config(state='normal')
-        self.box_frames[i].config(highlightthickness=1)
+        self.box_frames[i].config(highlightthickness=1, highlightbackground='#000000')
         if manual:
             box_canvas = self.box_data[i][0]
             gms1000_id = self.box_states[i]['gms1000_text_id']
@@ -1005,7 +1011,10 @@ class ModbusUI:
         )
         self.parent.after(
             0,
-            lambda idx=box_index: self.box_frames[idx].config(highlightthickness=1),
+            lambda idx=box_index: self.box_frames[idx].config(
+                highlightthickness=1,
+                highlightbackground='#000000',
+            ),
         )
         self.parent.after(0, lambda idx=box_index: self.reset_ui_elements(idx))
 
@@ -1187,10 +1196,17 @@ class ModbusUI:
             self.set_alarm_lamp(
                 box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False
             )
-            box_canvas = self.box_data[box_index][0]
-            box_canvas.config(highlightbackground='#000000')
+            # 🔴 알람 해제 시: 프레임 테두리 초기화
+            box_frame = self.box_frames[box_index]
+            box_frame.config(
+                highlightbackground='#000000',
+                highlightthickness=1,
+            )
             state['border_blink_state'] = False
             return
+
+        # 🔴 알람이 하나라도 켜져 있으면 프레임 테두리를 두껍게 (깜빡임용)
+        self.box_frames[box_index].config(highlightthickness=7)
 
         if not prev_active and not state['alarm_blink_running']:
             self.blink_alarms(box_index)
@@ -1232,11 +1248,14 @@ class ModbusUI:
                 return
 
             box_canvas, circle_items, *_ = self.box_data[box_index]
+            box_frame = self.box_frames[box_index]
+
             border_state = st['border_blink_state']
             st['border_blink_state'] = not border_state
 
+            # 🔴 프레임 테두리 깜빡임
             if st['alarm_border_blink']:
-                box_canvas.config(
+                box_frame.config(
                     highlightbackground='#000000' if border_state else '#ff0000'
                 )
 
