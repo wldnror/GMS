@@ -1,3 +1,10 @@
+아래 코드에서 TFTP SW 업데이트 진행하고 재부팅하면 재 연결되잖아?
+
+재연결된상태에서 업데이트 다시 진행하려고 하니깐
+
+이 장치는 지원되지 않는 장치로 판단된다고 뜨네
+물론 수동으로 모드버스 TCP 연결 끊고 다시 연결하면 업데이트 되는데
+
 import json
 import os
 import time
@@ -396,14 +403,14 @@ class ModbusUI:
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
 
-        # ▼ FW 버전 라벨
+        # ▼ FW 버전 라벨 (세그먼트 영역 윗쪽 오른쪽 끝 근처에 작게 표시)
         version_text_id = box_canvas.create_text(
-            sx(140),
-            sy(12),
-            text='',
+            sx(140),               # 오른쪽 끝 근처
+            sy(12),                # 상단 살짝 아래
+            text='',               # 처음에는 빈 문자열
             font=('Helvetica', int(8 * SCALE_FACTOR), 'bold'),
             fill='#cccccc',
-            anchor='ne',
+            anchor='ne',           # 오른쪽 위 기준 정렬
         )
         self.box_states[index]['version_text_id'] = version_text_id
 
@@ -479,8 +486,10 @@ class ModbusUI:
         leading_zero = True
         for idx, digit in enumerate(value):
             if digit == ' ':
+                # 공백은 그냥 비우고 leading_zero 유지
                 segments = SEGMENTS[' ']
             elif leading_zero and digit == '0' and idx < 3:
+                # 앞자리 0 숨기기
                 segments = SEGMENTS[' ']
             else:
                 segments = SEGMENTS.get(digit, SEGMENTS[' '])
@@ -700,6 +709,8 @@ class ModbusUI:
                     )
 
                 # FW 상태 레지스터 미지원 장비 자동 감지:
+                #  - 24개 요청했는데 22개만 주거나, I/O 에러에서 40001~40024 언급되면
+                #    fw_status_supported / tftp_supported 를 False로 내리고 이후부터는 40022까지만 사용
                 value_40023 = None
                 value_40024 = None
 
@@ -786,7 +797,8 @@ class ModbusUI:
                     self.console.print(
                         f'[FW] box {box_index} disconnected during upgrade (expected).'
                     )
-                    # 업그레이드 도중 장비 리부트로 끊긴 경우
+                    # ★ 업그레이드 도중 장비 리부트로 끊긴 경우:
+                    #    재연결 후 정상 데이터 갱신을 위해 fw_upgrading/UI 상태를 초기화
                     self.box_states[box_index]['fw_upgrading'] = False
                     self.last_fw_status[box_index] = None
                     self.ui_update_queue.put(('bar', box_index, 0))
@@ -800,7 +812,8 @@ class ModbusUI:
             except ModbusIOException as e:
                 msg = str(e)
 
-                # 40001~40024 읽기에서 에러가 난 경우 → FW 상태/확장 레지스터 미지원으로 판단
+                # 40001~40024 읽기에서 에러가 난 경우 → FW 상태/확장 레지스터 미지원으로 판단하고
+                # 이후부터는 40001~40022까지만 읽으면서 통신 계속
                 if self.fw_status_supported[box_index] and '40001~40024' in msg:
                     self.console.print(
                         f'[Modbus] box {box_index} ({ip}) : 40023/40024 등 확장 레지스터 미지원으로 판단, '
@@ -834,6 +847,7 @@ class ModbusUI:
                         self.console.print(
                             f'[FW] box {box_index} disconnected during upgrade (expected).'
                         )
+                        # ★ 여기서도 동일하게 fw_upgrading/UI 초기화
                         self.box_states[box_index]['fw_upgrading'] = False
                         self.last_fw_status[box_index] = None
                         self.ui_update_queue.put(('bar', box_index, 0))
@@ -1181,15 +1195,6 @@ class ModbusUI:
                     if ip not in self.modbus_locks:
                         self.modbus_locks[ip] = threading.Lock()
 
-                    # ★ 자동 재연결도 새 연결로 보고 TFTP/FW 지원 여부를 다시 검출하도록 초기화
-                    self.tftp_supported[box_index] = True
-                    self.fw_status_supported[box_index] = True
-                    self.last_fw_status[box_index] = None
-                    self.box_states[box_index]['fw_upgrading'] = False
-                    self.console.print(
-                        f'[FW] box {box_index} ({ip}) : reconnect 후 TFTP/FW 지원 여부를 재검사하도록 초기화했습니다.'
-                    )
-
                     stop_flag.clear()
                     t = threading.Thread(
                         target=self.read_modbus_data,
@@ -1231,6 +1236,11 @@ class ModbusUI:
                             text='Reconnect: OK'
                         ),
                     )
+
+                    # ★ 재연결이 성공하면 FW 업그레이드 상태/캐시도 초기화
+                    self.box_states[box_index]['fw_upgrading'] = False
+                    self.last_fw_status[box_index] = None
+
                     break
 
                 new_client.close()
@@ -1440,6 +1450,7 @@ class ModbusUI:
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
+            # 4자리 오른쪽 정렬로 진행률 표시 (0~100)
             disp = f"{progress:4d}"
             self.ui_update_queue.put(
                 ('segment_display', box_index, disp, False)
