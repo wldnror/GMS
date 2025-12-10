@@ -256,7 +256,7 @@ class ModbusUI:
             inner_frame,
             width=sx(150),
             height=sy(300),
-            highlightthickness=sx(1),
+            highlightthickness=sx(1.5),
             highlightbackground='#000000',
             highlightcolor='#000000',
             bg='#1e1e1e',
