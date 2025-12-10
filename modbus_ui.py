@@ -795,7 +795,13 @@ class ModbusUI:
 
             except ConnectionException as e:
                 self.console.print(f'Connection to {ip} lost: {e}')
-                self.handle_disconnection(box_index)
+                # FW 업그레이드 중이면 UI 초기화는 하지 않고, 그냥 재연결만 시도
+                if not self.box_states[box_index].get('fw_upgrading', False):
+                    self.handle_disconnection(box_index)
+                else:
+                    self.console.print(
+                        f'[FW] box {box_index} disconnected during upgrade (expected).'
+                    )
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
@@ -809,7 +815,12 @@ class ModbusUI:
 
             except Exception as e:
                 self.console.print(f'Unexpected error reading data from {ip}: {e}')
-                self.handle_disconnection(box_index)
+                if not self.box_states[box_index].get('fw_upgrading', False):
+                    self.handle_disconnection(box_index)
+                else:
+                    self.console.print(
+                        f'[FW] box {box_index} unexpected error during upgrade; will reconnect.'
+                    )
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
@@ -1069,6 +1080,8 @@ class ModbusUI:
         text.config(state='disabled')
 
     def handle_disconnection(self, box_index):
+        upgrading = self.box_states[box_index].get('fw_upgrading', False)
+
         self.disconnection_counts[box_index] += 1
         count = self.disconnection_counts[box_index]
         self.parent.after(
@@ -1078,7 +1091,27 @@ class ModbusUI:
             ),
         )
 
-        # 🔴 FW 상태 초기화 (중요)
+        # ★ 변경점: FW 업그레이드 중일 때는 UI / 세그먼트 / 바를 리셋하지 않음
+        if upgrading:
+            self.console.print(
+                f'[FW] box {box_index} disconnected during upgrade – keep current FW display.'
+            )
+            # 버튼/엔트리는 "끊김" 상태처럼 보이게는 할 수 있지만
+            # 세그먼트/바/알람 램프는 건드리지 않는다.
+            self.parent.after(
+                0,
+                lambda idx=box_index: self.action_buttons[idx].config(
+                    image=self.connect_image,
+                    relief='flat',
+                    borderwidth=0,
+                ),
+            )
+            self.parent.after(
+                0, lambda idx=box_index: self.entries[idx].config(state='normal')
+            )
+            return
+
+        # 🔴 FW 상태 초기화 (중요) – 업그레이드 중이 아닐 때만
         self.box_states[box_index]['fw_upgrading'] = False
         self.last_fw_status[box_index] = None
 
@@ -1604,6 +1637,14 @@ class ModbusUI:
             self.box_states[box_index]['fw_upgrading'] = True
             self.console.print(f'[FW] box {box_index} : local fw_upgrading = True')
 
+            # ★ 변경점: 버튼 누르자마자 세그먼트/바에 0% 상태를 먼저 표시
+            self.ui_update_queue.put(
+                ('segment_display', box_index, '  0 ', False)
+            )
+            self.ui_update_queue.put(
+                ('bar', box_index, 0)
+            )
+
             self.console.print(
                 f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
                 f"TFTP IP='{tftp_ip_str}', file={dst_path}"
@@ -1613,7 +1654,7 @@ class ModbusUI:
                 lambda: messagebox.showinfo(
                     'FW',
                     'FW 업그레이드 명령을 전송했습니다.\n'
-                    '※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
+                    '장비가 업그레이드 모드로 들어가는 동안 잠시 통신이 끊어질 수 있습니다.',
                 ),
             )
         except Exception as e:
