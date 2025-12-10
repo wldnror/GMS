@@ -126,11 +126,13 @@ class ModbusUI:
         # FW 상태 로그 중복 방지용
         self.last_fw_status = [None] * num_boxes
 
-        # 세그먼트 팝업 (박스별 1개씩)
-        self.segment_popups = [None] * num_boxes
-        # 세그먼트 로그 뷰어 Text 위젯
-        self.segment_popup_texts = [None] * num_boxes
-        # 박스별 로그 (메모리 내 순환 버퍼)
+        # 설정 팝업 (FW / ZERO / RST / TFTP) - PWR/AL1/AL2/FUT에서 열리는 팝업
+        self.settings_popups = [None] * num_boxes
+
+        # 세그먼트 로그 뷰어 팝업
+        self.log_popups = [None] * num_boxes
+        self.log_popup_texts = [None] * num_boxes
+        # 박스별 로그 버퍼
         self.box_logs = [[] for _ in range(num_boxes)]
 
         self.load_ip_settings(num_boxes)
@@ -150,7 +152,7 @@ class ModbusUI:
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
-        # ⛔ root 전체 클릭 bind 제거 (세그먼트 캔버스에 직접 bind 하므로 불필요)
+        # root bind는 사용 안 함 (세그먼트에 직접 bind)
         # self.parent.bind('<Button-1>', self.check_click)
 
     def load_ip_settings(self, num_boxes):
@@ -265,14 +267,13 @@ class ModbusUI:
         # 세그먼트 클릭 영역(대략적인 위치) 지정
         segment_click_area = (sx(15), sy(110), sx(145), sy(170))
 
-        # ▶ 세그먼트 / 박스 캔버스에 직접 클릭 이벤트 바인딩 (로그 팝업)
+        # ▶ 세그먼트 / 박스 캔버스에 직접 클릭 이벤트 바인딩 (로그 뷰어 열기)
         def _on_segment_click(event, idx=index):
-            # 클릭 위치가 segment 영역 안일 때만 팝업
             x1, y1, x2, y2 = self.box_states[idx]['segment_click_area']
             if x1 <= event.x <= x2 and y1 <= event.y <= y2:
-                self.open_segment_popup(idx)
+                self.open_segment_popup(idx)  # 로그 뷰어
 
-        # 박스 캔버스에 바인딩
+        # box_canvas에 바인딩
         box_canvas.bind('<Button-1>', _on_segment_click)
 
         # create_segment_display 내부에서 box_canvas.segment_canvas를 썼다면, 거기도 바인딩
@@ -319,6 +320,7 @@ class ModbusUI:
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
+        # 여기서부터는 기존 UI 그대로 유지
         disconnection_label = Label(
             control_frame,
             text=f'DC: {self.disconnection_counts[index]}',
@@ -350,7 +352,7 @@ class ModbusUI:
             fill='#cccccc',
             anchor='e',
         )
-        circle_al2 = box_canvas.create_oval(sx(133) - sx(30), sy(200) - sy(32), sx(123) - sy(30), sy(190) - sy(32))
+        circle_al2 = box_canvas.create_oval(sx(133) - sy(30), sy(200) - sy(32), sx(123) - sy(30), sy(190) - sy(32))
         box_canvas.create_text(
             sx(140) - sy(35),
             sy(222) - sy(40),
@@ -366,14 +368,23 @@ class ModbusUI:
             fill='#cccccc',
             anchor='center',
         )
-        circle_fut = box_canvas.create_oval(sx(171) - sx(40), sy(200) - sy(32), sx(181) - sy(40), sy(190) - sy(32))
+        circle_fut = box_canvas.create_oval(sx(171) - sy(40), sy(200) - sy(32), sx(181) - sy(40), sy(190) - sy(32))
         box_canvas.create_text(
-            sx(175) - sx(40),
+            sx(175) - sy(40),
             sy(217) - sy(40),
             text='FUT',
             fill='#cccccc',
             anchor='n',
         )
+
+        # 🔴 램프(원) 클릭 시: 기존 설정 팝업 (FW / ZERO / RST / TFTP) 열기
+        def _on_lamp_click(event, idx=index):
+            self.open_settings_popup(idx)
+
+        box_canvas.tag_bind(circle_pwr, "<Button-1>", _on_lamp_click)
+        box_canvas.tag_bind(circle_al1, "<Button-1>", _on_lamp_click)
+        box_canvas.tag_bind(circle_al2, "<Button-1>", _on_lamp_click)
+        box_canvas.tag_bind(circle_fut, "<Button-1>", _on_lamp_click)
 
         gas_pos = self.GAS_TYPE_POSITIONS[gas_type_var.get()]
         gas_type_text_id = box_canvas.create_text(
@@ -647,7 +658,7 @@ class ModbusUI:
                 raw_regs = response.registers
                 value_40001 = raw_regs[0]
                 value_40005 = raw_regs[4]
-                # ✅ 에러코드 레지스터: 40008 → raw_regs[7]
+                # 에러코드/에러 비트 레지스터: 40008 → raw_regs[7]
                 value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
                 value_40022 = raw_regs[21]
@@ -660,7 +671,7 @@ class ModbusUI:
                 self.box_states[box_index]['alarm2_on'] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
 
-                # 🔴 로그 기록 (값 / AL1 / AL2 / 에러 레지스터가 변할 때만)
+                # 값 / AL1 / AL2 / 에러레지스터 변화만 로그로 기록
                 self.maybe_log_event(
                     box_index,
                     value_40005,
@@ -727,7 +738,7 @@ class ModbusUI:
     # ─────────────────────────────────────────────────────────
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
         """
-        값 / AL1 / AL2 / 에러레지스터 중 하나라도 변하면 로그 1줄 추가.
+        숫자 값 / AL1 / AL2 / 에러레지스터 중 하나라도 변하면 로그 1줄 추가.
         박스별 최대 LOG_MAX_ENTRIES까지만 유지.
         """
         state = self.box_states[box_index]
@@ -744,7 +755,6 @@ class ModbusUI:
         ):
             return  # 변화 없음
 
-        # 이전 상태 업데이트
         state['last_log_value'] = value_40005
         state['last_log_alarm1'] = alarm1
         state['last_log_alarm2'] = alarm2
@@ -799,11 +809,11 @@ class ModbusUI:
         self.schedule_ui_update()
 
     # ─────────────────────────────────────────────────────────
-    # 세그먼트 로그 팝업 생성
+    # 세그먼트 클릭 → 로그 뷰어 팝업
     # ─────────────────────────────────────────────────────────
     def open_segment_popup(self, box_index: int):
         # 이미 열려 있으면 앞으로 가져오고, 로그 갱신
-        existing = self.segment_popups[box_index]
+        existing = self.log_popups[box_index]
         if existing is not None and existing.winfo_exists():
             existing.lift()
             existing.focus_set()
@@ -815,11 +825,11 @@ class ModbusUI:
         win.configure(bg='#1e1e1e')
         win.resizable(True, True)
 
-        self.segment_popups[box_index] = win
+        self.log_popups[box_index] = win
 
         def on_close():
-            self.segment_popups[box_index] = None
-            self.segment_popup_texts[box_index] = None
+            self.log_popups[box_index] = None
+            self.log_popup_texts[box_index] = None
             win.destroy()
 
         win.protocol("WM_DELETE_WINDOW", on_close)
@@ -859,9 +869,9 @@ class ModbusUI:
         text.pack(side='left', fill='both', expand=True)
         scrollbar.config(command=text.yview)
 
-        self.segment_popup_texts[box_index] = text
+        self.log_popup_texts[box_index] = text
 
-        # 버튼 영역
+        # 버튼들
         btn_frame = Frame(win, bg='#1e1e1e')
         btn_frame.pack(padx=10, pady=(0, 10))
 
@@ -941,9 +951,9 @@ class ModbusUI:
         # 첫 렌더링
         self.refresh_log_view(box_index)
 
-        # 일정 주기마다 자동 새로고침
+        # 자동 새로고침 (1초)
         def _auto_refresh():
-            if win.winfo_exists() and self.segment_popups[box_index] is win:
+            if win.winfo_exists() and self.log_popups[box_index] is win:
                 self.refresh_log_view(box_index)
                 win.after(1000, _auto_refresh)
 
@@ -954,15 +964,11 @@ class ModbusUI:
         win.focus_set()
 
     def refresh_log_view(self, box_index: int):
-        """
-        로그 팝업 Text 위젯 내용을 현재 box_logs로 갱신.
-        """
-        text = self.segment_popup_texts[box_index]
+        text = self.log_popup_texts[box_index]
         if text is None:
             return
 
         logs = self.box_logs[box_index]
-
         text.config(state='normal')
         text.delete('1.0', 'end')
 
@@ -1583,6 +1589,124 @@ class ModbusUI:
             else:
                 self.console.print(f'[RST] Error on reboot for {ip}: {e}')
                 messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
+
+    # ─────────────────────────────────────────────────────────
+    # 기존 세그먼트 팝업 → 설정 팝업 (FW / ZERO / RST / TFTP)
+    # ─────────────────────────────────────────────────────────
+    def open_settings_popup(self, box_index: int):
+        # 이미 열려 있으면 앞으로 가져오기만
+        existing = self.settings_popups[box_index]
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_set()
+            return
+
+        win = Toplevel(self.parent)
+        win.title(f'Box {box_index + 1} 설정')
+        win.configure(bg='#1e1e1e')
+        win.resizable(False, False)
+
+        self.settings_popups[box_index] = win
+
+        def on_close():
+            self.settings_popups[box_index] = None
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", on_close)
+
+        # IP 표시
+        Label(
+            win,
+            text=f'IP: {self.ip_vars[box_index].get()}',
+            fg='white',
+            bg='#1e1e1e',
+            font=('Helvetica', 12, 'bold'),
+        ).pack(padx=10, pady=(10, 5))
+
+        # 현재 FW 파일명 표시
+        Label(
+            win,
+            text='현재 FW 파일:',
+            fg='white',
+            bg='#1e1e1e',
+            font=('Helvetica', 10),
+        ).pack(padx=10, pady=(5, 0))
+
+        Label(
+            win,
+            textvariable=self.box_states[box_index]['fw_file_name_var'],
+            fg='#cccccc',
+            bg='#1e1e1e',
+            font=('Helvetica', 10),
+        ).pack(padx=10, pady=(0, 10))
+
+        # 버튼 영역
+        btn_frame = Frame(win, bg='#1e1e1e')
+        btn_frame.pack(padx=10, pady=10)
+
+        # FW 파일 선택
+        Button(
+            btn_frame,
+            text='FW 파일 선택',
+            command=lambda idx=box_index: self.select_fw_file(idx),
+            width=18,
+            bg='#555555',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=0, column=0, padx=5, pady=5)
+
+        # FW 업그레이드 시작
+        Button(
+            btn_frame,
+            text='FW 업그레이드 시작',
+            command=lambda idx=box_index: self.start_firmware_upgrade(idx),
+            width=18,
+            bg='#4444aa',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=0, column=1, padx=5, pady=5)
+
+        # ZERO
+        Button(
+            btn_frame,
+            text='ZERO',
+            command=lambda idx=box_index: self.zero_calibration(idx),
+            width=18,
+            bg='#444444',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=1, column=0, padx=5, pady=5)
+
+        # RST
+        Button(
+            btn_frame,
+            text='RST',
+            command=lambda idx=box_index: self.reboot_device(idx),
+            width=18,
+            bg='#aa4444',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=1, column=1, padx=5, pady=5)
+
+        # 닫기 버튼
+        Button(
+            win,
+            text='닫기',
+            command=on_close,
+            width=10,
+            bg='#333333',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).pack(pady=(0, 10))
+
+        win.transient(self.parent)
+        win.grab_set()
+        win.focus_set()
 
 
 def main():
