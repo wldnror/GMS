@@ -641,13 +641,16 @@ class ModbusUI:
         return False
 
     # -------------------------------------------------------------------------
-    #   멀티 레지스터 리드 (두 번째 코드 방식으로 단순화)
-    #   - 항상 40001 ~ 40024 (24개) 한 번에 읽어서 사용
-    #   - 여기에서 40022~40024(FW 상태)도 같이 뽑아 UI에 전달
+    #   멀티 레지스터 리드: 기본(40001~40016) + FW 상태(40022~40024) 분리
     # -------------------------------------------------------------------------
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        start_address = self.reg_addr(40001)
-        num_registers = 24
+        # 기본(센서/알람) 레지스터 구간
+        start_basic = self.reg_addr(40001)  # 40001 → index 0
+        num_basic = 16                       # 40001 ~ 40016
+
+        # FW 상태 레지스터 구간
+        start_fw = self.reg_addr(40022)      # 40022 → index 0
+        num_fw = 3                           # 40022 ~ 40024
 
         while not stop_flag.is_set():
             try:
@@ -658,85 +661,135 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                # 40001 ~ 40024 한 번에 읽기
-                with lock:
-                    response = client.read_holding_registers(start_address, num_registers)
+                # -----------------------------
+                # ① 기본 센서/알람 영역 읽기
+                # -----------------------------
+                try:
+                    with lock:
+                        response = client.read_holding_registers(start_basic, num_basic)
 
-                if isinstance(response, ExceptionResponse) or response.isError():
-                    raise ModbusIOException(
-                        f'Error reading from {ip}, address 40001~40024'
+                    if isinstance(response, ExceptionResponse) or response.isError():
+                        raise ModbusIOException(
+                            f'Error reading from {ip}, address 40001~40016'
+                        )
+
+                    raw_regs = response.registers
+                    if len(raw_regs) < num_basic:
+                        raise ModbusIOException(
+                            f'Error reading from {ip}: expected {num_basic} regs, got {len(raw_regs)}'
+                        )
+
+                    # 매핑
+                    value_40001 = raw_regs[0]   # AL 비트
+                    value_40005 = raw_regs[4]   # 측정값
+                    value_40007 = raw_regs[7]   # 에러/상태 비트
+                    value_40011 = raw_regs[10]  # bar 표시용 값
+
+                    # Alarm1(bit6), Alarm2(bit7)
+                    bit_6_on = bool(value_40001 & (1 << 6))
+                    bit_7_on = bool(value_40001 & (1 << 7))
+                    self.box_states[box_index]['alarm1_on'] = bit_6_on
+                    self.box_states[box_index]['alarm2_on'] = bit_7_on
+                    self.ui_update_queue.put(('alarm_check', box_index))
+
+                    # 로그 기록
+                    self.maybe_log_event(
+                        box_index,
+                        value_40005,
+                        bit_6_on,
+                        bit_7_on,
+                        value_40007,
                     )
 
-                raw_regs = response.registers
-                if len(raw_regs) < num_registers:
-                    raise ModbusIOException(
-                        f'Error reading from {ip}: expected {num_registers} regs, got {len(raw_regs)}'
-                    )
+                    # 에러 레지스터 비트 0~3 → E 코드 / 에러 표시
+                    bits = [bool(value_40007 & (1 << n)) for n in range(4)]
+                    if not any(bits):
+                        formatted_value = f'{value_40005}'
+                        self.data_queue.put((box_index, formatted_value, False))
+                    else:
+                        error_display = ''
+                        for bit_index, bit_flag in enumerate(bits):
+                            if bit_flag:
+                                error_display = BIT_TO_SEGMENT[bit_index]
+                                break
+                        error_display = error_display.ljust(4)
 
-                # ─────────────────────────────
-                #  기본 매핑
-                # ─────────────────────────────
-                value_40001 = raw_regs[0]   # AL 비트
-                value_40005 = raw_regs[4]   # 측정값
-                value_40007 = raw_regs[7]   # 에러/상태 비트
-                value_40011 = raw_regs[10]  # bar 표시용 값
-                value_40022 = raw_regs[21]  # FW: 버전
-                value_40023 = raw_regs[22]  # FW: 상태 비트 + 에러코드 상위
-                value_40024 = raw_regs[23]  # FW: 진행률/남은시간
-
-                # Alarm1(bit6), Alarm2(bit7)
-                bit_6_on = bool(value_40001 & (1 << 6))
-                bit_7_on = bool(value_40001 & (1 << 7))
-                self.box_states[box_index]['alarm1_on'] = bit_6_on
-                self.box_states[box_index]['alarm2_on'] = bit_7_on
-                self.ui_update_queue.put(('alarm_check', box_index))
-
-                # 로그 기록
-                self.maybe_log_event(
-                    box_index,
-                    value_40005,
-                    bit_6_on,
-                    bit_7_on,
-                    value_40007,
-                )
-
-                # 에러 레지스터 비트 0~3 → E 코드 / 에러 표시
-                bits = [bool(value_40007 & (1 << n)) for n in range(4)]
-                if not any(bits):
-                    formatted_value = f'{value_40005}'
-                    self.data_queue.put((box_index, formatted_value, False))
-                else:
-                    error_display = ''
-                    for bit_index, bit_flag in enumerate(bits):
-                        if bit_flag:
-                            error_display = BIT_TO_SEGMENT[bit_index]
-                            break
-                    error_display = error_display.ljust(4)
-
-                    if 'E' in error_display:
-                        self.box_states[box_index]['blinking_error'] = True
-                        self.data_queue.put((box_index, error_display, True))
-                        self.ui_update_queue.put(
-                            (
-                                'circle_state',
-                                box_index,
-                                [False, False, True, self.box_states[box_index]['blink_state']],
+                        if 'E' in error_display:
+                            self.box_states[box_index]['blinking_error'] = True
+                            self.data_queue.put((box_index, error_display, True))
+                            self.ui_update_queue.put(
+                                (
+                                    'circle_state',
+                                    box_index,
+                                    [False, False, True, self.box_states[box_index]['blink_state']],
+                                )
                             )
+                        else:
+                            self.box_states[box_index]['blinking_error'] = False
+                            self.data_queue.put((box_index, error_display, False))
+                            self.ui_update_queue.put(
+                                ('circle_state', box_index, [False, False, True, False])
+                            )
+
+                    # bar 표시 (40011 그대로 사용)
+                    self.ui_update_queue.put(('bar', box_index, value_40011))
+
+                except Exception as e_basic:
+                    msg = str(e_basic)
+                    # 디코드 에러 → 연결 유지, 로그만
+                    if "unpack requires a buffer of 4 bytes" in msg:
+                        self.console.print(
+                            f'[Modbus] transient decode error (basic) from {ip}: {e_basic}. Will retry...'
+                        )
+                    elif isinstance(e_basic, (ConnectionException, ModbusIOException)):
+                        # 진짜 I/O/connection 문제 → 바깥으로 던져서 reconnect 처리
+                        raise e_basic
+                    else:
+                        self.console.print(
+                            f'[Modbus] unexpected basic-read error from {ip}: {e_basic}'
+                        )
+                        # 심각한 에러로 보고 reconnect
+                        raise e_basic
+
+                # -----------------------------
+                # ② FW 상태 영역 읽기 (40022 ~ 40024)
+                # -----------------------------
+                try:
+                    with lock:
+                        resp_fw = client.read_holding_registers(start_fw, num_fw)
+
+                    if isinstance(resp_fw, ExceptionResponse) or resp_fw.isError():
+                        raise ModbusIOException(
+                            f'FW regs read error from {ip}, address 40022~40024'
+                        )
+
+                    fw_regs = resp_fw.registers
+                    if len(fw_regs) < num_fw:
+                        raise ModbusIOException(
+                            f'FW regs read error from {ip}: expected {num_fw} regs, got {len(fw_regs)}'
+                        )
+
+                    v_40022, v_40023, v_40024 = fw_regs
+                    self.ui_update_queue.put(
+                        ('fw_status', box_index, v_40022, v_40023, v_40024)
+                    )
+
+                except Exception as e_fw:
+                    msg = str(e_fw)
+                    if "unpack requires a buffer of 4 bytes" in msg:
+                        self.console.print(
+                            f'[Modbus] FW regs decode error from {ip}: {e_fw}. Will retry...'
+                        )
+                    elif isinstance(e_fw, (ConnectionException, ModbusIOException)):
+                        # FW 쪽도 I/O 문제지만, 여기서는 일단 reconnect까지는 안 하고 재시도
+                        self.console.print(
+                            f'[Modbus] FW regs I/O error from {ip}: {e_fw}. Will retry...'
                         )
                     else:
-                        self.box_states[box_index]['blinking_error'] = False
-                        self.data_queue.put((box_index, error_display, False))
-                        self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, False])
+                        self.console.print(
+                            f'[Modbus] unexpected FW regs error from {ip}: {e_fw}. Will retry...'
                         )
-
-                # bar 표시 (40011 그대로 사용)
-                self.ui_update_queue.put(('bar', box_index, value_40011))
-
-                # FW 상태 (40022, 40023, 40024) → UI로 전달
-                self.ui_update_queue.put(
-                    ('fw_status', box_index, value_40022, value_40023, value_40024)
-                )
+                    # 어쨌든 FW 상태는 이번 루프에서는 갱신 안 함. 다음 루프에서 재시도.
 
                 time.sleep(self.communication_interval)
 
@@ -755,16 +808,6 @@ class ModbusUI:
                 continue
 
             except Exception as e:
-                msg = str(e)
-
-                # 디코드 에러는 일시적인 것으로 보고 재시도 (연결은 유지)
-                if "unpack requires a buffer of 4 bytes" in msg:
-                    self.console.print(
-                        f'[Modbus] transient decode error from {ip}: {e}. Will retry...'
-                    )
-                    time.sleep(self.communication_interval * 2)
-                    continue
-
                 self.console.print(f'Unexpected error reading data from {ip}: {e}')
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
