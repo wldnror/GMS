@@ -138,9 +138,7 @@ class ModbusUI:
         # 박스별 TFTP 지원 여부 (기본값: True)
         self.tftp_supported = [True] * num_boxes
 
-        # 박스별 확장 레지스터(40012~40024, FW 상태 포함) 지원 여부
-        #   True : 40001~40024 한 번에 읽음
-        #   False: 40001~40011만 읽고 FW 상태는 사용 안 함
+        # 과거 코드 호환용 플래그(현재 read_modbus_data에서는 사용 안 함)
         self.extended_regs_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
@@ -553,6 +551,10 @@ class ModbusUI:
                 )
                 self.parent.after(0, lambda idx=i: self.entries[idx].config(state='disabled'))
 
+                # FW 상태 초기화
+                self.box_states[i]['fw_upgrading'] = False
+                self.last_fw_status[i] = None
+
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -646,15 +648,12 @@ class ModbusUI:
         return False
 
     # -------------------------------------------------------------------------
-    #   멀티 레지스터 리드
-    #   - 기본: 40001 ~ 40024 (새 모델, FW 상태 포함)
-    #   - 구형/특정 모델에서 40012~40024 미지원 시:
-    #       → 한 번 감지 후, 이후로는 40001~40011만 읽기 (예전 코드와 동일)
+    #   멀티 레지스터 리드 (단순 버전)
+    #   - 항상 40001 ~ 40024 읽기 (FW 상태 포함)
     # -------------------------------------------------------------------------
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        base_addr = self.reg_addr(40001)
-        basic_regs = 11    # 40001 ~ 40011
-        ext_regs = 24      # 40001 ~ 40024
+        start_address = self.reg_addr(40001)
+        num_registers = 24   # 40001 ~ 40024
 
         while not stop_flag.is_set():
             try:
@@ -665,69 +664,31 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                # 1) 확장 레지스터 시도 (40001~40024)
-                has_fw_status = False
+                with lock:
+                    response = client.read_holding_registers(start_address, num_registers)
 
-                if self.extended_regs_supported[box_index]:
-                    with lock:
-                        response = client.read_holding_registers(base_addr, ext_regs)
+                if isinstance(response, ExceptionResponse) or response.isError():
+                    raise ModbusIOException(
+                        f'Error reading from {ip}, address 40001~40024'
+                    )
 
-                    if isinstance(response, ExceptionResponse) or response.isError():
-                        # 이 모델은 확장 레지스터 미지원으로 간주하고, 한 번만 로그
-                        self.console.print(
-                            f'[Modbus] box {box_index} ({ip}) extended regs 40012~40024 read error: {response} '
-                            f'→ basic(40001~40011) only mode로 전환.'
-                        )
-                        self.extended_regs_supported[box_index] = False
-                        # 기본 영역 다시 시도
-                        with lock:
-                            response = client.read_holding_registers(base_addr, basic_regs)
-                        if isinstance(response, ExceptionResponse) or response.isError():
-                            # 기본 영역도 에러면 진짜 I/O 문제
-                            raise ModbusIOException(
-                                f'Error reading from {ip}, address 40001~40011 (after extended fallback)'
-                            )
-                        raw_regs = response.registers
-                        has_fw_status = False
-                    else:
-                        # 확장+기본 모두 읽기 성공
-                        raw_regs = response.registers
-                        if len(raw_regs) < ext_regs:
-                            # 응답 길이가 부족하면 위험하니 이 경우도 기본 모드로 다운그레이드
-                            self.console.print(
-                                f'[Modbus] box {box_index} ({ip}) extended regs len={len(raw_regs)} < {ext_regs} '
-                                f'→ basic only mode로 전환.'
-                            )
-                            self.extended_regs_supported[box_index] = False
-                            # 다시 basic만 읽기
-                            with lock:
-                                response = client.read_holding_registers(base_addr, basic_regs)
-                            if isinstance(response, ExceptionResponse) or response.isError():
-                                raise ModbusIOException(
-                                    f'Error reading from {ip}, address 40001~40011 (after len fallback)'
-                                )
-                            raw_regs = response.registers
-                            has_fw_status = False
-                        else:
-                            # 정상적으로 24개 읽었으면 FW 상태도 사용 가능
-                            has_fw_status = True
-                else:
-                    # 2) 이미 basic-only 모드인 박스 → 예전처럼 40001~40011만 읽기
-                    with lock:
-                        response = client.read_holding_registers(base_addr, basic_regs)
-                    if isinstance(response, ExceptionResponse) or response.isError():
-                        raise ModbusIOException(
-                            f'Error reading from {ip}, address 40001~40011'
-                        )
-                    raw_regs = response.registers
-                    has_fw_status = False
+                raw_regs = response.registers
+                if len(raw_regs) < num_registers:
+                    raise ModbusIOException(
+                        f'Error reading from {ip}: expected {num_registers} regs, got {len(raw_regs)}'
+                    )
 
-                # 받은 레지스터에서 필요한 값 추출 (기본 영역은 항상 동일)
+                # ─────────────────────────────
+                #  레지스터 매핑 (지금 잘 되는 코드와 동일)
+                # ─────────────────────────────
                 value_40001 = raw_regs[0]   # AL 비트
                 value_40005 = raw_regs[4]   # 측정값
-                # 에러코드/에러 비트 레지스터: 40008 → raw_regs[7]
+                # 에러코드/에러 비트 레지스터: 40008 → index 7
                 value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]  # bar 표시용 값
+                value_40022 = raw_regs[21]  # FW version
+                value_40023 = raw_regs[22]  # FW status bits + error
+                value_40024 = raw_regs[23]  # FW progress / remain
 
                 # Alarm1(bit6), Alarm2(bit7)
                 bit_6_on = bool(value_40001 & (1 << 6))
@@ -736,7 +697,7 @@ class ModbusUI:
                 self.box_states[box_index]['alarm2_on'] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
 
-                # 로그 기록 (값 / 알람 / 에러레지스터)
+                # 로그 기록
                 self.maybe_log_event(
                     box_index,
                     value_40005,
@@ -745,6 +706,7 @@ class ModbusUI:
                     value_40007,
                 )
 
+                # 에러 레지스터 비트 0~3 → E 코드 / 에러 표시
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
                     formatted_value = f'{value_40005}'
@@ -774,17 +736,13 @@ class ModbusUI:
                             ('circle_state', box_index, [False, False, True, False])
                         )
 
-                # bar 표시
+                # bar 표시 (여기서는 40011 그대로 사용)
                 self.ui_update_queue.put(('bar', box_index, value_40011))
 
-                # FW 상태 레지스터(40022~40024)는 extended 지원 모델에서만 사용
-                if has_fw_status:
-                    value_40022 = raw_regs[21]
-                    value_40023 = raw_regs[22]
-                    value_40024 = raw_regs[23]
-                    self.ui_update_queue.put(
-                        ('fw_status', box_index, value_40022, value_40023, value_40024)
-                    )
+                # FW 상태 (버전/진행률/에러 코드)
+                self.ui_update_queue.put(
+                    ('fw_status', box_index, value_40022, value_40023, value_40024)
+                )
 
                 time.sleep(self.communication_interval)
 
@@ -1156,6 +1114,10 @@ class ModbusUI:
 
                     if ip not in self.modbus_locks:
                         self.modbus_locks[ip] = threading.Lock()
+
+                    # 재연결 시 FW 상태 초기화
+                    self.box_states[box_index]['fw_upgrading'] = False
+                    self.last_fw_status[box_index] = None
 
                     stop_flag.clear()
                     t = threading.Thread(
