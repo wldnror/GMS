@@ -1043,8 +1043,18 @@ class ModbusUI:
         win.after(1000, _auto_refresh)
 
         win.transient(self.parent)
-        win.grab_set()
-        win.focus_set()
+
+        # ✅ 안전한 grab_set 적용 (화면에 보인 뒤에만 grab)
+        def _safe_grab():
+            try:
+                if win.winfo_exists() and win.winfo_viewable():
+                    win.grab_set()
+                    win.focus_set()
+            except Exception as e:
+                if hasattr(self, "console"):
+                    self.console.print(f"[UI] segment popup grab_set skipped: {e}")
+
+        win.after(50, _safe_grab)
 
     def refresh_log_view(self, box_index: int):
         text = self.log_popup_texts[box_index]
@@ -1797,8 +1807,18 @@ class ModbusUI:
         ).pack(pady=(0, 10))
 
         win.transient(self.parent)
-        win.grab_set()
-        win.focus_set()
+
+        # ✅ 설정 팝업도 grab_set을 안전하게 적용
+        def _safe_grab():
+            try:
+                if win.winfo_exists() and win.winfo_viewable():
+                    win.grab_set()
+                    win.focus_set()
+            except Exception as e:
+                if hasattr(self, "console"):
+                    self.console.print(f"[UI] settings popup grab_set skipped: {e}")
+
+        win.after(50, _safe_grab)
 
 
 def main():
