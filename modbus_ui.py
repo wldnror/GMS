@@ -135,6 +135,11 @@ class ModbusUI:
         # 박스별 로그 버퍼
         self.box_logs = [[] for _ in range(num_boxes)]
 
+        # ─────────────────────────────────────────
+        # 박스별 TFTP 지원 여부 (기본값: True, 에러 나면 False로 바꿔서 이후 무시)
+        # ─────────────────────────────────────────
+        self.tftp_supported = [True] * num_boxes
+
         self.load_ip_settings(num_boxes)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -242,7 +247,7 @@ class ModbusUI:
         entry.focus_set()
 
     def create_modbus_box(self, index):
-        # ▷ 항상 두꺼운 highlight(7) 유지, 색만 깜빡이도록 사용
+        # ▷ 항상 두꺼운 highlight 유지, 색만 깜빡이도록 사용
         box_frame = Frame(
             self.parent,
             highlightthickness=3,
@@ -265,7 +270,7 @@ class ModbusUI:
         box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill='black', outline='grey', tags='border')
 
-        # 7-Segment 표시 생성 (create_segment_display 안에서 box_canvas.segment_canvas 생성 가능)
+        # 7-Segment 표시 생성
         create_segment_display(box_canvas)
 
         # 세그먼트(검은 숫자창) 클릭 영역 - 투명 Rect
@@ -529,11 +534,13 @@ class ModbusUI:
                 self.console.print(f'Started data thread for {ip}')
 
                 # 장비의 TFTP IP는 약간 딜레이를 두고 백그라운드에서 읽기
-                threading.Thread(
-                    target=self.delayed_load_tftp_ip_from_device,
-                    args=(i, 1.0),
-                    daemon=True,
-                ).start()
+                # ▶ 이 박스가 TFTP 미지원으로 판정된 경우는 아예 시도하지 않음
+                if self.tftp_supported[i]:
+                    threading.Thread(
+                        target=self.delayed_load_tftp_ip_from_device,
+                        args=(i, 1.0),
+                        daemon=True,
+                    ).start()
 
                 box_canvas = self.box_data[i][0]
                 gms1000_id = self.box_states[i]['gms1000_text_id']
@@ -607,7 +614,7 @@ class ModbusUI:
             borderwidth=0,
         )
         self.entries[i].config(state='normal')
-        # ▷ 두께는 그대로 7 유지, 색만 검정으로
+        # ▷ 두께는 그대로, 색만 검정
         self.box_frames[i].config(highlightbackground='#000000')
         if manual:
             box_canvas = self.box_data[i][0]
@@ -1008,7 +1015,7 @@ class ModbusUI:
         self.parent.after(
             0, lambda idx=box_index: self.entries[idx].config(state='normal')
         )
-        # ▷ 두께는 7 유지, 색만 검정
+        # ▷ 두께는 유지, 색만 검정
         self.parent.after(
             0,
             lambda idx=box_index: self.box_frames[idx].config(
@@ -1072,11 +1079,13 @@ class ModbusUI:
                     t.start()
 
                     # 재연결 후에도 TFTP IP는 살짝 딜레이 줘서 읽기
-                    threading.Thread(
-                        target=self.delayed_load_tftp_ip_from_device,
-                        args=(box_index, 1.0),
-                        daemon=True,
-                    ).start()
+                    # ▶ 다만 이 장치가 TFTP 미지원으로 판정된 경우는 더 이상 시도하지 않음
+                    if self.tftp_supported[box_index]:
+                        threading.Thread(
+                            target=self.delayed_load_tftp_ip_from_device,
+                            args=(box_index, 1.0),
+                            daemon=True,
+                        ).start()
 
                     self.parent.after(
                         0,
@@ -1092,7 +1101,7 @@ class ModbusUI:
                             state='disabled'
                         ),
                     )
-                    # ▷ 여기서도 두께는 건드리지 않음 (항상 7)
+                    # ▷ 두께는 건드리지 않음
                     self.parent.after(
                         0,
                         lambda idx=box_index: self.box_frames[idx].config(
@@ -1196,7 +1205,7 @@ class ModbusUI:
             self.set_alarm_lamp(
                 box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False
             )
-            # ▷ 알람 해제 시: 테두리 색만 검정으로, 두께는 7 유지
+            # ▷ 알람 해제 시: 테두리 색만 검정으로
             box_frame = self.box_frames[box_index]
             box_frame.config(
                 highlightbackground='#000000',
@@ -1204,7 +1213,6 @@ class ModbusUI:
             state['border_blink_state'] = False
             return
 
-        # ▷ 두께는 이미 7이므로 건드릴 필요 없음 (색만 깜빡일 것)
         if not prev_active and not state['alarm_blink_running']:
             self.blink_alarms(box_index)
 
@@ -1335,15 +1343,29 @@ class ModbusUI:
                 )
 
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
+        # 이미 이 박스가 TFTP 미지원으로 판정되었다면 아예 시도 안 함
+        if not self.tftp_supported[box_index]:
+            return
+
         time.sleep(delay)
+
+        # 딜레이 동안 상태가 바뀌었을 수도 있으니 한 번 더 체크
+        if not self.tftp_supported[box_index]:
+            return
+
         try:
             self.load_tftp_ip_from_device(box_index)
         except Exception as e:
+            # 여기까지 온 예외는 최상위에서 한 번만 잡고, 로그만 남기고 무시
             self.console.print(
                 f'[FW] (ignore) delayed TFTP IP read fail box {box_index}: {e}'
             )
 
     def load_tftp_ip_from_device(self, box_index: int):
+        # TFTP가 이미 미지원으로 표시되어 있다면 바로 리턴
+        if not self.tftp_supported[box_index]:
+            return
+
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
@@ -1355,8 +1377,17 @@ class ModbusUI:
             with lock:
                 rr = client.read_holding_registers(addr_ip1, 2)
             if isinstance(rr, ExceptionResponse) or rr.isError():
+                # 장치에서 기능 미지원(Illegal Function / Illegal Data Address) 등의 응답일 수 있음
+                msg = str(rr)
                 self.console.print(f'[FW] read 40088/40089 error: {rr}')
+                # 레지스터 자체를 지원하지 않는 경우로 보고 자동 TFTP 기능 끔
+                if 'Illegal' in msg or 'ILLEGAL' in msg:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : TFTP 관련 레지스터 미지원으로 판단 → 이후 자동 TFTP IP 읽기 비활성화.'
+                    )
+                    self.tftp_supported[box_index] = False
                 return
+
             w1, w2 = rr.registers
             a = (w1 >> 8) & 0xFF
             b = w1 & 0xFF
@@ -1367,14 +1398,34 @@ class ModbusUI:
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
         except Exception as e:
             msg = str(e)
+            # 장치가 응답을 안 하는 정도는 "장비 아직 준비 안 됨"으로 간주
             if "No response received" in msg:
                 self.console.print(
                     f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready yet (ignore).'
                 )
             else:
                 self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
+                # 여기서 "Failed to connect" / "Socket is closed" 같은 연결 오류가 반복된다면,
+                # 이 장치에서는 TFTP 레지스터 접근이 안정적이지 않은 것으로 보고 자동 기능 끔
+                if 'Failed to connect' in msg or 'Socket is closed' in msg:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
+                    )
+                    self.tftp_supported[box_index] = False
 
     def start_firmware_upgrade(self, box_index: int):
+        # 자동 판정 상 TFTP 미지원이면, FW 업그레이드도 안내 후 바로 리턴
+        if not self.tftp_supported[box_index]:
+            self.console.print(
+                f'[FW] box {box_index} : TFTP 기능 미지원으로 FW 업그레이드 요청을 무시합니다.'
+            )
+            messagebox.showwarning(
+                'FW',
+                '이 장치는 TFTP/FW 기능을 지원하지 않는 것으로 판단되어,\n'
+                'FW 업그레이드를 수행하지 않습니다.'
+            )
+            return
+
         threading.Thread(
             target=self._do_firmware_upgrade,
             args=(box_index,),
