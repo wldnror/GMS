@@ -151,6 +151,10 @@ class ModbusUI:
         self.start_data_processing_thread()
         self.schedule_ui_update()
 
+    # ------------------------------------------------------------------
+    # 설정/초기화 관련
+    # ------------------------------------------------------------------
+
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
             with open(self.SETTINGS_FILE, 'r') as file:
@@ -167,6 +171,10 @@ class ModbusUI:
         img = Image.open(path).convert('RGBA')
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
+
+    # ------------------------------------------------------------------
+    # UI 구성
+    # ------------------------------------------------------------------
 
     def add_ip_row(self, frame, ip_var, index):
         entry_border = Frame(frame, bg='#4a4a4a', bd=1, relief='solid')
@@ -437,6 +445,10 @@ class ModbusUI:
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
 
+    # ------------------------------------------------------------------
+    # UI 업데이트 관련
+    # ------------------------------------------------------------------
+
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
             title='FW 파일 선택', filetypes=[('BIN files', '*.bin'), ('All files', '*.*')]
@@ -514,6 +526,10 @@ class ModbusUI:
         bar_canvas = self.box_data[box_index][2]
         bar_item = self.box_data[box_index][4]
         bar_canvas.itemconfig(bar_item, state='normal' if show else 'hidden')
+
+    # ------------------------------------------------------------------
+    # 연결 / 재연결
+    # ------------------------------------------------------------------
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
@@ -663,6 +679,10 @@ class ModbusUI:
             )
             time.sleep(2)
         return False
+
+    # ------------------------------------------------------------------
+    # Modbus 데이터 읽기 루프
+    # ------------------------------------------------------------------
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
@@ -848,6 +868,10 @@ class ModbusUI:
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
+
+    # ------------------------------------------------------------------
+    # 로그 / 알람
+    # ------------------------------------------------------------------
 
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
         """
@@ -1150,6 +1174,10 @@ class ModbusUI:
             f'PWR lamp set to default green for box {box_index} due to disconnection.'
         )
 
+    # ------------------------------------------------------------------
+    # 재연결 로직 (플래그 초기화 안 함)
+    # ------------------------------------------------------------------
+
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
         max_retries = 5
@@ -1181,13 +1209,13 @@ class ModbusUI:
                     if ip not in self.modbus_locks:
                         self.modbus_locks[ip] = threading.Lock()
 
-                    # ★ 자동 재연결도 새 연결로 보고 TFTP/FW 지원 여부를 다시 검출하도록 초기화
-                    self.tftp_supported[box_index] = True
-                    self.fw_status_supported[box_index] = True
+                    # 자동 재연결 시에는 기존의 fw_status_supported / tftp_supported 상태를 유지
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
                     self.console.print(
-                        f'[FW] box {box_index} ({ip}) : reconnect 후 TFTP/FW 지원 여부를 재검사하도록 초기화했습니다.'
+                        f'[FW] box {box_index} ({ip}) : reconnect 성공 '
+                        f'(fw_status_supported={self.fw_status_supported[box_index]}, '
+                        f'tftp_supported={self.tftp_supported[box_index]})'
                     )
 
                     stop_flag.clear()
@@ -1252,6 +1280,10 @@ class ModbusUI:
                 ),
             )
             self.disconnect_client(ip, box_index, manual=False)
+
+    # ------------------------------------------------------------------
+    # PWR / 알람 점멸
+    # ------------------------------------------------------------------
 
     def blink_pwr(self, box_index):
         if self.box_states[box_index].get('pwr_blinking', False):
@@ -1391,6 +1423,10 @@ class ModbusUI:
             self.parent.after(self.alarm_blink_interval, _blink)
 
         _blink()
+
+    # ------------------------------------------------------------------
+    # FW 상태 / 버전 / TFTP / ZERO / RST
+    # ------------------------------------------------------------------
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         # FW 상태 레지스터 미지원 장비라면 아무 것도 하지 않음
