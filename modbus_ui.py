@@ -138,7 +138,9 @@ class ModbusUI:
         # 박스별 TFTP 지원 여부 (기본값: True)
         self.tftp_supported = [True] * num_boxes
 
-        # 과거 코드 호환용 플래그(현재 read_modbus_data에서는 사용 안 함)
+        # 박스별 확장 레지스터(40012~40024, FW 상태 포함) 지원 여부
+        #   True : 40001~40024 한 번에 읽음
+        #   False: 40001~40011만 읽고 FW 상태는 사용 안 함
         self.extended_regs_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
@@ -551,10 +553,6 @@ class ModbusUI:
                 )
                 self.parent.after(0, lambda idx=i: self.entries[idx].config(state='disabled'))
 
-                # FW 상태 초기화
-                self.box_states[i]['fw_upgrading'] = False
-                self.last_fw_status[i] = None
-
                 self.update_circle_state([False, False, True, False], box_index=i)
                 self.show_bar(i, show=True)
                 self.virtual_keyboard.hide()
@@ -648,12 +646,15 @@ class ModbusUI:
         return False
 
     # -------------------------------------------------------------------------
-    #   멀티 레지스터 리드 (단순 버전)
-    #   - 항상 40001 ~ 40024 읽기 (FW 상태 포함)
+    #   멀티 레지스터 리드 (2번 나눠 읽기)
+    #   - 기본: 40001 ~ 40011 (항상 읽음, 여기서 숫자/알람/바 처리)
+    #   - FW:  40022 ~ 40024 (별도 요청, 실패해도 무시)
     # -------------------------------------------------------------------------
     def read_modbus_data(self, ip, client, stop_flag, box_index):
-        start_address = self.reg_addr(40001)
-        num_registers = 24   # 40001 ~ 40024
+        base_basic = self.reg_addr(40001)   # 40001 ~ 40011
+        cnt_basic  = 11
+        base_fw    = self.reg_addr(40022)   # 40022 ~ 40024
+        cnt_fw     = 3
 
         while not stop_flag.is_set():
             try:
@@ -664,31 +665,40 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                with lock:
-                    response = client.read_holding_registers(start_address, num_registers)
+                # 1) 기본 레지스터(40001~40011) 읽기
+                try:
+                    with lock:
+                        resp_basic = client.read_holding_registers(base_basic, cnt_basic)
+                except Exception as e:
+                    msg = str(e)
+                    if "unpack requires a buffer of 4 bytes" in msg:
+                        # pymodbus 디코드 일시 오류 → 연결은 유지하고 재시도
+                        self.console.print(
+                            f'[Modbus] transient decode error (basic) from {ip}: {e}. Will retry...'
+                        )
+                        time.sleep(self.communication_interval * 2)
+                        continue
+                    # 그 외 예외는 상위에서 처리
+                    raise
 
-                if isinstance(response, ExceptionResponse) or response.isError():
+                if isinstance(resp_basic, ExceptionResponse) or resp_basic.isError():
                     raise ModbusIOException(
-                        f'Error reading from {ip}, address 40001~40024'
+                        f'Error reading from {ip}, address 40001~40011'
                     )
 
-                raw_regs = response.registers
-                if len(raw_regs) < num_registers:
+                raw_basic = resp_basic.registers
+                if len(raw_basic) < cnt_basic:
                     raise ModbusIOException(
-                        f'Error reading from {ip}: expected {num_registers} regs, got {len(raw_regs)}'
+                        f'Error reading from {ip}: expected {cnt_basic} regs, got {len(raw_basic)}'
                     )
 
                 # ─────────────────────────────
-                #  레지스터 매핑 (지금 잘 되는 코드와 동일)
+                #  기본 매핑
                 # ─────────────────────────────
-                value_40001 = raw_regs[0]   # AL 비트
-                value_40005 = raw_regs[4]   # 측정값
-                # 에러코드/에러 비트 레지스터: 40008 → index 7
-                value_40007 = raw_regs[7]
-                value_40011 = raw_regs[10]  # bar 표시용 값
-                value_40022 = raw_regs[21]  # FW version
-                value_40023 = raw_regs[22]  # FW status bits + error
-                value_40024 = raw_regs[23]  # FW progress / remain
+                value_40001 = raw_basic[0]   # AL 비트
+                value_40005 = raw_basic[4]   # 측정값
+                value_40007 = raw_basic[7]   # 에러/상태 비트
+                value_40011 = raw_basic[10]  # bar 표시용 값
 
                 # Alarm1(bit6), Alarm2(bit7)
                 bit_6_on = bool(value_40001 & (1 << 6))
@@ -736,13 +746,49 @@ class ModbusUI:
                             ('circle_state', box_index, [False, False, True, False])
                         )
 
-                # bar 표시 (여기서는 40011 그대로 사용)
+                # bar 표시 (40011 그대로 사용)
                 self.ui_update_queue.put(('bar', box_index, value_40011))
 
-                # FW 상태 (버전/진행률/에러 코드)
-                self.ui_update_queue.put(
-                    ('fw_status', box_index, value_40022, value_40023, value_40024)
-                )
+                # 2) FW 상태 레지스터(40022~40024)는 "별도 요청"으로 읽기 (실패해도 무시)
+                try:
+                    with lock:
+                        resp_fw = client.read_holding_registers(base_fw, cnt_fw)
+
+                    if isinstance(resp_fw, ExceptionResponse) or resp_fw.isError():
+                        raise ModbusIOException(
+                            f'Error reading FW regs 40022~40024 from {ip}: {resp_fw}'
+                        )
+
+                    raw_fw = resp_fw.registers
+                    if len(raw_fw) < cnt_fw:
+                        raise ModbusIOException(
+                            f'FW regs len error from {ip}: expected {cnt_fw}, got {len(raw_fw)}'
+                        )
+
+                    v_40022 = raw_fw[0]
+                    v_40023 = raw_fw[1]
+                    v_40024 = raw_fw[2]
+                    self.ui_update_queue.put(
+                        ('fw_status', box_index, v_40022, v_40023, v_40024)
+                    )
+
+                except Exception as e_fw:
+                    msg_fw = str(e_fw)
+                    if "unpack requires a buffer of 4 bytes" in msg_fw:
+                        # FW 레지스터 읽기 중 디코드 에러 → 이번 사이클만 무시
+                        self.console.print(
+                            f'[Modbus] FW regs decode error from {ip}: {e_fw}. Ignoring this cycle.'
+                        )
+                    elif isinstance(e_fw, ModbusIOException):
+                        # FW 쪽만 모종의 이유로 오류 → 이번 사이클만 무시
+                        self.console.print(
+                            f'[Modbus] FW regs read error from {ip}: {e_fw}. Ignoring this cycle.'
+                        )
+                    else:
+                        # 예측 못 한 예외도 연결은 유지하고 그냥 로그만 남김
+                        self.console.print(
+                            f'[Modbus] FW regs unexpected error from {ip}: {e_fw}. Ignoring this cycle.'
+                        )
 
                 time.sleep(self.communication_interval)
 
@@ -753,7 +799,7 @@ class ModbusUI:
                 break
 
             except ModbusIOException as e:
-                # 실제 통신 I/O 문제 (서버가 잠깐 응답 없을 때 등)
+                # 기본 영역(40001~40011) 읽기 중 실제 I/O 문제
                 self.console.print(
                     f'Temporary Modbus I/O error from {ip}: {e}. Will retry...'
                 )
@@ -763,15 +809,14 @@ class ModbusUI:
             except Exception as e:
                 msg = str(e)
 
-                # ✅ FW 중에 가끔 나오는 pymodbus decode 에러는 "치명적"으로 보지 말고 재시도
+                # 혹시 위에서 못 잡은 decode 에러가 여기로 떨어지면, 역시 재시도
                 if "unpack requires a buffer of 4 bytes" in msg:
                     self.console.print(
-                        f'[Modbus] transient decode error from {ip}: {e}. Will retry...'
+                        f'[Modbus] transient decode error (outer) from {ip}: {e}. Will retry...'
                     )
                     time.sleep(self.communication_interval * 2)
                     continue
 
-                # 그 외 진짜 이상한 에러만 끊고 재연결
                 self.console.print(f'Unexpected error reading data from {ip}: {e}')
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
@@ -816,11 +861,7 @@ class ModbusUI:
         while True:
             try:
                 box_index, value, blink = self.data_queue.get(timeout=1)
-
-                # FW 업그레이드 중이면 센서 값으로 7세그를 덮어쓰지 않는다
-                if self.box_states[box_index].get('fw_upgrading'):
-                    continue
-
+                # FW 중이어도 기본 값은 항상 세그먼트로 보냄
                 self.ui_update_queue.put(('segment_display', box_index, value, blink))
             except queue.Empty:
                 continue
@@ -1114,10 +1155,6 @@ class ModbusUI:
 
                     if ip not in self.modbus_locks:
                         self.modbus_locks[ip] = threading.Lock()
-
-                    # 재연결 시 FW 상태 초기화
-                    self.box_states[box_index]['fw_upgrading'] = False
-                    self.last_fw_status[box_index] = None
 
                     stop_flag.clear()
                     t = threading.Thread(
