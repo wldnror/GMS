@@ -1363,15 +1363,16 @@ class ModbusUI:
 
         _blink()
 
-    # ★ FW 상태 표시 (진행률/남은시간 바이트 순서 수정)
+    # ★ FW 상태 표시 (진행률/남은시간: LOW=진행률, HIGH=남은 시간)
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         version = v_40022
         error_code = (v_40023 >> 8) & 0xFF
 
-        # 장비 스펙: 40024 상위 바이트 = 진행률(%),
-        #            40024 하위 바이트 = 남은 시간(sec)
-        progress = (v_40024 >> 8) & 0xFF   # 상위 바이트
-        remain   = v_40024 & 0xFF          # 하위 바이트
+        # 40024:
+        #   BIT0~7   : 진행률(0~100, HEX)  → 하위 바이트
+        #   BIT8~15  : 예상 남은 시간(sec) → 상위 바이트
+        progress = v_40024 & 0xFF          # LOW byte = 진행률
+        remain   = (v_40024 >> 8) & 0xFF   # HIGH byte = 남은 시간
 
         # 중복 로그/업데이트 방지
         current = (version, error_code, progress, remain, v_40023, v_40024)
