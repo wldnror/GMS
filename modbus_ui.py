@@ -245,7 +245,7 @@ class ModbusUI:
         # ▷ 항상 두꺼운 highlight(7) 유지, 색만 깜빡이도록 사용
         box_frame = Frame(
             self.parent,
-            highlightthickness=7,
+            highlightthickness=1,
             highlightbackground='#000000',
             highlightcolor='#000000',
         )
