@@ -259,17 +259,16 @@ class ModbusUI:
         box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill='black', outline='grey', tags='border')
 
-        # 7-Segment 표시 생성
+        # 7-Segment 표시 생성 (create_segment_display 안에서 box_canvas.segment_canvas 생성 가능)
         create_segment_display(box_canvas)
 
-        # 🔹 세그먼트(검은 숫자창) 클릭 영역을 투명 Rect 로 따로 만든다
-        #    필요하면 여기 좌표만 미세조정해서 실제 위치랑 맞추면 됨
+        # 세그먼트(검은 숫자창) 클릭 영역 - 투명 Rect
         seg_x1, seg_y1 = sx(10), sy(25)
         seg_x2, seg_y2 = sx(150 - 10), sy(90)
         box_canvas.create_rectangle(
             seg_x1, seg_y1, seg_x2, seg_y2,
-            outline='red',
-            fill='red',
+            outline='',
+            fill='',
             tags='segment_click_area'
         )
 
@@ -307,11 +306,15 @@ class ModbusUI:
             }
         )
 
-        # 🔹 세그먼트 클릭 → 로그 팝업
+        # 세그먼트 클릭 → 로그 팝업
         def _on_segment_click(event, idx=index):
             self.open_segment_popup(idx)
 
+        # 1) 같은 캔버스의 투명 영역 (백업용)
         box_canvas.tag_bind('segment_click_area', '<Button-1>', _on_segment_click)
+        # 2) create_segment_display에서 만든 segment_canvas가 위에 떠 있으면, 거기에 직접 바인딩
+        if hasattr(box_canvas, 'segment_canvas'):
+            box_canvas.segment_canvas.bind('<Button-1>', _on_segment_click)
 
         control_frame = Frame(box_canvas, bg='black')
         control_frame.place(x=sx(10), y=sy(210))
