@@ -1368,13 +1368,20 @@ class ModbusUI:
 
         _blink()
 
+    # ★ 여기부터 FW 상태 표시 (진행률/남은시간 바이트 순서 수정)
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         version = v_40022
         error_code = (v_40023 >> 8) & 0xFF
-        progress = v_40024 & 0xFF
-        remain = (v_40024 >> 8) & 0xFF
 
-        current = (version, error_code, progress, remain, v_40023)
+        # ────────────────────────────────────────
+        # 장비 스펙: 40024 상위 바이트 = 진행률(%),
+        #            40024 하위 바이트 = 남은 시간(sec)
+        # ────────────────────────────────────────
+        progress = (v_40024 >> 8) & 0xFF   # 상위 바이트
+        remain   = v_40024 & 0xFF          # 하위 바이트
+
+        # 중복 로그/업데이트 방지
+        current = (version, error_code, progress, remain, v_40023, v_40024)
         prev = self.last_fw_status[box_index]
         if prev == current:
             return
@@ -1387,7 +1394,11 @@ class ModbusUI:
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
 
-        msg = f'[FW] ver={version}, progress={progress}%, remain={remain}s'
+        msg = (
+            f'[FW] box {box_index} ver={version}, '
+            f'raw_40023=0x{v_40023:04X}, raw_40024=0x{v_40024:04X}, '
+            f'progress={progress}%, remain={remain}s'
+        )
         states = []
         if upgrading:
             states.append('UPGRADING')
