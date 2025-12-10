@@ -128,7 +128,7 @@ class ModbusUI:
         self.log_popup_texts = [None] * num_boxes
         self.box_logs = [[] for _ in range(num_boxes)]
 
-        # TFTP/FW/ZERO/RST 지원 여부 (초기엔 True, 통신 중 자동 판단)
+        # TFTP/FW/ZERO/RST 지원 여부 (초기엔 True, 통신 중 자동 판단/갱신)
         self.tftp_supported = [True] * num_boxes
         # FW 상태 레지스터(40023/40024) 지원 여부
         self.fw_status_supported = [True] * num_boxes
@@ -151,9 +151,7 @@ class ModbusUI:
         self.start_data_processing_thread()
         self.schedule_ui_update()
 
-    # ------------------------------------------------------------------
-    # 설정/초기화 관련
-    # ------------------------------------------------------------------
+    # -------------------- 공통 유틸 --------------------
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
@@ -172,9 +170,7 @@ class ModbusUI:
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
 
-    # ------------------------------------------------------------------
-    # UI 구성
-    # ------------------------------------------------------------------
+    # -------------------- IP 입력 / UI --------------------
 
     def add_ip_row(self, frame, ip_var, index):
         entry_border = Frame(frame, bg='#4a4a4a', bd=1, relief='solid')
@@ -445,9 +441,7 @@ class ModbusUI:
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
 
-    # ------------------------------------------------------------------
-    # UI 업데이트 관련
-    # ------------------------------------------------------------------
+    # -------------------- FW 파일 / UI 업데이트 --------------------
 
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
@@ -527,9 +521,7 @@ class ModbusUI:
         bar_item = self.box_data[box_index][4]
         bar_canvas.itemconfig(bar_item, state='normal' if show else 'hidden')
 
-    # ------------------------------------------------------------------
-    # 연결 / 재연결
-    # ------------------------------------------------------------------
+    # -------------------- 연결 / 연결토글 --------------------
 
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
@@ -547,9 +539,19 @@ class ModbusUI:
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
-                # 새로 연결할 때는 지원 여부를 다시 자동 감지하도록 리셋
+                # 기본값: 먼저 True로 두고, capability probe로 확정
                 self.tftp_supported[i] = True
                 self.fw_status_supported[i] = True
+                self.last_fw_status[i] = None
+                self.box_states[i]['fw_upgrading'] = False
+
+                # ★ 별도의 임시 클라이언트로 확장 레지스터 지원 여부만 사전 검사
+                try:
+                    self.detect_device_capabilities(ip, i)
+                except Exception as e:
+                    self.console.print(
+                        f'[FW] box {i} ({ip}) capability probe failed (ignore, fallback 동작): {e}'
+                    )
 
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
@@ -680,9 +682,78 @@ class ModbusUI:
             time.sleep(2)
         return False
 
-    # ------------------------------------------------------------------
-    # Modbus 데이터 읽기 루프
-    # ------------------------------------------------------------------
+    # -------------------- 장비 능력(확장 레지스터) 사전검출 --------------------
+
+    def detect_device_capabilities(self, ip: str, box_index: int):
+        """
+        실제 통신에 사용하는 client와는 별도의 임시 클라이언트로
+        40001~40024 읽기를 시도해서 확장 레지스터 지원 여부를 미리 판단한다.
+
+        - 기본 레지스터(40001~40022) 읽기 OK 기준으로 연결 확인
+        - 40001~40024 읽기:
+          - 24개 이상 레지스터 응답 → 신형(확장 레지스터 지원)
+          - 에러/22개만 응답 → 구형(확장 레지스터 미지원, FW/TFTP/ZERO/RST 비활성화)
+        """
+        tmp_client = ModbusTcpClient(ip, port=502, timeout=2)
+        try:
+            if not tmp_client.connect():
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) : capability probe connect fail → '
+                    f'확장 레지스터 미지원 장비로 가정 (FW/TFTP/ZERO/RST 비활성화).'
+                )
+                self.fw_status_supported[box_index] = False
+                self.tftp_supported[box_index] = False
+                return
+
+            start_address = self.reg_addr(40001)
+            BASE_REG_COUNT = 22
+
+            # 1단계: 기본 레지스터(40001~40022)가 정상인지 확인
+            rr_base = tmp_client.read_holding_registers(start_address, BASE_REG_COUNT)
+            if isinstance(rr_base, ExceptionResponse) or rr_base.isError():
+                raise ModbusIOException(
+                    f'Error reading base regs 40001~40022 from {ip} during capability probe: {rr_base}'
+                )
+            regs_base = getattr(rr_base, "registers", []) or []
+            if len(regs_base) < BASE_REG_COUNT:
+                raise ModbusIOException(
+                    f'Base regs length < {BASE_REG_COUNT} during capability probe (got {len(regs_base)})'
+                )
+
+            # 2단계: 확장 포함 24개 읽기 시도
+            rr_ext = tmp_client.read_holding_registers(start_address, 24)
+            if isinstance(rr_ext, ExceptionResponse) or rr_ext.isError():
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
+                    f'40023/40024 읽기 에러 → 구형 장비 (FW/TFTP/ZERO/RST 비활성화). ({rr_ext})'
+                )
+                self.fw_status_supported[box_index] = False
+                self.tftp_supported[box_index] = False
+                return
+
+            regs_ext = getattr(rr_ext, "registers", []) or []
+            if len(regs_ext) >= 24:
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
+                    f'40023/40024 포함 확장 레지스터 지원 장비로 판단.'
+                )
+                self.fw_status_supported[box_index] = True
+                self.tftp_supported[box_index] = True
+            else:
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
+                    f'24개 미만 응답(={len(regs_ext)}) → 구형 장비 (FW/TFTP/ZERO/RST 비활성화).'
+                )
+                self.fw_status_supported[box_index] = False
+                self.tftp_supported[box_index] = False
+
+        finally:
+            try:
+                tmp_client.close()
+            except Exception:
+                pass
+
+    # -------------------- 데이터 읽기 쓰레드 --------------------
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
@@ -719,7 +790,7 @@ class ModbusUI:
                         f'Error reading from {ip}: expected at least {BASE_REG_COUNT} regs, got {len(raw_regs)}'
                     )
 
-                # FW 상태 레지스터 미지원 장비 자동 감지:
+                # FW 상태 레지스터 미지원 장비 자동 감지 (fallback):
                 value_40023 = None
                 value_40024 = None
 
@@ -869,9 +940,7 @@ class ModbusUI:
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
-    # ------------------------------------------------------------------
-    # 로그 / 알람
-    # ------------------------------------------------------------------
+    # -------------------- 로그 --------------------
 
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
         """
@@ -948,6 +1017,8 @@ class ModbusUI:
                     self.update_fw_status(box_index, v_40022, v_40023, v_40024)
 
         self.schedule_ui_update()
+
+    # -------------------- 로그 팝업 --------------------
 
     def open_segment_popup(self, box_index: int):
         existing = self.log_popups[box_index]
@@ -1125,6 +1196,8 @@ class ModbusUI:
         text.see('end')
         text.config(state='disabled')
 
+    # -------------------- 연결 끊김 / 재연결 --------------------
+
     def handle_disconnection(self, box_index):
         self.disconnection_counts[box_index] += 1
         count = self.disconnection_counts[box_index]
@@ -1174,10 +1247,6 @@ class ModbusUI:
             f'PWR lamp set to default green for box {box_index} due to disconnection.'
         )
 
-    # ------------------------------------------------------------------
-    # 재연결 로직 (플래그 초기화 안 함)
-    # ------------------------------------------------------------------
-
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
         max_retries = 5
@@ -1209,14 +1278,23 @@ class ModbusUI:
                     if ip not in self.modbus_locks:
                         self.modbus_locks[ip] = threading.Lock()
 
-                    # 자동 재연결 시에는 기존의 fw_status_supported / tftp_supported 상태를 유지
+                    # 새 연결이므로 FW 상태 캐시/업그레이드 상태 초기화
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
-                    self.console.print(
-                        f'[FW] box {box_index} ({ip}) : reconnect 성공 '
-                        f'(fw_status_supported={self.fw_status_supported[box_index]}, '
-                        f'tftp_supported={self.tftp_supported[box_index]})'
-                    )
+
+                    # ★ 재연결 시에도 capability probe를 다시 한 번 수행
+                    try:
+                        self.detect_device_capabilities(ip, box_index)
+                        self.console.print(
+                            f'[FW] box {box_index} ({ip}) : reconnect 성공 '
+                            f'(fw_status_supported={self.fw_status_supported[box_index]}, '
+                            f'tftp_supported={self.tftp_supported[box_index]})'
+                        )
+                    except Exception as e:
+                        self.console.print(
+                            f'[FW] box {box_index} ({ip}) : reconnect 후 capability probe 실패 '
+                            f'(fallback 동작, 기존 플래그 유지). {e}'
+                        )
 
                     stop_flag.clear()
                     t = threading.Thread(
@@ -1281,10 +1359,6 @@ class ModbusUI:
             )
             self.disconnect_client(ip, box_index, manual=False)
 
-    # ------------------------------------------------------------------
-    # PWR / 알람 점멸
-    # ------------------------------------------------------------------
-
     def blink_pwr(self, box_index):
         if self.box_states[box_index].get('pwr_blinking', False):
             return
@@ -1315,6 +1389,8 @@ class ModbusUI:
                 self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
+
+    # -------------------- 알람 처리 --------------------
 
     def check_alarms(self, box_index):
         state = self.box_states[box_index]
@@ -1424,9 +1500,7 @@ class ModbusUI:
 
         _blink()
 
-    # ------------------------------------------------------------------
-    # FW 상태 / 버전 / TFTP / ZERO / RST
-    # ------------------------------------------------------------------
+    # -------------------- FW 상태 표시/업데이트 --------------------
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         # FW 상태 레지스터 미지원 장비라면 아무 것도 하지 않음
@@ -1493,6 +1567,8 @@ class ModbusUI:
                     ('segment_display', box_index, 'Err ', True)
                 )
 
+    # -------------------- TFTP IP 읽기 --------------------
+
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
         if not self.tftp_supported[box_index]:
             return
@@ -1557,6 +1633,8 @@ class ModbusUI:
                         f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
                     )
                     self.tftp_supported[box_index] = False
+
+    # -------------------- FW 업그레이드 --------------------
 
     def start_firmware_upgrade(self, box_index: int):
         # 이 박스가 TFTP/FW 기능을 지원하지 않는다고 판단되면 애초에 pass
@@ -1689,6 +1767,8 @@ class ModbusUI:
                 lambda e=e: messagebox.showerror('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
             )
 
+    # -------------------- ZERO / RST --------------------
+
     def zero_calibration(self, box_index: int):
         self.console.print(f'[ZERO] button clicked (box_index={box_index})')
 
@@ -1791,6 +1871,8 @@ class ModbusUI:
             else:
                 self.console.print(f'[RST] Error on reboot for {ip}: {e}')
                 messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
+
+    # -------------------- 설정 팝업 --------------------
 
     def open_settings_popup(self, box_index: int):
         existing = self.settings_popups[box_index]
