@@ -138,11 +138,6 @@ class ModbusUI:
         # 박스별 TFTP 지원 여부 (기본값: True)
         self.tftp_supported = [True] * num_boxes
 
-        # 박스별 확장 레지스터(40012~40024, FW 상태 포함) 지원 여부
-        #   True : 40001~40024 한 번에 읽음
-        #   False: 40001~40011만 읽고 FW 상태는 사용 안 함
-        self.extended_regs_supported = [True] * num_boxes
-
         self.load_ip_settings(num_boxes)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -646,9 +641,9 @@ class ModbusUI:
         return False
 
     # -------------------------------------------------------------------------
-    #   멀티 레지스터 리드 (2번 나눠 읽기)
-    #   - 기본: 40001 ~ 40011 (항상 읽음, 여기서 숫자/알람/바 처리)
-    #   - FW:  40022 ~ 40024 (별도 요청, 실패해도 무시)
+    #   멀티 레지스터 리드 (FW 업그레이드 모드 분리)
+    #   - 평상시: 40001 ~ 40011 + (옵션) 40022~40024
+    #   - FW 중 : 40022 ~ 40024만 읽기 (기본 레지스터는 안 읽음)
     # -------------------------------------------------------------------------
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         base_basic = self.reg_addr(40001)   # 40001 ~ 40011
@@ -665,7 +660,57 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                # 1) 기본 레지스터(40001~40011) 읽기
+                upgrading_mode = self.box_states[box_index].get('fw_upgrading', False)
+
+                # ──────────────────────────────────────────────
+                # FW 업그레이드 모드: FW 레지스터만 반복 폴링
+                # ──────────────────────────────────────────────
+                if upgrading_mode:
+                    try:
+                        with lock:
+                            resp_fw = client.read_holding_registers(base_fw, cnt_fw)
+                    except Exception as e_fw:
+                        msg_fw = str(e_fw)
+                        if "unpack requires a buffer of 4 bytes" in msg_fw:
+                            self.console.print(
+                                f'[Modbus] FW regs decode error from {ip}: {e_fw}. Will retry...'
+                            )
+                            time.sleep(self.communication_interval * 2)
+                            continue
+                        # 다른 예외는 I/O 문제로 보고 재시도
+                        self.console.print(
+                            f'[Modbus] FW regs exception from {ip}: {e_fw}. Will retry...'
+                        )
+                        time.sleep(self.communication_interval * 2)
+                        continue
+
+                    if isinstance(resp_fw, ExceptionResponse) or resp_fw.isError():
+                        self.console.print(
+                            f'[Modbus] FW regs read error from {ip}: {resp_fw}. Will retry...'
+                        )
+                        time.sleep(self.communication_interval * 2)
+                        continue
+
+                    raw_fw = resp_fw.registers
+                    if len(raw_fw) < cnt_fw:
+                        self.console.print(
+                            f'[Modbus] FW regs len error from {ip}: expected {cnt_fw}, got {len(raw_fw)}. Will retry...'
+                        )
+                        time.sleep(self.communication_interval * 2)
+                        continue
+
+                    v_40022, v_40023, v_40024 = raw_fw
+                    self.ui_update_queue.put(
+                        ('fw_status', box_index, v_40022, v_40023, v_40024)
+                    )
+
+                    time.sleep(self.communication_interval)
+                    continue  # 기본 영역은 건들지 않고 다음 루프
+
+                # ──────────────────────────────────────────────
+                # 평상시 모드: 기본 레지스터 + 옵션으로 FW 레지스터 읽기
+                # ──────────────────────────────────────────────
+                # 1) 기본 레지스터(40001~40011)
                 try:
                     with lock:
                         resp_basic = client.read_holding_registers(base_basic, cnt_basic)
@@ -749,46 +794,25 @@ class ModbusUI:
                 # bar 표시 (40011 그대로 사용)
                 self.ui_update_queue.put(('bar', box_index, value_40011))
 
-                # 2) FW 상태 레지스터(40022~40024)는 "별도 요청"으로 읽기 (실패해도 무시)
+                # 2) FW 상태 레지스터(40022~40024)는 평상시에는 "옵션"만 폴링
                 try:
                     with lock:
                         resp_fw = client.read_holding_registers(base_fw, cnt_fw)
 
-                    if isinstance(resp_fw, ExceptionResponse) or resp_fw.isError():
-                        raise ModbusIOException(
-                            f'Error reading FW regs 40022~40024 from {ip}: {resp_fw}'
-                        )
-
-                    raw_fw = resp_fw.registers
-                    if len(raw_fw) < cnt_fw:
-                        raise ModbusIOException(
-                            f'FW regs len error from {ip}: expected {cnt_fw}, got {len(raw_fw)}'
-                        )
-
-                    v_40022 = raw_fw[0]
-                    v_40023 = raw_fw[1]
-                    v_40024 = raw_fw[2]
-                    self.ui_update_queue.put(
-                        ('fw_status', box_index, v_40022, v_40023, v_40024)
-                    )
-
+                    if not (isinstance(resp_fw, ExceptionResponse) or resp_fw.isError()):
+                        raw_fw = resp_fw.registers
+                        if len(raw_fw) >= cnt_fw:
+                            v_40022 = raw_fw[0]
+                            v_40023 = raw_fw[1]
+                            v_40024 = raw_fw[2]
+                            self.ui_update_queue.put(
+                                ('fw_status', box_index, v_40022, v_40023, v_40024)
+                            )
                 except Exception as e_fw:
-                    msg_fw = str(e_fw)
-                    if "unpack requires a buffer of 4 bytes" in msg_fw:
-                        # FW 레지스터 읽기 중 디코드 에러 → 이번 사이클만 무시
-                        self.console.print(
-                            f'[Modbus] FW regs decode error from {ip}: {e_fw}. Ignoring this cycle.'
-                        )
-                    elif isinstance(e_fw, ModbusIOException):
-                        # FW 쪽만 모종의 이유로 오류 → 이번 사이클만 무시
-                        self.console.print(
-                            f'[Modbus] FW regs read error from {ip}: {e_fw}. Ignoring this cycle.'
-                        )
-                    else:
-                        # 예측 못 한 예외도 연결은 유지하고 그냥 로그만 남김
-                        self.console.print(
-                            f'[Modbus] FW regs unexpected error from {ip}: {e_fw}. Ignoring this cycle.'
-                        )
+                    # 평상시에는 FW 쪽 에러는 그냥 무시 (로그만)
+                    self.console.print(
+                        f'[Modbus] FW regs optional read error from {ip}: {e_fw}. Ignored.'
+                    )
 
                 time.sleep(self.communication_interval)
 
@@ -861,7 +885,7 @@ class ModbusUI:
         while True:
             try:
                 box_index, value, blink = self.data_queue.get(timeout=1)
-                # FW 중이어도 기본 값은 항상 세그먼트로 보냄
+                # FW 중이라도 기본 값은 세그먼트로 보냄
                 self.ui_update_queue.put(('segment_display', box_index, value, blink))
             except queue.Empty:
                 continue
@@ -1409,6 +1433,7 @@ class ModbusUI:
             msg += ' [' + ', '.join(states) + ']'
         self.console.print(msg)
 
+        # 장비가 보고하는 비트 기준으로 fw_upgrading 동기화
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
@@ -1420,7 +1445,6 @@ class ModbusUI:
                 ('bar', box_index, progress)
             )
         else:
-            self.box_states[box_index]['fw_upgrading'] = False
             if upgrade_ok:
                 self.ui_update_queue.put(
                     ('segment_display', box_index, ' End', False)
@@ -1605,6 +1629,10 @@ class ModbusUI:
                     self.console.print(
                         f'[FW] write 40091 exception (treated as non-fatal): {e}'
                     )
+
+            # FW 시작 명령을 보냈으므로, 우선 로컬 상태는 업그레이드 모드로 전환
+            self.box_states[box_index]['fw_upgrading'] = True
+            self.console.print(f'[FW] box {box_index} : local fw_upgrading = True')
 
             self.console.print(
                 f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
