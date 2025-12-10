@@ -20,8 +20,8 @@ from tkinter import (
     Text,
 )
 from pymodbus.client import ModbusTcpClient
-    ...
-)
+from pymodbus.exceptions import ConnectionException, ModbusIOException
+from pymodbus.pdu import ExceptionResponse
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from pymodbus.pdu import ExceptionResponse
 from rich.console import Console
