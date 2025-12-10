@@ -136,7 +136,8 @@ class ModbusUI:
         self.box_logs = [[] for _ in range(num_boxes)]
 
         # ─────────────────────────────────────────
-        # 박스별 TFTP 지원 여부 (기본값: True, 에러 나면 False로 바꿔서 이후 무시)
+        # 박스별 TFTP 지원 여부 (기본값: True)
+        #   지금은 "자동 탐색"을 끈 상태라 실제로는 FW 업그레이드 시에만 의미 있음
         # ─────────────────────────────────────────
         self.tftp_supported = [True] * num_boxes
 
@@ -394,7 +395,7 @@ class ModbusUI:
             anchor='n',
         )
 
-        # 램프 클릭 → 설정 팝업(기존 기능 유지)
+        # 램프 클릭 → 설정 팝업
         def _on_lamp_click(event, idx=index):
             self.open_settings_popup(idx)
 
@@ -540,14 +541,14 @@ class ModbusUI:
                 t.start()
                 self.console.print(f'Started data thread for {ip}')
 
-                # 장비의 TFTP IP는 약간 딜레이를 두고 백그라운드에서 읽기
-                # ▶ 이 박스가 TFTP 미지원으로 판정된 경우는 아예 시도하지 않음
-                if self.tftp_supported[i]:
-                    threading.Thread(
-                        target=self.delayed_load_tftp_ip_from_device,
-                        args=(i, 1.0),
-                        daemon=True,
-                    ).start()
+                # 🔴 이전에는 여기서 TFTP IP 자동 읽기 스레드를 띄웠음
+                # if self.tftp_supported[i]:
+                #     threading.Thread(
+                #         target=self.delayed_load_tftp_ip_from_device,
+                #         args=(i, 1.0),
+                #         daemon=True,
+                #     ).start()
+                # → 이제는 자동으로 TFTP 레지스터를 건드리지 않음
 
                 box_canvas = self.box_data[i][0]
                 gms1000_id = self.box_states[i]['gms1000_text_id']
@@ -1162,14 +1163,13 @@ class ModbusUI:
                     self.connected_clients[ip] = t
                     t.start()
 
-                    # 재연결 후에도 TFTP IP는 살짝 딜레이 줘서 읽기
-                    # ▶ 다만 이 장치가 TFTP 미지원으로 판정된 경우는 더 이상 시도하지 않음
-                    if self.tftp_supported[box_index]:
-                        threading.Thread(
-                            target=self.delayed_load_tftp_ip_from_device,
-                            args=(box_index, 1.0),
-                            daemon=True,
-                        ).start()
+                    # 🔴 여기에서도 자동 TFTP IP 읽기 스레드 제거
+                    # if self.tftp_supported[box_index]:
+                    #     threading.Thread(
+                    #         target=self.delayed_load_tftp_ip_from_device,
+                    #         args=(box_index, 1.0),
+                    #         daemon=True,
+                    #     ).start()
 
                     self.parent.after(
                         0,
@@ -1427,20 +1427,18 @@ class ModbusUI:
                 )
 
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
-        # 이미 이 박스가 TFTP 미지원으로 판정되었다면 아예 시도 안 함
+        # 현재는 자동으로는 호출하지 않지만, 필요시 수동 버튼에서 쓸 수도 있으니 함수는 남겨둠
         if not self.tftp_supported[box_index]:
             return
 
         time.sleep(delay)
 
-        # 딜레이 동안 상태가 바뀌었을 수도 있으니 한 번 더 체크
         if not self.tftp_supported[box_index]:
             return
 
         try:
             self.load_tftp_ip_from_device(box_index)
         except Exception as e:
-            # 여기까지 온 예외는 최상위에서 한 번만 잡고, 로그만 남기고 무시
             self.console.print(
                 f'[FW] (ignore) delayed TFTP IP read fail box {box_index}: {e}'
             )
@@ -1461,7 +1459,6 @@ class ModbusUI:
             with lock:
                 rr = client.read_holding_registers(addr_ip1, 2)
 
-            # ★ 여기 변경: 어떤 형태의 오류 응답이든 "이 장비는 TFTP 레지스터를 안정적으로 지원하지 않는다" 로 판정
             if isinstance(rr, ExceptionResponse) or rr.isError():
                 msg = str(rr)
                 self.console.print(f'[FW] read 40088/40089 error: {rr}')
@@ -1469,7 +1466,6 @@ class ModbusUI:
                     f"[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 오류 발생 → "
                     f"이후 이 박스에 대해서는 자동 TFTP 기능 비활성화."
                 )
-                # 한 번이라도 에러가 나면 더 이상 이 장비에 TFTP 시도 안 함
                 self.tftp_supported[box_index] = False
                 return
 
@@ -1483,7 +1479,6 @@ class ModbusUI:
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
         except Exception as e:
             msg = str(e)
-            # "No response received" 는 장비 준비 안 된 정도로만 보고, 자동 기능은 끄되 강하게 에러 처리 안 함
             if "No response received" in msg:
                 self.console.print(
                     f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready (No response). '
@@ -1492,7 +1487,6 @@ class ModbusUI:
                 self.tftp_supported[box_index] = False
             else:
                 self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
-                # 여기서 "Failed to connect" / "Socket is closed" 같은 경우도 반복되면 비활성화
                 if 'Failed to connect' in msg or 'Socket is closed' in msg:
                     self.console.print(
                         f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
@@ -1705,7 +1699,7 @@ class ModbusUI:
                 self.console.print(f'[RST] Error on reboot for {ip}: {e}')
                 messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
 
-    # 램프 설정 팝업 (기존 기능)
+    # 램프 설정 팝업
     def open_settings_popup(self, box_index: int):
         existing = self.settings_popups[box_index]
         if existing is not None and existing.winfo_exists():
