@@ -303,6 +303,9 @@ class ModbusUI:
                 'last_log_alarm1': None,
                 'last_log_alarm2': None,
                 'last_log_error_reg': None,
+                # ▼ FW 버전 표시용
+                'version_text_id': None,
+                'last_version_value': None,
             }
         )
 
@@ -392,6 +395,17 @@ class ModbusUI:
             anchor='center',
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
+
+        # ▼ FW 버전 라벨 (세그먼트 영역 윗쪽 오른쪽 끝 근처에 작게 표시)
+        version_text_id = box_canvas.create_text(
+            sx(140),               # 오른쪽 끝 근처
+            sy(12),                # 상단 살짝 아래
+            text='',               # 처음에는 빈 문자열
+            font=('Helvetica', int(8 * SCALE_FACTOR), 'bold'),
+            fill='#cccccc',
+            anchor='ne',           # 오른쪽 위 기준 정렬
+        )
+        self.box_states[index]['version_text_id'] = version_text_id
 
         gms1000_text_id = box_canvas.create_text(
             sx(80),
@@ -623,6 +637,15 @@ class ModbusUI:
         self.update_circle_state([False, False, False, False], box_index=box_index)
         self.update_segment_display('    ', box_index=box_index)
         self.show_bar(box_index, show=False)
+
+        # ▼ FW 버전 라벨 초기화
+        state = self.box_states[box_index]
+        state['last_version_value'] = None
+        version_text_id = state.get('version_text_id')
+        if version_text_id is not None:
+            box_canvas = self.box_data[box_index][0]
+            box_canvas.itemconfig(version_text_id, text='')
+
         self.console.print(f'Reset UI elements for box {box_index}')
 
     def cleanup_client(self, ip):
@@ -701,6 +724,9 @@ class ModbusUI:
                 value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
                 value_40022 = raw_regs[21]
+
+                # ▼ 버전 정보(40022)를 UI에 전달
+                self.ui_update_queue.put(('version', box_index, value_40022))
 
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
@@ -884,6 +910,9 @@ class ModbusUI:
             elif typ == 'alarm_check':
                 _, box_index = item
                 self.check_alarms(box_index)
+            elif typ == 'version':
+                _, box_index, version = item
+                self.set_version_label(box_index, version)
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
                 # FW 상태 레지스터 미지원 장비면 그냥 무시
@@ -1829,6 +1858,38 @@ class ModbusUI:
                     self.console.print(f"[UI] settings popup grab_set skipped: {e}")
 
         win.after(50, _safe_grab)
+
+    # ---------- FW 버전 표시 관련 유틸 ----------
+
+    def format_version(self, version: int) -> str:
+        """
+        40022 값을 보기 좋게 포맷.
+        예) 123 -> v1.23, 100 -> v1.00
+        장비 프로토콜이 다르면 여기만 수정하면 됨.
+        """
+        try:
+            v = int(version)
+        except Exception:
+            return f'v{version}'
+
+        major = v // 100
+        minor = v % 100
+        return f'v{major}.{minor:02d}'
+
+    def set_version_label(self, box_index: int, version: int):
+        state = self.box_states[box_index]
+        # 이전 값과 같으면 갱신 안 함
+        if state.get('last_version_value') == version:
+            return
+
+        state['last_version_value'] = version
+        version_text_id = state.get('version_text_id')
+        if version_text_id is None:
+            return
+
+        box_canvas = self.box_data[box_index][0]
+        text = self.format_version(version)
+        box_canvas.itemconfig(version_text_id, text=text)
 
 
 def main():
