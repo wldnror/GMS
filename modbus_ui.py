@@ -131,8 +131,8 @@ class ModbusUI:
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
-        # 화면 아무 곳이나 클릭하면 check_click 호출
-        self.parent.bind('<Button-1>', self.check_click)
+        # ⛔ root 전체 클릭 bind 제거 (세그먼트 캔버스에 직접 bind 하므로 불필요)
+        # self.parent.bind('<Button-1>', self.check_click)
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
@@ -240,14 +240,29 @@ class ModbusUI:
         box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill='grey', outline='grey', tags='border')
         box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill='black', outline='grey', tags='border')
 
+        # 7-seg 생성 (common.create_segment_display에서 내부 segment_canvas를 만들 가능성 있음)
         create_segment_display(box_canvas)
+
+        # 세그먼트 클릭 영역(대략적인 위치) 지정
+        segment_click_area = (sx(15), sy(110), sx(145), sy(170))
+
+        # ▶ 세그먼트 / 박스 캔버스에 직접 클릭 이벤트 바인딩
+        def _on_segment_click(event, idx=index):
+            # 클릭 위치가 segment 영역 안일 때만 팝업
+            x1, y1, x2, y2 = self.box_states[idx]['segment_click_area']
+            if x1 <= event.x <= x2 and y1 <= event.y <= y2:
+                self.open_segment_popup(idx)
+
+        # 박스 캔버스에 바인딩
+        box_canvas.bind('<Button-1>', _on_segment_click)
+
+        # create_segment_display 내부에서 box_canvas.segment_canvas를 썼다면, 거기도 바인딩
+        if hasattr(box_canvas, 'segment_canvas'):
+            box_canvas.segment_canvas.bind('<Button-1>', _on_segment_click)
 
         gas_key = self.gas_types.get(f'modbus_box_{index}', 'ORG')
         gas_type_var = StringVar(value=gas_key)
         fw_name_var = StringVar(value='(파일 없음)')
-
-        # 세그먼트 클릭 영역(대략적인 위치) 지정
-        segment_click_area = (sx(15), sy(110), sx(145), sy(170))
 
         self.box_states.append(
             {
@@ -280,74 +295,15 @@ class ModbusUI:
         ip_var = self.ip_vars[index]
         self.add_ip_row(control_frame, ip_var, index)
 
-        maint_frame = Frame(control_frame, bg='black')
-        maint_frame.grid(row=1, column=0, columnspan=2, pady=(2, 0))
-
-        fw_button = Button(
-            maint_frame,
-            text='FW',
-            command=lambda idx=index: self.start_firmware_upgrade(idx),
-            width=int(3 * SCALE_FACTOR),
-            bg='#444444',
-            fg='white',
-            relief='raised',
-            bd=1,
-        )
-        fw_button.grid(row=0, column=0, padx=1)
-
-        zero_button = Button(
-            maint_frame,
-            text='ZERO',
-            command=lambda idx=index: self.zero_calibration(idx),
-            width=int(4 * SCALE_FACTOR),
-            bg='#444444',
-            fg='white',
-            relief='raised',
-            bd=1,
-        )
-        zero_button.grid(row=0, column=1, padx=1)
-
-        rst_button = Button(
-            maint_frame,
-            text='RST',
-            command=lambda idx=index: self.reboot_device(idx),
-            width=int(3 * SCALE_FACTOR),
-            bg='#444444',
-            fg='white',
-            relief='raised',
-            bd=1,
-        )
-        rst_button.grid(row=0, column=2, padx=1)
-
-        fw_file_label = Label(
-            maint_frame,
-            text='FW파일',
-            fg='white',
-            bg='black',
-            font=('Helvetica', int(8 * SCALE_FACTOR)),
-        )
-        fw_file_label.grid(row=2, column=0, padx=1, pady=(2, 0), sticky='e')
-
-        fw_file_button = Button(
-            maint_frame,
-            text='선택',
-            command=lambda idx=index: self.select_fw_file(idx),
-            width=int(4 * SCALE_FACTOR),
-            bg='#555555',
-            fg='white',
-            relief='raised',
-            bd=1,
-        )
-        fw_file_button.grid(row=2, column=1, padx=1, pady=(2, 0), sticky='w')
-
-        fw_file_name_label = Label(
-            maint_frame,
-            textvariable=fw_name_var,
-            fg='#cccccc',
-            bg='black',
-            font=('Helvetica', int(7 * SCALE_FACTOR)),
-        )
-        fw_file_name_label.grid(row=2, column=2, padx=1, pady=(2, 0), sticky='w')
+        # 🔻🔻🔻 기존 FW / ZERO / RST / FW 파일 버튼들 제거 (이제 팝업에서만 조작)
+        # maint_frame = Frame(control_frame, bg='black')
+        # maint_frame.grid(row=1, column=0, columnspan=2, pady=(2, 0))
+        #
+        # fw_button = Button(...)
+        # zero_button = Button(...)
+        # rst_button = Button(...)
+        # fw_file_label / fw_file_button / fw_file_name_label ...
+        # 🔺🔺🔺
 
         disconnection_label = Label(
             control_frame,
@@ -356,7 +312,7 @@ class ModbusUI:
             bg='black',
             font=('Helvetica', int(10 * SCALE_FACTOR)),
         )
-        disconnection_label.grid(row=3, column=0, columnspan=2, pady=(2, 0))
+        disconnection_label.grid(row=1, column=0, columnspan=2, pady=(2, 0))
         self.disconnection_labels[index] = disconnection_label
 
         reconnect_label = Label(
@@ -366,7 +322,7 @@ class ModbusUI:
             bg='black',
             font=('Helvetica', int(10 * SCALE_FACTOR)),
         )
-        reconnect_label.grid(row=4, column=0, columnspan=2, pady=(2, 0))
+        reconnect_label.grid(row=2, column=0, columnspan=2, pady=(2, 0))
         self.reconnect_attempt_labels[index] = reconnect_label
 
         disconnection_label.grid_remove()
@@ -785,26 +741,8 @@ class ModbusUI:
         self.schedule_ui_update()
 
     # ─────────────────────────────────────────────────────────
-    # 세그먼트 클릭 처리 + 팝업 생성
+    # 세그먼트 팝업 생성
     # ─────────────────────────────────────────────────────────
-    def check_click(self, event):
-        widget = event.widget
-        # 캔버스가 아니면 무시
-        if not isinstance(widget, Canvas):
-            return
-
-        # 어떤 박스의 캔버스인지 찾기
-        for idx, (canvas, *_rest) in enumerate(self.box_data):
-            if canvas is widget:
-                area = self.box_states[idx].get('segment_click_area')
-                if not area:
-                    return
-                x1, y1, x2, y2 = area
-                # 클릭 좌표가 세그먼트 영역 안이면 팝업 열기
-                if x1 <= event.x <= x2 and y1 <= event.y <= y2:
-                    self.open_segment_popup(idx)
-                break
-
     def open_segment_popup(self, box_index: int):
         # 이미 열려 있으면 앞으로 가져오기만
         existing = self.segment_popups[box_index]
