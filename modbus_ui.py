@@ -775,9 +775,19 @@ class ModbusUI:
                     self.console.print(
                         f"[Modbus] decode error from {ip}: {e}. Treat as connection lost → reconnect."
                     )
-                    # 위의 ConnectionException 핸들러로 보내기
-                    raise ConnectionException(msg)
 
+                    # ⬇ 여기서 바로 ConnectionException 처리 로직을 수행 (raise 안 함)
+                    if self.box_states[box_index].get('fw_upgrading', False):
+                        self.console.print(
+                            f'[FW] box {box_index} disconnected during upgrade (expected).'
+                        )
+                    else:
+                        self.handle_disconnection(box_index)
+
+                    self.reconnect(ip, client, stop_flag, box_index)
+                    break  # while 루프 종료
+
+                # 그 외 진짜 예상 못 한 에러는 기존대로 처리
                 self.console.print(f'Unexpected error reading data from {ip}: {e}')
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
