@@ -135,17 +135,12 @@ class ModbusUI:
         # 박스별 로그 버퍼
         self.box_logs = [[] for _ in range(num_boxes)]
 
-        # ─────────────────────────────────────────
         # 박스별 TFTP 지원 여부 (기본값: True)
-        #   지금은 "자동 탐색"을 끈 상태라 실제로는 FW 업그레이드 시에만 의미 있음
-        # ─────────────────────────────────────────
         self.tftp_supported = [True] * num_boxes
 
-        # ─────────────────────────────────────────
         # 박스별 확장 레지스터(40012~40024, FW 상태 포함) 지원 여부
         #   True : 40001~40024 한 번에 읽음
         #   False: 40001~40011만 읽고 FW 상태는 사용 안 함
-        # ─────────────────────────────────────────
         self.extended_regs_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
@@ -541,15 +536,6 @@ class ModbusUI:
                 t.start()
                 self.console.print(f'Started data thread for {ip}')
 
-                # 🔴 이전에는 여기서 TFTP IP 자동 읽기 스레드를 띄웠음
-                # if self.tftp_supported[i]:
-                #     threading.Thread(
-                #         target=self.delayed_load_tftp_ip_from_device,
-                #         args=(i, 1.0),
-                #         daemon=True,
-                #     ).start()
-                # → 이제는 자동으로 TFTP 레지스터를 건드리지 않음
-
                 box_canvas = self.box_data[i][0]
                 gms1000_id = self.box_states[i]['gms1000_text_id']
                 box_canvas.itemconfig(gms1000_id, state='hidden')
@@ -615,6 +601,10 @@ class ModbusUI:
         self.save_ip_settings()
 
     def _after_disconnect(self, i, manual):
+        # 🔴 FW 상태 초기화
+        self.box_states[i]['fw_upgrading'] = False
+        self.last_fw_status[i] = None
+
         self.reset_ui_elements(i)
         self.action_buttons[i].config(
             image=self.connect_image,
@@ -675,10 +665,7 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                # ─────────────────────────────────────────
                 # 1) 확장 레지스터 시도 (40001~40024)
-                #    - 에러나면 이 박스는 앞으로 40001~40011만 사용
-                # ─────────────────────────────────────────
                 has_fw_status = False
 
                 if self.extended_regs_supported[box_index]:
@@ -696,7 +683,7 @@ class ModbusUI:
                         with lock:
                             response = client.read_holding_registers(base_addr, basic_regs)
                         if isinstance(response, ExceptionResponse) or response.isError():
-                            # 기본 영역도 에러면 진짜 I/O 문제 → 예전처럼 처리
+                            # 기본 영역도 에러면 진짜 I/O 문제
                             raise ModbusIOException(
                                 f'Error reading from {ip}, address 40001~40011 (after extended fallback)'
                             )
@@ -725,9 +712,7 @@ class ModbusUI:
                             # 정상적으로 24개 읽었으면 FW 상태도 사용 가능
                             has_fw_status = True
                 else:
-                    # ─────────────────────────────────────────
                     # 2) 이미 basic-only 모드인 박스 → 예전처럼 40001~40011만 읽기
-                    # ─────────────────────────────────────────
                     with lock:
                         response = client.read_holding_registers(base_addr, basic_regs)
                     if isinstance(response, ExceptionResponse) or response.isError():
@@ -809,7 +794,7 @@ class ModbusUI:
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
             except ModbusIOException as e:
-                # 실제 통신 I/O 문제 (서버가 죽었거나 등)를 위한 예외
+                # 실제 통신 I/O 문제
                 self.console.print(
                     f'Temporary Modbus I/O error from {ip}: {e}. Will retry...'
                 )
@@ -1085,6 +1070,11 @@ class ModbusUI:
                 text=f'DC: {c}'
             ),
         )
+
+        # 🔴 FW 상태 초기화 (중요)
+        self.box_states[box_index]['fw_upgrading'] = False
+        self.last_fw_status[box_index] = None
+
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, '    ', False))
         self.ui_update_queue.put(('bar', box_index, 0))
@@ -1162,14 +1152,6 @@ class ModbusUI:
                     )
                     self.connected_clients[ip] = t
                     t.start()
-
-                    # 🔴 여기에서도 자동 TFTP IP 읽기 스레드 제거
-                    # if self.tftp_supported[box_index]:
-                    #     threading.Thread(
-                    #         target=self.delayed_load_tftp_ip_from_device,
-                    #         args=(box_index, 1.0),
-                    #         daemon=True,
-                    #     ).start()
 
                     self.parent.after(
                         0,
@@ -1368,15 +1350,13 @@ class ModbusUI:
 
         _blink()
 
-    # ★ 여기부터 FW 상태 표시 (진행률/남은시간 바이트 순서 수정)
+    # ★ FW 상태 표시 (진행률/남은시간 바이트 순서 수정)
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         version = v_40022
         error_code = (v_40023 >> 8) & 0xFF
 
-        # ────────────────────────────────────────
         # 장비 스펙: 40024 상위 바이트 = 진행률(%),
         #            40024 하위 바이트 = 남은 시간(sec)
-        # ────────────────────────────────────────
         progress = (v_40024 >> 8) & 0xFF   # 상위 바이트
         remain   = v_40024 & 0xFF          # 하위 바이트
 
