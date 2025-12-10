@@ -450,24 +450,36 @@ class ModbusUI:
 
     def update_segment_display(self, value, box_index=0, blink=False):
         box_canvas = self.box_data[box_index][0]
-        value = value.zfill(4)
+
+        # 4자리 오른쪽 정렬, 공백 포함
+        value = str(value)
+        value = value.rjust(4)[:4]
+
         prev_val = self.box_states[box_index]['previous_segment_display']
         if value != prev_val:
             self.box_states[box_index]['previous_segment_display'] = value
+
         leading_zero = True
         for idx, digit in enumerate(value):
-            if leading_zero and digit == '0' and idx < 3:
+            if digit == ' ':
+                # 공백은 그냥 비우고 leading_zero 유지
+                segments = SEGMENTS[' ']
+            elif leading_zero and digit == '0' and idx < 3:
+                # 앞자리 0 숨기기
                 segments = SEGMENTS[' ']
             else:
                 segments = SEGMENTS.get(digit, SEGMENTS[' '])
                 leading_zero = False
+
             if blink and self.box_states[box_index]['blink_state']:
                 segments = SEGMENTS[' ']
+
             for j, seg_on in enumerate(segments):
                 color = '#fc0c0c' if seg_on == '1' else '#424242'
                 segment_tag = f'segment_{idx}_{chr(97 + j)}'
                 if hasattr(box_canvas, 'segment_canvas') and box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
+
         self.box_states[box_index]['blink_state'] = not self.box_states[box_index]['blink_state']
 
     def update_bar(self, value, box_index):
@@ -702,7 +714,9 @@ class ModbusUI:
                             ('circle_state', box_index, [False, False, True, False])
                         )
 
-                self.ui_update_queue.put(('bar', box_index, value_40011))
+                # FW 업그레이드 중이 아닐 때만 40011 값으로 bar 업데이트
+                if not self.box_states[box_index].get('fw_upgrading', False):
+                    self.ui_update_queue.put(('bar', box_index, value_40011))
 
                 self.ui_update_queue.put(
                     ('fw_status', box_index, value_40022, value_40023, value_40024)
@@ -1331,7 +1345,8 @@ class ModbusUI:
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
-            disp = f"{progress:3d} "
+            # 4자리 오른쪽 정렬로 진행률 표시 (0~100)
+            disp = f"{progress:4d}"
             self.ui_update_queue.put(
                 ('segment_display', box_index, disp, False)
             )
