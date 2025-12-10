@@ -1044,7 +1044,7 @@ class ModbusUI:
 
         win.transient(self.parent)
 
-        # ✅ 안전한 grab_set 적용 (화면에 보인 뒤에만 grab)
+        # ✅ 안전한 grab_set 적용
         def _safe_grab():
             try:
                 if win.winfo_exists() and win.winfo_viewable():
@@ -1460,16 +1460,17 @@ class ModbusUI:
         try:
             with lock:
                 rr = client.read_holding_registers(addr_ip1, 2)
+
+            # ★ 여기 변경: 어떤 형태의 오류 응답이든 "이 장비는 TFTP 레지스터를 안정적으로 지원하지 않는다" 로 판정
             if isinstance(rr, ExceptionResponse) or rr.isError():
-                # 장치에서 기능 미지원(Illegal Function / Illegal Data Address) 등의 응답일 수 있음
                 msg = str(rr)
                 self.console.print(f'[FW] read 40088/40089 error: {rr}')
-                # 레지스터 자체를 지원하지 않는 경우로 보고 자동 TFTP 기능 끔
-                if 'Illegal' in msg or 'ILLEGAL' in msg:
-                    self.console.print(
-                        f'[FW] box {box_index} ({ip}) : TFTP 관련 레지스터 미지원으로 판단 → 이후 자동 TFTP IP 읽기 비활성화.'
-                    )
-                    self.tftp_supported[box_index] = False
+                self.console.print(
+                    f"[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 오류 발생 → "
+                    f"이후 이 박스에 대해서는 자동 TFTP 기능 비활성화."
+                )
+                # 한 번이라도 에러가 나면 더 이상 이 장비에 TFTP 시도 안 함
+                self.tftp_supported[box_index] = False
                 return
 
             w1, w2 = rr.registers
@@ -1482,15 +1483,16 @@ class ModbusUI:
             self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
         except Exception as e:
             msg = str(e)
-            # 장치가 응답을 안 하는 정도는 "장비 아직 준비 안 됨"으로 간주
+            # "No response received" 는 장비 준비 안 된 정도로만 보고, 자동 기능은 끄되 강하게 에러 처리 안 함
             if "No response received" in msg:
                 self.console.print(
-                    f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready yet (ignore).'
+                    f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready (No response). '
+                    f'해당 장비에 대해서는 자동 TFTP 기능을 비활성화합니다.'
                 )
+                self.tftp_supported[box_index] = False
             else:
                 self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
-                # 여기서 "Failed to connect" / "Socket is closed" 같은 연결 오류가 반복된다면,
-                # 이 장치에서는 TFTP 레지스터 접근이 안정적이지 않은 것으로 보고 자동 기능 끔
+                # 여기서 "Failed to connect" / "Socket is closed" 같은 경우도 반복되면 비활성화
                 if 'Failed to connect' in msg or 'Socket is closed' in msg:
                     self.console.print(
                         f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
