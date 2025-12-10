@@ -790,6 +790,12 @@ class ModbusUI:
                     self.console.print(
                         f'[FW] box {box_index} disconnected during upgrade (expected).'
                     )
+                    # ★ 업그레이드 도중 장비 리부트로 끊긴 경우:
+                    #    재연결 후 정상 데이터 갱신을 위해 fw_upgrading/UI 상태를 초기화
+                    self.box_states[box_index]['fw_upgrading'] = False
+                    self.last_fw_status[box_index] = None
+                    self.ui_update_queue.put(('bar', box_index, 0))
+                    self.ui_update_queue.put(('segment_display', box_index, '    ', False))
                 else:
                     self.handle_disconnection(box_index)
 
@@ -834,6 +840,11 @@ class ModbusUI:
                         self.console.print(
                             f'[FW] box {box_index} disconnected during upgrade (expected).'
                         )
+                        # ★ 여기서도 동일하게 fw_upgrading/UI 초기화
+                        self.box_states[box_index]['fw_upgrading'] = False
+                        self.last_fw_status[box_index] = None
+                        self.ui_update_queue.put(('bar', box_index, 0))
+                        self.ui_update_queue.put(('segment_display', box_index, '    ', False))
                     else:
                         self.handle_disconnection(box_index)
 
@@ -1218,6 +1229,11 @@ class ModbusUI:
                             text='Reconnect: OK'
                         ),
                     )
+
+                    # ★ 재연결이 성공하면 FW 업그레이드 상태/캐시도 초기화
+                    self.box_states[box_index]['fw_upgrading'] = False
+                    self.last_fw_status[box_index] = None
+
                     break
 
                 new_client.close()
