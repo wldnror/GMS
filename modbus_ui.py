@@ -650,12 +650,43 @@ class ModbusUI:
             self.reconnect_attempt_labels[i].grid_remove()
 
     def reset_ui_elements(self, box_index):
+        """
+        연결 끊김/수동 disconnect 시 박스 전체 UI/알람 상태 초기화.
+        (통신 단절 시 AL1/AL2/테두리 깜빡임 포함 전부 OFF)
+        """
+        state = self.box_states[box_index]
+
+        # ★ 알람 관련 상태 싹 초기화
+        state['alarm1_on'] = False
+        state['alarm2_on'] = False
+        state['alarm1_blinking'] = False
+        state['alarm2_blinking'] = False
+        state['alarm_border_blink'] = False
+        state['alarm_blink_running'] = False
+        state['border_blink_state'] = False
+
+        # 램프도 실제로 OFF로 반영
+        try:
+            self.set_alarm_lamp(
+                box_index,
+                alarm1_on=False,
+                blink1=False,
+                alarm2_on=False,
+                blink2=False,
+            )
+        except Exception:
+            pass
+
+        # 테두리 색 기본값으로
+        if 0 <= box_index < len(self.box_frames):
+            self.box_frames[box_index].config(highlightbackground='#000000')
+
+        # 공통 램프/세그먼트/바 초기화
         self.update_circle_state([False, False, False, False], box_index=box_index)
         self.update_segment_display('    ', box_index=box_index)
         self.show_bar(box_index, show=False)
 
         # ▼ FW 버전 라벨 초기화
-        state = self.box_states[box_index]
         state['last_version_value'] = None
         version_text_id = state.get('version_text_id')
         if version_text_id is not None:
@@ -1404,17 +1435,39 @@ class ModbusUI:
             or state['alarm_border_blink']
         )
 
+        # ----------------------
+        # AL2 우선 알람 규칙:
+        #  - AL2 활성일 때는 AL2 깜빡, AL1은 항상 고정 ON
+        #  - AL1만 활성일 때는 AL1 깜빡, AL2는 OFF
+        # ----------------------
         if alarm2:
-            state['alarm1_blinking'] = False
-            state['alarm2_blinking'] = True
+            # AL2가 켜져 있으면 AL1은 항상 점등 상태 유지
+            state['alarm1_on'] = True          # 논리 상태도 ON으로 강제
+            state['alarm1_blinking'] = False   # AL1은 깜빡이지 않음(고정 ON)
+            state['alarm2_blinking'] = True    # AL2만 깜빡
             state['alarm_border_blink'] = True
+
+            # 처음 진입 시 한 번 색을 정리: AL1=빨간색 고정, AL2=빨간색에서 시작
+            self.set_alarm_lamp(
+                box_index,
+                alarm1_on=True,  blink1=False,   # AL1: 빨강 고정
+                alarm2_on=True,  blink2=False,   # AL2: 빨강으로 시작, 이후 blink_alarms가 깜빡이게 함
+            )
 
         elif alarm1:
             state['alarm1_blinking'] = True
             state['alarm2_blinking'] = False
             state['alarm_border_blink'] = True
 
+            # AL1만 알람일 때: AL1만 깜빡, AL2는 OFF로 정리
+            self.set_alarm_lamp(
+                box_index,
+                alarm1_on=True,  blink1=False,   # 시작 상태: 빨강
+                alarm2_on=False, blink2=False,   # AL2는 OFF
+            )
+
         else:
+            # 알람 모두 해제 → 알람 관련 상태/램프/테두리 모두 초기화
             state['alarm1_blinking'] = False
             state['alarm2_blinking'] = False
             state['alarm_border_blink'] = False
@@ -1430,6 +1483,7 @@ class ModbusUI:
             state['border_blink_state'] = False
             return
 
+        # 새로 알람 상태로 진입했는데, 아직 blink 루프가 안 돌고 있으면 시작
         if not prev_active and not state['alarm_blink_running']:
             self.blink_alarms(box_index)
 
