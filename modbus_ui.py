@@ -146,7 +146,7 @@ class ModbusUI:
 
         self.communication_interval = 0.2
         self.blink_interval = int(self.communication_interval * 1000)
-        self.alarm_blink_interval = 1000  # ★ 알람 램프 깜빡임 1초
+        self.alarm_blink_interval = 1000  # ★ 알람/에러 램프 깜빡임 1초
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -312,6 +312,9 @@ class ModbusUI:
                 'last_version_value': None,
                 # ▼ 알람 모드 (none / al1 / al2)
                 'alarm_mode': 'none',
+                # ▼ 에러 깜빡이 상태
+                'error_blink_running': False,
+                'error_blink_state': False,
             }
         )
 
@@ -470,8 +473,12 @@ class ModbusUI:
         states: [AL1, AL2, PWR, FUT]
         AL1/AL2는 알람 로직(set_alarm_lamp)이 관리하므로 여기서는 주로 PWR/FUT만 의미 있게 사용.
         """
+        # 에러 깜빡이 중이면 AL 램프는 에러 루틴이 관리하므로 여기서는 PWR/FUT만 건드리도록 한다.
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
         for i, state in enumerate(states):
+            # AL1/AL2는 에러/알람 루틴이 별도로 관리
+            if i in (0, 1):
+                continue
             color = self.LAMP_COLORS_ON[i] if state else self.LAMP_COLORS_OFF[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
         alarm_active = states[0] or states[1]
@@ -671,6 +678,11 @@ class ModbusUI:
         state['alarm_blink_running'] = False
         state['border_blink_state'] = False
         state['alarm_mode'] = 'none'
+
+        # ★ 에러 관련 상태 초기화
+        state['blinking_error'] = False
+        state['error_blink_running'] = False
+        state['error_blink_state'] = False
 
         # 램프도 실제로 OFF로 반영
         try:
@@ -872,6 +884,11 @@ class ModbusUI:
                 # 에러 레지스터(40007) → 세그먼트 표시
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
+                    # 에러 없음 → 에러 깜빡이 종료
+                    if self.box_states[box_index]['blinking_error']:
+                        self.box_states[box_index]['blinking_error'] = False
+                        self.ui_update_queue.put(('error_off', box_index))
+
                     formatted_value = f'{value_40005}'
                     self.data_queue.put((box_index, formatted_value, False))
                 else:
@@ -883,21 +900,17 @@ class ModbusUI:
                     error_display = error_display.ljust(4)
 
                     if 'E' in error_display:
-                        self.box_states[box_index]['blinking_error'] = True
+                        # 에러 존재 → 에러 깜빡이 시작
+                        if not self.box_states[box_index]['blinking_error']:
+                            self.box_states[box_index]['blinking_error'] = True
+                            self.ui_update_queue.put(('error_on', box_index))
                         self.data_queue.put((box_index, error_display, True))
-                        self.ui_update_queue.put(
-                            (
-                                'circle_state',
-                                box_index,
-                                [False, False, True, self.box_states[box_index]['blink_state']],
-                            )
-                        )
                     else:
-                        self.box_states[box_index]['blinking_error'] = False
+                        # 에러지만 E 표시가 아닌 경우는 에러 깜빡이 종료
+                        if self.box_states[box_index]['blinking_error']:
+                            self.box_states[box_index]['blinking_error'] = False
+                            self.ui_update_queue.put(('error_off', box_index))
                         self.data_queue.put((box_index, error_display, False))
-                        self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, False])
-                        )
 
                 # FW 업그레이드 중이 아닐 때만 40011 값으로 bar 업데이트
                 if not self.box_states[box_index].get('fw_upgrading', False):
@@ -1056,6 +1069,12 @@ class ModbusUI:
                 # FW 상태 레지스터 미지원 장비면 그냥 무시
                 if self.fw_status_supported[box_index]:
                     self.update_fw_status(box_index, v_40022, v_40023, v_40024)
+            elif typ == 'error_on':
+                _, box_index = item
+                self.start_error_blink(box_index)
+            elif typ == 'error_off':
+                _, box_index = item
+                self.stop_error_blink(box_index)
 
         self.schedule_ui_update()
 
@@ -1255,6 +1274,7 @@ class ModbusUI:
         self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
         self.ui_update_queue.put(('segment_display', box_index, '    ', False))
         self.ui_update_queue.put(('bar', box_index, 0))
+        self.ui_update_queue.put(('error_off', box_index))
 
         self.parent.after(
             0,
@@ -1443,6 +1463,10 @@ class ModbusUI:
         """
         state = self.box_states[box_index]
 
+        # ★ 에러 코드 깜빡이 중이면 알람 램프는 에러 패턴이 우선이므로 건드리지 않는다.
+        if state.get('blinking_error'):
+            return
+
         # 레지스터에서 읽어온 원본 알람 상태
         alarm1_raw = state['alarm1_on']
         alarm2_raw = state['alarm2_on']
@@ -1546,6 +1570,11 @@ class ModbusUI:
         def _blink():
             st = self.box_states[box_index]
 
+            # 에러 깜빡이 중이면 알람 블링크는 멈춘다
+            if st.get('blinking_error'):
+                st['alarm_blink_running'] = False
+                return
+
             if not (
                 st['alarm1_blinking']
                 or st['alarm2_blinking']
@@ -1584,6 +1613,80 @@ class ModbusUI:
             self.parent.after(self.alarm_blink_interval, _blink)
 
         _blink()
+
+    # -------------------- 에러 깜빡 처리 (AL1 상시, AL2+FUT 1초 깜빡) --------------------
+
+    def start_error_blink(self, box_index: int):
+        state = self.box_states[box_index]
+
+        # 이미 돌고 있으면 그대로
+        if state.get('error_blink_running'):
+            return
+
+        state['error_blink_running'] = True
+        state['error_blink_state'] = False
+
+        # 에러일 때는 알람 모드/블링크는 모두 비활성화 (에러 패턴이 우선)
+        state['alarm1_blinking'] = False
+        state['alarm2_blinking'] = False
+        state['alarm_border_blink'] = False
+        state['alarm_blink_running'] = False
+        state['alarm_mode'] = 'none'
+
+        box_canvas, circle_items, *_ = self.box_data[box_index]
+
+        # AL1 상시 빨간색 ON
+        box_canvas.itemconfig(circle_items[0], fill='red', outline='red')
+
+        # 처음 한 번 AL2/FUT를 ON으로 시작
+        box_canvas.itemconfig(circle_items[1], fill='red', outline='red')
+        box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')
+
+        def _blink():
+            st = self.box_states[box_index]
+            if not st.get('error_blink_running'):
+                return
+
+            box_canvas, circle_items, *_ = self.box_data[box_index]
+
+            # 토글 상태 반전
+            st['error_blink_state'] = not st['error_blink_state']
+
+            if st['error_blink_state']:
+                # ON 상태
+                box_canvas.itemconfig(circle_items[1], fill='red', outline='red')      # AL2
+                box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')  # FUT
+            else:
+                # OFF 상태
+                box_canvas.itemconfig(circle_items[1],
+                                      fill=self.LAMP_COLORS_OFF[1],
+                                      outline=self.LAMP_COLORS_OFF[1])
+                box_canvas.itemconfig(circle_items[3],
+                                      fill=self.LAMP_COLORS_OFF[3],
+                                      outline=self.LAMP_COLORS_OFF[3])
+
+            self.parent.after(self.alarm_blink_interval, _blink)
+
+        _blink()
+
+    def stop_error_blink(self, box_index: int):
+        state = self.box_states[box_index]
+        state['error_blink_running'] = False
+        state['error_blink_state'] = False
+
+        # 에러 종료 시 AL 램프는 잠시 모두 OFF로 초기화
+        box_canvas, circle_items, *_ = self.box_data[box_index]
+        box_canvas.itemconfig(circle_items[0],
+                              fill=self.LAMP_COLORS_OFF[0],
+                              outline=self.LAMP_COLORS_OFF[0])
+        box_canvas.itemconfig(circle_items[1],
+                              fill=self.LAMP_COLORS_OFF[1],
+                              outline=self.LAMP_COLORS_OFF[1])
+        box_canvas.itemconfig(circle_items[3],
+                              fill=self.LAMP_COLORS_OFF[3],
+                              outline=self.LAMP_COLORS_OFF[3])
+
+        # 이후 주기적으로 들어오는 alarm_check 에서 실제 AL1/AL2 상태에 맞춰 다시 조정된다.
 
     # -------------------- FW 상태 표시/업데이트 --------------------
 
