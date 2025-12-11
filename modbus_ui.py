@@ -905,22 +905,12 @@ class ModbusUI:
                             self.box_states[box_index]['blinking_error'] = True
                             self.ui_update_queue.put(('error_on', box_index))
                         self.data_queue.put((box_index, error_display, True))
-                        self.ui_update_queue.put(
-                            (
-                                'circle_state',
-                                box_index,
-                                [False, False, True, self.box_states[box_index]['blink_state']],
-                            )
-                        )
                     else:
                         # 에러지만 E 표시가 아닌 경우는 에러 깜빡이 종료
                         if self.box_states[box_index]['blinking_error']:
                             self.box_states[box_index]['blinking_error'] = False
                             self.ui_update_queue.put(('error_off', box_index))
                         self.data_queue.put((box_index, error_display, False))
-                        self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, False])
-                        )
 
                 # FW 업그레이드 중이 아닐 때만 40011 값으로 bar 업데이트
                 if not self.box_states[box_index].get('fw_upgrading', False):
@@ -1580,9 +1570,14 @@ class ModbusUI:
         def _blink():
             st = self.box_states[box_index]
 
-            # 에러 깜빡이 중이면 알람 블링크는 멈춘다
-            if st.get('blinking_error'):
+            # ★ 연결이 끊겼으면 알람 깜빡임 즉시 종료 + 램프 OFF
+            if self.ip_vars[box_index].get() not in self.connected_clients:
+                self.set_alarm_lamp(box_index, False, False, False, False)
                 st['alarm_blink_running'] = False
+                st['alarm1_blinking'] = False
+                st['alarm2_blinking'] = False
+                st['alarm_border_blink'] = False
+                self.box_frames[box_index].config(highlightbackground='#000000')
                 return
 
             if not (
