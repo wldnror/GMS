@@ -905,12 +905,22 @@ class ModbusUI:
                             self.box_states[box_index]['blinking_error'] = True
                             self.ui_update_queue.put(('error_on', box_index))
                         self.data_queue.put((box_index, error_display, True))
+                        self.ui_update_queue.put(
+                            (
+                                'circle_state',
+                                box_index,
+                                [False, False, True, self.box_states[box_index]['blink_state']],
+                            )
+                        )
                     else:
                         # 에러지만 E 표시가 아닌 경우는 에러 깜빡이 종료
                         if self.box_states[box_index]['blinking_error']:
                             self.box_states[box_index]['blinking_error'] = False
                             self.ui_update_queue.put(('error_off', box_index))
                         self.data_queue.put((box_index, error_display, False))
+                        self.ui_update_queue.put(
+                            ('circle_state', box_index, [False, False, True, False])
+                        )
 
                 # FW 업그레이드 중이 아닐 때만 40011 값으로 bar 업데이트
                 if not self.box_states[box_index].get('fw_upgrading', False):
