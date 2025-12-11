@@ -354,7 +354,13 @@ class ModbusUI:
         disconnection_label.grid_remove()
         reconnect_label.grid_remove()
 
-        circle_al1 = box_canvas.create_oval(sx(77) - sx(20), sy(200) - sy(32), sx(87) - sx(20), sy(190) - sy(32))
+        # ▼ AL1/AL2/PWR/FUT 램프를 처음부터 OFF 색으로 꽉 채워서 생성
+        circle_al1 = box_canvas.create_oval(
+            sx(77) - sx(20), sy(200) - sy(32),
+            sx(87) - sx(20), sy(190) - sy(32),
+            fill=self.LAMP_COLORS_OFF[0],
+            outline=self.LAMP_COLORS_OFF[0],
+        )
         box_canvas.create_text(
             sx(95) - sx(25),
             sy(222) - sy(40),
@@ -362,7 +368,13 @@ class ModbusUI:
             fill='#cccccc',
             anchor='e',
         )
-        circle_al2 = box_canvas.create_oval(sx(133) - sy(30), sy(200) - sy(32), sx(123) - sy(30), sy(190) - sy(32))
+
+        circle_al2 = box_canvas.create_oval(
+            sx(133) - sy(30), sy(200) - sy(32),
+            sx(123) - sy(30), sy(190) - sy(32),
+            fill=self.LAMP_COLORS_OFF[1],
+            outline=self.LAMP_COLORS_OFF[1],
+        )
         box_canvas.create_text(
             sx(140) - sy(35),
             sy(222) - sy(40),
@@ -370,7 +382,13 @@ class ModbusUI:
             fill='#cccccc',
             anchor='e',
         )
-        circle_pwr = box_canvas.create_oval(sx(30) - sx(10), sy(200) - sy(32), sx(40) - sy(10), sy(190) - sy(32))
+
+        circle_pwr = box_canvas.create_oval(
+            sx(30) - sx(10), sy(200) - sy(32),
+            sx(40) - sy(10), sy(190) - sy(32),
+            fill=self.LAMP_COLORS_OFF[2],
+            outline=self.LAMP_COLORS_OFF[2],
+        )
         box_canvas.create_text(
             sx(35) - sx(10),
             sy(222) - sy(40),
@@ -378,7 +396,13 @@ class ModbusUI:
             fill='#cccccc',
             anchor='center',
         )
-        circle_fut = box_canvas.create_oval(sx(171) - sy(40), sy(200) - sy(32), sx(181) - sy(40), sy(190) - sy(32))
+
+        circle_fut = box_canvas.create_oval(
+            sx(171) - sy(40), sy(200) - sy(32),
+            sx(181) - sy(40), sy(190) - sy(32),
+            fill=self.LAMP_COLORS_OFF[3],
+            outline=self.LAMP_COLORS_OFF[3],
+        )
         box_canvas.create_text(
             sx(175) - sy(40),
             sy(217) - sy(40),
@@ -445,6 +469,13 @@ class ModbusUI:
 
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
+
+        # ★ 박스 생성 직후 AL 램프를 OFF 상태로 한 번 확실히 세팅
+        self.set_alarm_lamp(
+            index,
+            alarm1_on=False, blink1=False,
+            alarm2_on=False, blink2=False,
+        )
 
     # -------------------- FW 파일 / UI 업데이트 --------------------
 
