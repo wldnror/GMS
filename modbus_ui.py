@@ -146,7 +146,7 @@ class ModbusUI:
 
         self.communication_interval = 0.2
         self.blink_interval = int(self.communication_interval * 1000)
-        self.alarm_blink_interval = 1000
+        self.alarm_blink_interval = 1000  # 알람 깜빡임은 1초 고정
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -739,7 +739,7 @@ class ModbusUI:
             start_address = self.reg_addr(40001)
             BASE_REG_COUNT = 22
 
-            # 1단계: 기본 레지스터(40001~40022)가 정상인지 확인
+            # 1단계: 기본 레지스터(40001~40022) 읽기 OK 확인
             rr_base = tmp_client.read_holding_registers(start_address, BASE_REG_COUNT)
             if isinstance(rr_base, ExceptionResponse) or rr_base.isError():
                 raise ModbusIOException(
@@ -873,21 +873,14 @@ class ModbusUI:
                     error_display = error_display.ljust(4)
 
                     if 'E' in error_display:
+                        # 에러 표시 시 세그먼트만 깜빡이게 하고,
+                        # AL1/AL2 램프는 알람 로직(check_alarms/blink_alarms)에만 맡긴다.  # <<< 변경
                         self.box_states[box_index]['blinking_error'] = True
                         self.data_queue.put((box_index, error_display, True))
-                        self.ui_update_queue.put(
-                            (
-                                'circle_state',
-                                box_index,
-                                [False, False, True, self.box_states[box_index]['blink_state']],
-                            )
-                        )
                     else:
                         self.box_states[box_index]['blinking_error'] = False
                         self.data_queue.put((box_index, error_display, False))
-                        self.ui_update_queue.put(
-                            ('circle_state', box_index, [False, False, True, False])
-                        )
+                    # ※ 더 이상 여기서 circle_state로 AL1/AL2/PWR/FUT를 건드리지 않음  # <<< 변경
 
                 # FW 업그레이드 중이 아닐 때만 40011 값으로 bar 업데이트
                 if not self.box_states[box_index].get('fw_upgrading', False):
@@ -2038,78 +2031,4 @@ class ModbusUI:
                     win.grab_set()
                     win.focus_set()
             except Exception as e:
-                if hasattr(self, "console"):
-                    self.console.print(f"[UI] settings popup grab_set skipped: {e}")
-
-        win.after(50, _safe_grab)
-
-    # ---------- FW 버전 표시 관련 유틸 ----------
-
-    def format_version(self, version: int) -> str:
-        """
-        40022 값을 보기 좋게 포맷.
-        예) 123 -> v1.23, 100 -> v1.00
-        장비 프로토콜이 다르면 여기만 수정하면 됨.
-        """
-        try:
-            v = int(version)
-        except Exception:
-            return f'v{version}'
-
-        major = v // 100
-        minor = v % 100
-        return f'v{major}.{minor:02d}'
-
-    def set_version_label(self, box_index: int, version: int):
-        state = self.box_states[box_index]
-        # 이전 값과 같으면 갱신 안 함
-        if state.get('last_version_value') == version:
-            return
-
-        state['last_version_value'] = version
-        version_text_id = state.get('version_text_id')
-        if version_text_id is None:
-            return
-
-        box_canvas = self.box_data[box_index][0]
-        text = self.format_version(version)
-        box_canvas.itemconfig(version_text_id, text=text)
-
-
-def main():
-    root = Tk()
-    root.title('Modbus UI')
-    root.geometry('1200x600')
-    root.configure(bg='#1e1e1e')
-
-    num_boxes = 4
-    gas_types = {
-        'modbus_box_0': 'ORG',
-        'modbus_box_1': 'ARF-T',
-        'modbus_box_2': 'HMDS',
-        'modbus_box_3': 'HC-100',
-    }
-
-    def alarm_callback(active, box_id):
-        if active:
-            print(f'[Callback] Alarm active in {box_id}')
-        else:
-            print(f'[Callback] Alarm cleared in {box_id}')
-
-    modbus_ui = ModbusUI(root, num_boxes, gas_types, alarm_callback)
-
-    row = 0
-    col = 0
-    max_col = 2
-    for frame in modbus_ui.box_frames:
-        frame.grid(row=row, column=col, padx=10, pady=10)
-        col += 1
-        if col >= max_col:
-            col = 0
-            row += 1
-
-    root.mainloop()
-
-
-if __name__ == '__main__':
-    main()
+           
