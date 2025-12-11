@@ -679,11 +679,6 @@ class ModbusUI:
         state['border_blink_state'] = False
         state['alarm_mode'] = 'none'
 
-        # ★ 에러 관련 상태 초기화
-        state['blinking_error'] = False
-        state['error_blink_running'] = False
-        state['error_blink_state'] = False
-
         # 램프도 실제로 OFF로 반영
         try:
             self.set_alarm_lamp(
@@ -1271,10 +1266,11 @@ class ModbusUI:
         self.box_states[box_index]['fw_upgrading'] = False
         self.last_fw_status[box_index] = None
 
-        self.ui_update_queue.put(('circle_state', box_index, [False, False, False, False]))
-        self.ui_update_queue.put(('segment_display', box_index, '    ', False))
-        self.ui_update_queue.put(('bar', box_index, 0))
-        self.ui_update_queue.put(('error_off', box_index))
+        # ▼ 알람/램프/세그먼트/바 한 번에 초기화 (여기서만 처리)
+        self.parent.after(
+            0,
+            lambda idx=box_index: self.reset_ui_elements(idx)
+        )
 
         self.parent.after(
             0,
@@ -1293,7 +1289,6 @@ class ModbusUI:
                 highlightbackground='#000000',
             ),
         )
-        self.parent.after(0, lambda idx=box_index: self.reset_ui_elements(idx))
 
         self.box_states[box_index]['pwr_blink_state'] = False
         self.box_states[box_index]['pwr_blinking'] = False
