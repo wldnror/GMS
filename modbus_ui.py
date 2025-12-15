@@ -600,8 +600,6 @@ class ModbusUI:
                 self.fw_status_supported[i] = True
                 self.last_fw_status[i] = None
                 self.box_states[i]['fw_upgrading'] = False
-
-                # ✅ MOD: 여기서 True로 가정하지 않음 (capability probe에서만 결정)
                 self.sensor_model_supported[i] = False
                 self.box_states[i]['last_sensor_model_str'] = ''
                 self.box_states[i]['last_sensor_model_poll'] = 0.0
@@ -768,7 +766,6 @@ class ModbusUI:
     def detect_device_capabilities(self, ip: str, box_index: int):
         tmp_client = ModbusTcpClient(ip, port=502, timeout=2)
         try:
-            # ✅ MOD: 기본값은 “미지원”으로 두고, probe 성공 시에만 True로
             self.sensor_model_supported[box_index] = False
 
             if not tmp_client.connect():
@@ -819,8 +816,6 @@ class ModbusUI:
                     )
                     self.fw_status_supported[box_index] = False
                     self.tftp_supported[box_index] = False
-
-            # ✅ MOD: 감지기 모델 문자열(40030~) 지원 여부는 여기서만 판단
             try:
                 addr = self.reg_addr(self.SENSOR_MODEL_REG)
                 rr_model = tmp_client.read_holding_registers(addr, self.SENSOR_MODEL_REG_COUNT)
@@ -901,8 +896,7 @@ class ModbusUI:
                 value_40022 = raw_regs[21]
 
                 self.ui_update_queue.put(('version', box_index, value_40022))
-
-                # ✅ MOD: 센서 모델 read 실패해도 disable 하지 않음 (capability probe만 신뢰)
+                
                 now = time.time()
                 st = self.box_states[box_index]
                 if self.sensor_model_supported[box_index] and (
@@ -919,9 +913,9 @@ class ModbusUI:
                             model_str = self.regs_to_ascii(regs)
                             if model_str:
                                 self.ui_update_queue.put(('sensor_model', box_index, model_str))
-                        # 실패/에러면 그냥 무시 (disable 금지)
+
                     except Exception as e:
-                        # 예외도 무시 (disable 금지)
+
                         self.console.print(f'[MODEL] box {box_index} read sensor model exception (ignored): {e}')
 
                 bit_6_on = bool(value_40001 & (1 << 6))
@@ -1382,8 +1376,6 @@ class ModbusUI:
 
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
-
-                    # ✅ MOD: 여기서 True로 가정하지 않음 (capability probe에서만 결정)
                     self.sensor_model_supported[box_index] = False
                     self.box_states[box_index]['last_sensor_model_str'] = ''
                     self.box_states[box_index]['last_sensor_model_poll'] = 0.0
@@ -1749,10 +1741,7 @@ class ModbusUI:
                 self.ui_update_queue.put(('segment_display', box_index, ' End', False))
             elif upgrade_fail or rollback_fail:
                 self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
-
-    # --- 아래 FW/TFTP/ZERO/RST/MODEL/UI 팝업 등 원본 함수들은 그대로 유지 ---
-    # (사용자 제공 코드 그대로: delayed_load_tftp_ip_from_device ~ open_settings_popup ~ format_version 등)
-
+                
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
         if not self.tftp_supported[box_index]:
             return
@@ -2169,7 +2158,7 @@ class ModbusUI:
 
         Button(
             model_frame,
-            text='MODEL 0',
+            text='ASGD3200',
             command=lambda idx=box_index: self.change_device_model(idx, 0),
             width=18,
             bg='#333333',
@@ -2180,7 +2169,7 @@ class ModbusUI:
 
         Button(
             model_frame,
-            text='MODEL 1',
+            text='ASGD3210',
             command=lambda idx=box_index: self.change_device_model(idx, 1),
             width=18,
             bg='#333333',
