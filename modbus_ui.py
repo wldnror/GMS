@@ -2185,6 +2185,33 @@ class ModbusUI:
             bd=1,
         ).grid(row=1, column=1, padx=5, pady=5)
 
+        # ✅ 모델 변경 버튼(요청: ZERO/RST 팝업에 추가)
+        def _confirm_set_model(bit0, name):
+            if messagebox.askyesno('모델 변경', f'{name} 로 변경할까요?\n(장비 적용/재시작이 필요할 수 있습니다)'):
+                self.change_device_model(box_index, bit0)
+
+        Button(
+            btn_frame,
+            text='ASGD3200로 변경',
+            command=lambda: _confirm_set_model(0, 'ASGD3200'),
+            width=18,
+            bg='#333333',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=2, column=0, padx=5, pady=(10, 5))
+
+        Button(
+            btn_frame,
+            text='ASGD3210로 변경',
+            command=lambda: _confirm_set_model(1, 'ASGD3210'),
+            width=18,
+            bg='#333333',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=2, column=1, padx=5, pady=(10, 5))
+
         Button(
             win,
             text='닫기',
