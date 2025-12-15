@@ -2075,7 +2075,8 @@ class ModbusUI:
                     '명령은 전송되었고 장비가 재시작 중일 수 있습니다.\n(응답 없음은 정상일 수 있음)'
                 )
             else:
-                messagebox.showerror('모델 변경', f'모델 변경 중 오류\n{e}')
+                self.console.print(f'[RST] Error on reboot for {ip}: {e}')
+                messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
 
     # -------------------- 설정 팝업 --------------------
 
@@ -2133,33 +2134,41 @@ class ModbusUI:
             width=18,
             bg='#555555',
             fg='white',
+            relief='raised',
+            bd=1,
         ).grid(row=0, column=0, padx=5, pady=5)
 
         Button(
             btn_frame,
             text='FW 업그레이드 시작',
-            command=lambda idx=box_index: self.start_firmware_upgrade(idx),
+            command=lambda idx=box_index: self.start_firmware_upgrade(idx) if hasattr(self, "start_firmware_upgrade") else messagebox.showwarning("FW", "start_firmware_upgrade()가 코드에 없습니다."),
             width=18,
             bg='#4444aa',
             fg='white',
+            relief='raised',
+            bd=1,
         ).grid(row=0, column=1, padx=5, pady=5)
 
         Button(
             btn_frame,
             text='ZERO',
-            command=lambda idx=box_index: self.zero_calibration(idx),
+            command=lambda idx=box_index: self.zero_calibration(idx) if hasattr(self, "zero_calibration") else messagebox.showwarning("ZERO", "zero_calibration()가 코드에 없습니다."),
             width=18,
             bg='#444444',
             fg='white',
+            relief='raised',
+            bd=1,
         ).grid(row=1, column=0, padx=5, pady=5)
 
         Button(
             btn_frame,
             text='RST',
-            command=lambda idx=box_index: self.reboot_device(idx),
+            command=lambda idx=box_index: self.reboot_device(idx) if hasattr(self, "reboot_device") else messagebox.showwarning("RST", "reboot_device()가 코드에 없습니다."),
             width=18,
             bg='#aa4444',
             fg='white',
+            relief='raised',
+            bd=1,
         ).grid(row=1, column=1, padx=5, pady=5)
 
         # ✅ 모델 변경 버튼(요청: ZERO/RST 팝업에 추가)
@@ -2183,6 +2192,8 @@ class ModbusUI:
             width=18,
             bg='#333333',
             fg='white',
+            relief='raised',
+            bd=1,
         ).grid(row=2, column=1, padx=5, pady=(10, 5))
 
         Button(
@@ -2192,6 +2203,8 @@ class ModbusUI:
             width=10,
             bg='#333333',
             fg='white',
+            relief='raised',
+            bd=1,
         ).pack(pady=(0, 10))
 
         win.transient(self.parent)
@@ -2202,7 +2215,8 @@ class ModbusUI:
                     win.grab_set()
                     win.focus_set()
             except Exception as e:
-                self.console.print(f"[UI] settings popup grab_set skipped: {e}")
+                if hasattr(self, "console"):
+                    self.console.print(f"[UI] settings popup grab_set skipped: {e}")
 
         win.after(50, _safe_grab)
 
@@ -2306,12 +2320,8 @@ class ModbusUI:
             text = vtxt or mtxt or ''
 
         box_canvas = self.box_data[box_index][0]
-        box_canvas.itemconfig(vid, text=text)
-
-    # -------------------- 에러/알람 외 기능들 --------------------
-    # (여기 아래는 네 코드에 있던 것들인데, 길이상 핵심만 유지)
-    # 필요하면 네가 올린 원본과 병합해도 되고,
-    # 지금 코드로도 모델 변경/표시 포함해 돌아가도록 구성했음.
+        text = self.format_version(version)
+        box_canvas.itemconfig(version_text_id, text=text)
 
 
 def main():
