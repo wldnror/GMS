@@ -150,7 +150,7 @@ class ModbusUI:
 
         self.communication_interval = 0.2
         self.blink_interval = int(self.communication_interval * 1000)
-        self.alarm_blink_interval = 1000  # 알람/에러 램프 깜빡임 1초
+        self.alarm_blink_interval = 1000  # ★ 알람/에러 램프 깜빡임 1초
 
         self.start_data_processing_thread()
         self.schedule_ui_update()
@@ -311,8 +311,7 @@ class ModbusUI:
                 'last_log_alarm1': None,
                 'last_log_alarm2': None,
                 'last_log_error_reg': None,
-
-                # ▼ 우측 상단 표시(버전 + 모델을 합쳐서 출력)
+                # ▼ FW 버전 표시용
                 'version_text_id': None,
                 'last_version_value': None,
                 'detector_model_str': None,  # "ASGD3200" 같은 문자열
@@ -553,7 +552,10 @@ class ModbusUI:
     def update_bar(self, value, box_index):
         _, _, bar_canvas, _, bar_item = self.box_data[box_index]
         percentage = value / 100.0
-        percentage = max(0, min(1, percentage))
+        if percentage < 0:
+            percentage = 0
+        if percentage > 1:
+            percentage = 1
         bar_length = int(153 * SCALE_FACTOR * percentage)
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, sy(5)))
         bar_image = ImageTk.PhotoImage(cropped_image)
@@ -1266,7 +1268,9 @@ class ModbusUI:
         count = self.disconnection_counts[box_index]
         self.parent.after(
             0,
-            lambda idx=box_index, c=count: self.disconnection_labels[idx].config(text=f'DC: {c}'),
+            lambda idx=box_index, c=count: self.disconnection_labels[idx].config(
+                text=f'DC: {c}'
+            ),
         )
 
         self.box_states[box_index]['fw_upgrading'] = False
@@ -1290,6 +1294,9 @@ class ModbusUI:
             box_canvas.itemconfig(circle_items[2], fill='#e0fbba', outline='#e0fbba')
 
         self.parent.after(0, _set_pwr_default)
+        self.console.print(
+            f'PWR lamp set to default green for box {box_index} due to disconnection.'
+        )
 
     def reconnect(self, ip, client, stop_flag, box_index):
         retries = 0
@@ -1297,13 +1304,19 @@ class ModbusUI:
 
         while not stop_flag.is_set() and retries < max_retries:
             time.sleep(2)
+            self.console.print(
+                f'Attempting to reconnect to {ip} (Attempt {retries + 1}/{max_retries})'
+            )
             self.parent.after(
                 0,
-                lambda idx=box_index, r=retries: self.reconnect_attempt_labels[idx].config(text=f'Reconnect: {r + 1}/{max_retries}'),
+                lambda idx=box_index, r=retries: self.reconnect_attempt_labels[
+                    idx
+                ].config(text=f'Reconnect: {r + 1}/{max_retries}'),
             )
             try:
                 new_client = ModbusTcpClient(ip, port=502, timeout=3)
                 if new_client.connect():
+                    self.console.print(f'Reconnected to the Modbus server at {ip}')
                     try:
                         if client is not None:
                             client.close()
@@ -1321,8 +1334,16 @@ class ModbusUI:
 
                     try:
                         self.detect_device_capabilities(ip, box_index)
-                    except Exception:
-                        pass
+                        self.console.print(
+                            f'[FW] box {box_index} ({ip}) : reconnect 성공 '
+                            f'(fw_status_supported={self.fw_status_supported[box_index]}, '
+                            f'tftp_supported={self.tftp_supported[box_index]})'
+                        )
+                    except Exception as e:
+                        self.console.print(
+                            f'[FW] box {box_index} ({ip}) : reconnect 후 capability probe 실패 '
+                            f'(fallback 동작, 기존 플래그 유지). {e}'
+                        )
 
                     stop_flag.clear()
                     t = threading.Thread(
@@ -1570,6 +1591,27 @@ class ModbusUI:
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
 
+        msg = (
+            f'[FW] box {box_index} ver={version}, '
+            f'progress={progress}%, remain={remain}s'
+        )
+        states = []
+        if upgrading:
+            states.append('UPGRADING')
+        if upgrade_ok:
+            states.append('UPGRADE_OK')
+        if upgrade_fail:
+            states.append(f'UPGRADE_FAIL(err={error_code})')
+        if rollback_running:
+            states.append('ROLLBACK')
+        if rollback_ok:
+            states.append('ROLLBACK_OK')
+        if rollback_fail:
+            states.append(f'ROLLBACK_FAIL(err={error_code})')
+        if states:
+            msg += ' [' + ', '.join(states) + ']'
+        self.console.print(msg)
+
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
@@ -1582,14 +1624,92 @@ class ModbusUI:
             elif upgrade_fail or rollback_fail:
                 self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
 
-    # -------------------- TFTP IP / FW 업그레이드 / ZERO / RST --------------------
-    # (네 코드 그대로 유지 — 길어서 생략하지 않고 필요한 부분만 남김)
+    # -------------------- TFTP IP 읽기 --------------------
+
+    def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
+        if not self.tftp_supported[box_index]:
+            return
+
+        time.sleep(delay)
+
+        if not self.tftp_supported[box_index]:
+            return
+
+        try:
+            self.load_tftp_ip_from_device(box_index)
+        except Exception as e:
+            self.console.print(
+                f'[FW] (ignore) delayed TFTP IP read fail box {box_index}: {e}'
+            )
+
+    def load_tftp_ip_from_device(self, box_index: int):
+        if not self.tftp_supported[box_index]:
+            return
+
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        lock = self.modbus_locks.get(ip)
+        if client is None or lock is None:
+            return
+
+        addr_ip1 = self.reg_addr(40088)
+        try:
+            with lock:
+                rr = client.read_holding_registers(addr_ip1, 2)
+
+            if isinstance(rr, ExceptionResponse) or rr.isError():
+                msg = str(rr)
+                self.console.print(f'[FW] read 40088/40089 error: {rr}')
+                self.console.print(
+                    f"[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 오류 발생 → "
+                    f"이후 이 박스에 대해서는 자동 TFTP 기능 비활성화."
+                )
+                self.tftp_supported[box_index] = False
+                return
+
+            w1, w2 = rr.registers
+            a = (w1 >> 8) & 0xFF
+            b = w1 & 0xFF
+            c = (w2 >> 8) & 0xFF
+            d = w2 & 0xFF
+            tftp_ip = f'{a}.{b}.{c}.{d}'
+            self.tftp_ip_vars[box_index].set(tftp_ip)
+            self.console.print(f'[FW] box {box_index} TFTP IP from device: {tftp_ip}')
+        except Exception as e:
+            msg = str(e)
+            if "No response received" in msg:
+                self.console.print(
+                    f'[FW] box {box_index} ({ip}) TFTP IP read: device not ready (No response). '
+                    f'해당 장비에 대해서는 자동 TFTP 기능을 비활성화합니다.'
+                )
+                self.tftp_supported[box_index] = False
+            else:
+                self.console.print(f'[FW] Error reading TFTP IP for box {box_index} ({ip}): {e}')
+                if 'Failed to connect' in msg or 'Socket is closed' in msg:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : TFTP 접근 시 연결 문제 발생 → 이후 자동 TFTP IP 읽기 비활성화.'
+                    )
+                    self.tftp_supported[box_index] = False
+
+    # -------------------- FW 업그레이드 --------------------
 
     def start_firmware_upgrade(self, box_index: int):
         if not self.tftp_supported[box_index]:
-            messagebox.showwarning('FW', '이 장치는 TFTP/FW 기능을 지원하지 않는 것으로 판단되어 FW 업그레이드를 수행하지 않습니다.')
+            self.console.print(
+                f'[FW] box {box_index} : TFTP/FW 기능 미지원으로 FW 업그레이드 요청을 무시합니다.'
+            )
+            messagebox.showwarning(
+                'FW',
+                '이 장치는 TFTP/FW 기능을 지원하지 않는 것으로 판단되어,\n'
+                'FW 업그레이드를 수행하지 않습니다.'
+            )
             return
-        threading.Thread(target=self._do_firmware_upgrade, args=(box_index,), daemon=True).start()
+
+        threading.Thread(
+            target=self._do_firmware_upgrade,
+            args=(box_index,),
+            daemon=True,
+        ).start()
 
     def _do_firmware_upgrade(self, box_index: int):
         ip = self.ip_vars[box_index].get()
