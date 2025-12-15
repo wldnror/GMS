@@ -374,8 +374,6 @@ class ModbusUI:
 
         disconnection_label.grid_remove()
         reconnect_label.grid_remove()
-
-        # ▼ AL1/AL2/PWR/FUT 램프를 처음부터 OFF 색으로 꽉 채워서 생성
         circle_al1 = box_canvas.create_oval(
             sx(77) - sx(20), sy(200) - sy(32),
             sx(87) - sx(20), sy(190) - sy(32),
@@ -449,8 +447,6 @@ class ModbusUI:
             anchor='center',
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
-
-        # ▼ FW 버전 + 감지기 모델 라벨(우측 상단)
         version_text_id = box_canvas.create_text(
             sx(140),
             sy(12),
@@ -707,10 +703,6 @@ class ModbusUI:
             self.reconnect_attempt_labels[i].grid_remove()
 
     def reset_ui_elements(self, box_index):
-        """
-        연결 끊김/수동 disconnect 시 박스 전체 UI/알람 상태 초기화.
-        (통신 단절 시 AL1/AL2/테두리 깜빡임 포함 전부 OFF)
-        """
         state = self.box_states[box_index]
 
         state['alarm1_on'] = False
@@ -952,7 +944,6 @@ class ModbusUI:
                     self.console.print(
                         f'[FW] box {box_index} disconnected during upgrade (expected).'
                     )
-                    # 업그레이드 도중 장비 리부트로 끊긴 경우
                     self.box_states[box_index]['fw_upgrading'] = False
                     self.last_fw_status[box_index] = None
                     self.ui_update_queue.put(('bar', box_index, 0))
@@ -966,7 +957,6 @@ class ModbusUI:
             except ModbusIOException as e:
                 msg = str(e)
 
-                # 40001~40024 읽기에서 에러가 난 경우 → FW 상태/확장 레지스터 미지원으로 판단
                 if self.fw_status_supported[box_index] and '40001~40024' in msg:
                     self.console.print(
                         f'[Modbus] box {box_index} ({ip}) : 40023/40024 등 확장 레지스터 미지원으로 판단, '
@@ -1014,14 +1004,7 @@ class ModbusUI:
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
-
-    # -------------------- 로그 --------------------
-
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
-        """
-        숫자 값 / AL1 / AL2 / 에러레지스터 중 하나라도 변하면 로그 1줄 추가.
-        박스별 최대 LOG_MAX_ENTRIES까지만 유지.
-        """
         state = self.box_states[box_index]
         last_val = state.get('last_log_value')
         last_a1 = state.get('last_log_alarm1')
@@ -1090,7 +1073,6 @@ class ModbusUI:
                 self.set_sensor_model_label(box_index, model_str)
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
-                # FW 상태 레지스터 미지원 장비면 그냥 무시
                 if self.fw_status_supported[box_index]:
                     self.update_fw_status(box_index, v_40022, v_40023, v_40024)
             elif typ == 'error_on':
@@ -1476,13 +1458,7 @@ class ModbusUI:
 
 
     def check_alarms(self, box_index):
-        """
-        AL1/AL2 알람 상태를 모드 기반으로 관리:
-        - AL2가 잡히면 AL2 모드 우선
-        - AL2 모드일 때는 AL2만 깜빡, AL1은 항상 켜져 있어야 함
-        - AL1만 잡힐 때는 AL1만 깜빡
-        - 알람이 없으면 둘 다 OFF
-        """
+
         state = self.box_states[box_index]
 
         if state.get('blinking_error'):
