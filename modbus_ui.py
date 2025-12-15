@@ -1702,12 +1702,13 @@ class ModbusUI:
         """
         chars = []
         for w in regs4:
-            lo = w & 0xFF
             hi = (w >> 8) & 0xFF
-            chars.append(chr(lo))
-            chars.append(chr(hi))
-        s = ''.join(chars)
-        return s.replace('\x00', '').strip()
+            lo = w & 0xFF
+            if hi != 0:
+                chars.append(chr(hi))
+            if lo != 0:
+                chars.append(chr(lo))
+        return ''.join(chars).strip()
 
     def set_header_label(self, box_index: int):
         """
