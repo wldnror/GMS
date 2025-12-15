@@ -636,6 +636,12 @@ class ModbusUI:
                 self.last_fw_status[i] = None
                 self.box_states[i]['fw_upgrading'] = False
 
+                # ▼▼▼ 추가: 감지기 모델 표시도 일단 True로 두고, 실제 읽기 실패 시 자동 비활성화
+                self.sensor_model_supported[i] = True
+                self.box_states[i]['last_sensor_model_str'] = ''
+                self.box_states[i]['last_sensor_model_poll'] = 0.0
+                self.update_topright_label(i)
+
                 # ★ 별도의 임시 클라이언트로 확장 레지스터 지원 여부만 사전 검사
                 try:
                     self.detect_device_capabilities(ip, i)
@@ -1439,6 +1445,12 @@ class ModbusUI:
                     # 새 연결이므로 FW 상태 캐시/업그레이드 상태 초기화
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
+
+                    # ▼▼▼ 추가: 감지기 모델 표시 리셋
+                    self.sensor_model_supported[box_index] = True
+                    self.box_states[box_index]['last_sensor_model_str'] = ''
+                    self.box_states[box_index]['last_sensor_model_poll'] = 0.0
+                    self.update_topright_label(box_index)
 
                     # ★ 재연결 시에도 capability probe를 다시 한 번 수행
                     try:
