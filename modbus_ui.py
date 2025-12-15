@@ -2155,7 +2155,7 @@ class ModbusUI:
         Button(
             btn_frame,
             text='FW 업그레이드 시작',
-            command=lambda idx=box_index: self.start_firmware_upgrade(idx),
+            command=lambda idx=box_index: self.start_firmware_upgrade(idx) if hasattr(self, "start_firmware_upgrade") else messagebox.showwarning("FW", "start_firmware_upgrade()가 코드에 없습니다."),
             width=18,
             bg='#4444aa',
             fg='white',
@@ -2166,7 +2166,7 @@ class ModbusUI:
         Button(
             btn_frame,
             text='ZERO',
-            command=lambda idx=box_index: self.zero_calibration(idx),
+            command=lambda idx=box_index: self.zero_calibration(idx) if hasattr(self, "zero_calibration") else messagebox.showwarning("ZERO", "zero_calibration()가 코드에 없습니다."),
             width=18,
             bg='#444444',
             fg='white',
@@ -2177,7 +2177,7 @@ class ModbusUI:
         Button(
             btn_frame,
             text='RST',
-            command=lambda idx=box_index: self.reboot_device(idx),
+            command=lambda idx=box_index: self.reboot_device(idx) if hasattr(self, "reboot_device") else messagebox.showwarning("RST", "reboot_device()가 코드에 없습니다."),
             width=18,
             bg='#aa4444',
             fg='white',
