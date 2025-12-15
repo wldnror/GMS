@@ -1,6 +1,3 @@
-아래 코드에 해당부분만 추가해서 전체코드로 제공해줘
-
-
 import json
 import os
 import time
@@ -90,6 +87,13 @@ class ModbusUI:
 
     LOG_MAX_ENTRIES = 1000
 
+    # ▼▼▼ 추가: 모델 변경 레지스터(필요시 여기만 바꾸면 됨)
+    MODEL_SELECT_REG = 40094  # 예: 0/1을 써서 모델 변경 (장비에 맞게 수정)
+    # ▼▼▼ 추가: 감지기(센서) 모델 문자열 레지스터(예: 40030~40033)
+    SENSOR_MODEL_REG = 40030
+    SENSOR_MODEL_REG_COUNT = 4
+    SENSOR_MODEL_POLL_SEC = 2.0
+
     @staticmethod
     def reg_addr(addr_4xxxx: int) -> int:
         return addr_4xxxx - 40001
@@ -135,6 +139,8 @@ class ModbusUI:
         self.tftp_supported = [True] * num_boxes
         # FW 상태 레지스터(40023/40024) 지원 여부
         self.fw_status_supported = [True] * num_boxes
+        # ▼▼▼ 추가: 감지기 모델(문자열) 레지스터 지원 여부
+        self.sensor_model_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
 
@@ -172,6 +178,41 @@ class ModbusUI:
         img = Image.open(path).convert('RGBA')
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
+
+    # ▼▼▼ 추가: 레지스터(워드 배열)에서 ASCII 문자열로 변환
+    def regs_to_ascii(self, regs):
+        try:
+            b = bytearray()
+            for w in regs:
+                b.append((w >> 8) & 0xFF)
+                b.append(w & 0xFF)
+            s = b.decode('ascii', errors='ignore')
+            return s.replace('\x00', '').strip()
+        except Exception:
+            return ''
+
+    # ▼▼▼ 추가: 우측 상단(버전 + 감지기모델) 합쳐서 표시
+    def update_topright_label(self, box_index: int):
+        state = self.box_states[box_index]
+        tid = state.get('version_text_id')
+        if tid is None:
+            return
+        box_canvas = self.box_data[box_index][0]
+
+        v = state.get('last_version_value')
+        model = state.get('last_sensor_model_str', '')
+
+        if v is None:
+            vtxt = ''
+        else:
+            vtxt = self.format_version(v)
+
+        if model:
+            txt = f'{vtxt} / {model}' if vtxt else model
+        else:
+            txt = vtxt
+
+        box_canvas.itemconfig(tid, text=txt)
 
     # -------------------- IP 입력 / UI --------------------
 
@@ -313,6 +354,9 @@ class ModbusUI:
                 # ▼ FW 버전 표시용
                 'version_text_id': None,
                 'last_version_value': None,
+                # ▼ 추가: 감지기 모델 표시용
+                'last_sensor_model_str': '',
+                'last_sensor_model_poll': 0.0,
                 # ▼ 알람 모드 (none / al1 / al2)
                 'alarm_mode': 'none',
                 # ▼ 에러 깜빡이 상태
@@ -432,7 +476,7 @@ class ModbusUI:
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
 
-        # ▼ FW 버전 라벨
+        # ▼ FW 버전 + 감지기 모델 라벨(우측 상단)
         version_text_id = box_canvas.create_text(
             sx(140),
             sy(12),
@@ -592,6 +636,12 @@ class ModbusUI:
                 self.last_fw_status[i] = None
                 self.box_states[i]['fw_upgrading'] = False
 
+                # ▼▼▼ 추가: 감지기 모델 표시도 일단 True로 두고, 실제 읽기 실패 시 자동 비활성화
+                self.sensor_model_supported[i] = True
+                self.box_states[i]['last_sensor_model_str'] = ''
+                self.box_states[i]['last_sensor_model_poll'] = 0.0
+                self.update_topright_label(i)
+
                 # ★ 별도의 임시 클라이언트로 확장 레지스터 지원 여부만 사전 검사
                 try:
                     self.detect_device_capabilities(ip, i)
@@ -734,12 +784,11 @@ class ModbusUI:
         self.update_segment_display('    ', box_index=box_index)
         self.show_bar(box_index, show=False)
 
-        # ▼ FW 버전 라벨 초기화
+        # ▼ FW 버전 + 감지기 모델 라벨 초기화
         state['last_version_value'] = None
-        version_text_id = state.get('version_text_id')
-        if version_text_id is not None:
-            box_canvas = self.box_data[box_index][0]
-            box_canvas.itemconfig(version_text_id, text='')
+        state['last_sensor_model_str'] = ''
+        state['last_sensor_model_poll'] = 0.0
+        self.update_topright_label(box_index)
 
         self.console.print(f'Reset UI elements for box {box_index}')
 
@@ -893,6 +942,27 @@ class ModbusUI:
 
                 # ▼ 버전 정보(40022)를 UI에 전달
                 self.ui_update_queue.put(('version', box_index, value_40022))
+
+                # ▼▼▼ 추가: 감지기 모델(문자열) 주기적 읽기 (40030~)
+                now = time.time()
+                st = self.box_states[box_index]
+                if self.sensor_model_supported[box_index] and (now - st.get('last_sensor_model_poll', 0.0) >= self.SENSOR_MODEL_POLL_SEC):
+                    st['last_sensor_model_poll'] = now
+                    addr = self.reg_addr(self.SENSOR_MODEL_REG)
+                    try:
+                        with lock:
+                            rr = client.read_holding_registers(addr, self.SENSOR_MODEL_REG_COUNT)
+                        if isinstance(rr, ExceptionResponse) or rr.isError():
+                            self.sensor_model_supported[box_index] = False
+                            self.console.print(f'[MODEL] box {box_index} read {self.SENSOR_MODEL_REG}~ error → disable: {rr}')
+                        else:
+                            regs = getattr(rr, "registers", []) or []
+                            model_str = self.regs_to_ascii(regs)
+                            if model_str:
+                                self.ui_update_queue.put(('sensor_model', box_index, model_str))
+                    except Exception as e:
+                        self.sensor_model_supported[box_index] = False
+                        self.console.print(f'[MODEL] box {box_index} read sensor model exception → disable: {e}')
 
                 # 알람 비트(40001 bit6, bit7)
                 bit_6_on = bool(value_40001 & (1 << 6))
@@ -1093,6 +1163,9 @@ class ModbusUI:
             elif typ == 'version':
                 _, box_index, version = item
                 self.set_version_label(box_index, version)
+            elif typ == 'sensor_model':
+                _, box_index, model_str = item
+                self.set_sensor_model_label(box_index, model_str)
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
                 # FW 상태 레지스터 미지원 장비면 그냥 무시
@@ -1372,6 +1445,12 @@ class ModbusUI:
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
 
+                    # ▼▼▼ 추가: 감지기 모델 표시 리셋
+                    self.sensor_model_supported[box_index] = True
+                    self.box_states[box_index]['last_sensor_model_str'] = ''
+                    self.box_states[box_index]['last_sensor_model_poll'] = 0.0
+                    self.update_topright_label(box_index)
+
                     # ★ 재연결 시에도 capability probe를 다시 한 번 수행
                     try:
                         self.detect_device_capabilities(ip, box_index)
@@ -1533,39 +1612,34 @@ class ModbusUI:
             return
 
         # 모드가 그대로고 블링크 루프도 돌고 있으면 그대로 유지
-        # (색을 다시 리셋하지 않아야 깜빡임 주기가 일정하게 보임)
         if new_mode == prev_mode and state.get('alarm_blink_running', False):
             return
 
-        # --- AL2 모드: AL2 우선, AL2 깜빡 + AL1 항상 켜져 있어야 함 ---
+        # --- AL2 모드 ---
         if new_mode == 'al2':
-            # AL2 활성일 때는 AL1은 무조건 ON(점등) 상태로 강제
-            state['alarm1_on'] = True       # 논리 상태도 ON
+            state['alarm1_on'] = True
             state['alarm1_blinking'] = False
             state['alarm2_blinking'] = True
             state['alarm_border_blink'] = True
 
-            # 초기 색 설정: AL1=빨간 고정, AL2=빨간 (이후 blink_alarms에서 AL2만 깜빡)
             self.set_alarm_lamp(
                 box_index,
-                alarm1_on=True,  blink1=False,   # AL1: 고정 빨강
-                alarm2_on=True,  blink2=False,   # AL2: 빨강에서 시작
+                alarm1_on=True,  blink1=False,
+                alarm2_on=True,  blink2=False,
             )
 
-        # --- AL1 단독 모드: AL1만 깜빡, AL2는 꺼짐 ---
+        # --- AL1 단독 모드 ---
         elif new_mode == 'al1':
             state['alarm1_blinking'] = True
             state['alarm2_blinking'] = False
             state['alarm_border_blink'] = True
 
-            # 초기 색: AL1 = 빨강 (이후 깜빡), AL2 = OFF
             self.set_alarm_lamp(
                 box_index,
                 alarm1_on=True,  blink1=False,
                 alarm2_on=False, blink2=False,
             )
 
-        # 블링크 루프가 안 돌고 있으면 시작
         if not state.get('alarm_blink_running'):
             self.blink_alarms(box_index)
 
@@ -1599,7 +1673,6 @@ class ModbusUI:
         def _blink():
             st = self.box_states[box_index]
 
-            # ★ 연결이 끊겼으면 알람 깜빡임 즉시 종료 + 램프 OFF
             if self.ip_vars[box_index].get() not in self.connected_clients:
                 self.set_alarm_lamp(box_index, False, False, False, False)
                 st['alarm_blink_running'] = False
@@ -1653,14 +1726,12 @@ class ModbusUI:
     def start_error_blink(self, box_index: int):
         state = self.box_states[box_index]
 
-        # 이미 돌고 있으면 그대로
         if state.get('error_blink_running'):
             return
 
         state['error_blink_running'] = True
         state['error_blink_state'] = False
 
-        # 에러일 때는 알람 모드/블링크는 모두 비활성화 (에러 패턴이 우선)
         state['alarm1_blinking'] = False
         state['alarm2_blinking'] = False
         state['alarm_border_blink'] = False
@@ -1669,10 +1740,7 @@ class ModbusUI:
 
         box_canvas, circle_items, *_ = self.box_data[box_index]
 
-        # AL1 상시 빨간색 ON
         box_canvas.itemconfig(circle_items[0], fill='red', outline='red')
-
-        # 처음 한 번 AL2/FUT를 ON으로 시작
         box_canvas.itemconfig(circle_items[1], fill='red', outline='red')
         box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')
 
@@ -1683,15 +1751,12 @@ class ModbusUI:
 
             box_canvas, circle_items, *_ = self.box_data[box_index]
 
-            # 토글 상태 반전
             st['error_blink_state'] = not st['error_blink_state']
 
             if st['error_blink_state']:
-                # ON 상태
-                box_canvas.itemconfig(circle_items[1], fill='red', outline='red')      # AL2
-                box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')  # FUT
+                box_canvas.itemconfig(circle_items[1], fill='red', outline='red')
+                box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')
             else:
-                # OFF 상태
                 box_canvas.itemconfig(circle_items[1],
                                       fill=self.LAMP_COLORS_OFF[1],
                                       outline=self.LAMP_COLORS_OFF[1])
@@ -1708,7 +1773,6 @@ class ModbusUI:
         state['error_blink_running'] = False
         state['error_blink_state'] = False
 
-        # 에러 종료 시 AL 램프는 잠시 모두 OFF로 초기화
         box_canvas, circle_items, *_ = self.box_data[box_index]
         box_canvas.itemconfig(circle_items[0],
                               fill=self.LAMP_COLORS_OFF[0],
@@ -1720,12 +1784,9 @@ class ModbusUI:
                               fill=self.LAMP_COLORS_OFF[3],
                               outline=self.LAMP_COLORS_OFF[3])
 
-        # 이후 주기적으로 들어오는 alarm_check 에서 실제 AL1/AL2 상태에 맞춰 다시 조정된다.
-
     # -------------------- FW 상태 표시/업데이트 --------------------
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
-        # FW 상태 레지스터 미지원 장비라면 아무 것도 하지 않음
         if not self.fw_status_supported[box_index]:
             return
 
@@ -1773,21 +1834,13 @@ class ModbusUI:
 
         if upgrading:
             disp = f"{progress:4d}"
-            self.ui_update_queue.put(
-                ('segment_display', box_index, disp, False)
-            )
-            self.ui_update_queue.put(
-                ('bar', box_index, progress)
-            )
+            self.ui_update_queue.put(('segment_display', box_index, disp, False))
+            self.ui_update_queue.put(('bar', box_index, progress))
         else:
             if upgrade_ok:
-                self.ui_update_queue.put(
-                    ('segment_display', box_index, ' End', False)
-                )
+                self.ui_update_queue.put(('segment_display', box_index, ' End', False))
             elif upgrade_fail or rollback_fail:
-                self.ui_update_queue.put(
-                    ('segment_display', box_index, 'Err ', True)
-                )
+                self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
 
     # -------------------- TFTP IP 읽기 --------------------
 
@@ -1859,7 +1912,6 @@ class ModbusUI:
     # -------------------- FW 업그레이드 --------------------
 
     def start_firmware_upgrade(self, box_index: int):
-        # 이 박스가 TFTP/FW 기능을 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
             self.console.print(
                 f'[FW] box {box_index} : TFTP/FW 기능 미지원으로 FW 업그레이드 요청을 무시합니다.'
@@ -1884,18 +1936,12 @@ class ModbusUI:
 
         if client is None or lock is None:
             self.console.print(f'[FW] Box {box_index} ({ip}) not connected.')
-            self.parent.after(
-                0,
-                lambda: messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.')
-            )
+            self.parent.after(0, lambda: messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.'))
             return
 
         src_path = self.fw_file_paths[box_index]
         if not src_path or not os.path.isfile(src_path):
-            self.parent.after(
-                0,
-                lambda: messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.')
-            )
+            self.parent.after(0, lambda: messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.'))
             return
 
         device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
@@ -1903,10 +1949,7 @@ class ModbusUI:
             os.makedirs(device_dir, exist_ok=True)
         except Exception as e:
             self.console.print(f'[FW] mkdir error: {e}')
-            self.parent.after(
-                0,
-                lambda e=e: messagebox.showerror('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}')
-            )
+            self.parent.after(0, lambda e=e: messagebox.showerror('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}'))
             return
 
         dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
@@ -1926,10 +1969,7 @@ class ModbusUI:
             )
         except Exception as e:
             self.console.print(f'[FW] file copy error: {e}')
-            self.parent.after(
-                0,
-                lambda e=e: messagebox.showerror('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
-            )
+            self.parent.after(0, lambda e=e: messagebox.showerror('FW', f'FW 파일 복사에 실패했습니다.\n{e}'))
             return
 
         tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
@@ -1944,9 +1984,7 @@ class ModbusUI:
                     if isinstance(r1, ExceptionResponse) or r1.isError():
                         self.console.print(f'[FW] write 40088/40089 error (non-fatal): {r1}')
                     else:
-                        self.console.print(
-                            f'[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})'
-                        )
+                        self.console.print(f'[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})')
                 except (ValueError, ModbusIOException, ConnectionException, Exception) as e:
                     self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
 
@@ -1954,18 +1992,11 @@ class ModbusUI:
                     r2 = client.write_register(addr_ctrl, 1)
                     if isinstance(r2, ExceptionResponse) or r2.isError():
                         self.console.print(f'[FW] write 40091 error: {r2}')
-                        self.parent.after(
-                            0,
-                            lambda r2=r2: messagebox.showerror(
-                                'FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}'
-                            ),
-                        )
+                        self.parent.after(0, lambda r2=r2: messagebox.showerror('FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}'))
                         return
                     self.console.print('[FW] write 40091 = 1 OK')
                 except Exception as e:
-                    self.console.print(
-                        f'[FW] write 40091 exception (treated as non-fatal): {e}'
-                    )
+                    self.console.print(f'[FW] write 40091 exception (treated as non-fatal): {e}')
 
             self.box_states[box_index]['fw_upgrading'] = True
             self.console.print(f'[FW] box {box_index} : local fw_upgrading = True')
@@ -1984,17 +2015,13 @@ class ModbusUI:
             )
         except Exception as e:
             self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
-            self.parent.after(
-                0,
-                lambda e=e: messagebox.showerror('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
-            )
+            self.parent.after(0, lambda e=e: messagebox.showerror('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}'))
 
     # -------------------- ZERO / RST --------------------
 
     def zero_calibration(self, box_index: int):
         self.console.print(f'[ZERO] button clicked (box_index={box_index})')
 
-        # 이 박스가 ZERO(40092)를 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
             self.console.print(
                 f'[ZERO] box {box_index} : ZERO 기능(40092) 미지원으로 판단, 명령 전송을 무시합니다.'
@@ -2036,7 +2063,6 @@ class ModbusUI:
     def reboot_device(self, box_index: int):
         self.console.print(f'[RST] button clicked (box_index={box_index})')
 
-        # 이 박스가 RST(40093)를 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
             self.console.print(
                 f'[RST] box {box_index} : 재부팅 기능(40093) 미지원으로 판단, 명령 전송을 무시합니다.'
@@ -2093,6 +2119,50 @@ class ModbusUI:
             else:
                 self.console.print(f'[RST] Error on reboot for {ip}: {e}')
                 messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
+
+    # ▼▼▼ 추가: 모델 변경(팝업에서 호출)
+    def change_device_model(self, box_index: int, model_value: int):
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        lock = self.modbus_locks.get(ip)
+        if client is None or lock is None:
+            messagebox.showwarning('MODEL', '먼저 Modbus 연결을 해주세요.')
+            return
+
+        addr = self.reg_addr(self.MODEL_SELECT_REG)
+
+        if not messagebox.askyesno(
+            '모델 변경',
+            f'장치 모델을 {model_value} 로 변경합니다.\n'
+            f'(REG {self.MODEL_SELECT_REG} = {model_value})\n\n'
+            f'※ 장비가 재부팅/통신 끊김이 잠시 발생할 수 있습니다.\n'
+            f'진행할까요?'
+        ):
+            return
+
+        def _treat_as_ok(msg: str):
+            self.console.print(f'[MODEL] no response (maybe rebooting): {msg}')
+            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.\n장비가 재부팅될 수 있습니다.')
+
+        try:
+            with lock:
+                r = client.write_register(addr, int(model_value))
+
+            if isinstance(r, ExceptionResponse) or getattr(r, "isError", lambda: False)():
+                msg = str(r)
+                if "No response received" in msg or "Invalid Message" in msg:
+                    _treat_as_ok(msg)
+                    return
+                messagebox.showerror('MODEL', f'모델 변경 실패.\n{msg}')
+                return
+
+            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.')
+        except Exception as e:
+            msg = str(e)
+            if "No response received" in msg or "Invalid Message" in msg:
+                _treat_as_ok(msg)
+            else:
+                messagebox.showerror('MODEL', f'모델 변경 중 오류가 발생했습니다.\n{e}')
 
     # -------------------- 설정 팝업 --------------------
 
@@ -2187,6 +2257,40 @@ class ModbusUI:
             bd=1,
         ).grid(row=1, column=1, padx=5, pady=5)
 
+        # ▼▼▼ 추가: 모델 변경 버튼 (ZERO/RST 팝업에 포함)
+        Label(
+            win,
+            text='모델 변경:',
+            fg='white',
+            bg='#1e1e1e',
+            font=('Helvetica', 10, 'bold'),
+        ).pack(padx=10, pady=(5, 0))
+
+        model_frame = Frame(win, bg='#1e1e1e')
+        model_frame.pack(padx=10, pady=(5, 10))
+
+        Button(
+            model_frame,
+            text='MODEL 0',
+            command=lambda idx=box_index: self.change_device_model(idx, 0),
+            width=18,
+            bg='#333333',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=0, column=0, padx=5, pady=5)
+
+        Button(
+            model_frame,
+            text='MODEL 1',
+            command=lambda idx=box_index: self.change_device_model(idx, 1),
+            width=18,
+            bg='#333333',
+            fg='white',
+            relief='raised',
+            bd=1,
+        ).grid(row=0, column=1, padx=5, pady=5)
+
         Button(
             win,
             text='닫기',
@@ -2230,18 +2334,21 @@ class ModbusUI:
 
     def set_version_label(self, box_index: int, version: int):
         state = self.box_states[box_index]
-        # 이전 값과 같으면 갱신 안 함
         if state.get('last_version_value') == version:
             return
-
         state['last_version_value'] = version
-        version_text_id = state.get('version_text_id')
-        if version_text_id is None:
-            return
+        self.update_topright_label(box_index)
 
-        box_canvas = self.box_data[box_index][0]
-        text = self.format_version(version)
-        box_canvas.itemconfig(version_text_id, text=text)
+    # ▼▼▼ 추가: 감지기 모델 문자열 표시(버전 라벨과 같이 표시)
+    def set_sensor_model_label(self, box_index: int, model_str: str):
+        state = self.box_states[box_index]
+        model_str = (model_str or '').strip()
+        if not model_str:
+            return
+        if state.get('last_sensor_model_str') == model_str:
+            return
+        state['last_sensor_model_str'] = model_str
+        self.update_topright_label(box_index)
 
 
 def main():
