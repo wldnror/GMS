@@ -2092,6 +2092,65 @@ class ModbusUI:
                 self.console.print(f'[RST] Error on reboot for {ip}: {e}')
                 messagebox.showerror('RST', f'재부팅 중 오류가 발생했습니다.\n{e}')
 
+
+
+    # ---------- 감지기 모델 표시(40030~40033) ----------
+
+    # ✅ 장비마다 다를 수 있음: "감지기 모델 문자열"이 들어있는 레지스터 시작 주소
+    DETECTOR_MODEL_REG_START = 40030   # 40030~40033 (총 4워드 = 8바이트 가정)
+    DETECTOR_MODEL_REG_COUNT = 4
+
+    def delayed_load_detector_model(self, box_index: int, delay: float = 1.0):
+        """연결 직후 장비가 준비될 시간을 조금 주고 모델 읽기"""
+        time.sleep(delay)
+        try:
+            self.read_detector_model_from_device(box_index)
+        except Exception:
+            pass
+
+    def read_detector_model_from_device(self, box_index: int):
+        """
+        40030~40033에서 모델 문자열을 읽어 UI에 반영.
+        - 4워드(8바이트)를 big-endian 바이트로 변환해서 ASCII로 디코드하는 방식 가정
+        - 장비 포맷이 다르면 decode 부분만 수정
+        """
+        ip = self.ip_vars[box_index].get()
+        client = self.clients.get(ip)
+        lock = self.modbus_locks.get(ip)
+        if client is None or lock is None:
+            return
+
+        addr = self.reg_addr(self.DETECTOR_MODEL_REG_START)
+
+        with lock:
+            rr = client.read_holding_registers(addr, self.DETECTOR_MODEL_REG_COUNT)
+
+        if isinstance(rr, ExceptionResponse) or rr.isError():
+            return
+
+        regs = getattr(rr, "registers", []) or []
+        if len(regs) < self.DETECTOR_MODEL_REG_COUNT:
+            return
+
+        # ✅ 워드 -> 바이트(빅엔디안) -> ASCII
+        raw = bytearray()
+        for w in regs:
+            raw.append((w >> 8) & 0xFF)
+            raw.append(w & 0xFF)
+
+        try:
+            model = raw.decode("ascii", errors="ignore")
+        except Exception:
+            model = ""
+
+        model = model.replace("\x00", "").strip()
+        if not model:
+            return
+
+        # UI 스레드로 전달
+        self.ui_update_queue.put(("detector_model", box_index, model))
+
+
     # -------------------- 설정 팝업 --------------------
 
     def open_settings_popup(self, box_index: int):
