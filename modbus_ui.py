@@ -127,8 +127,11 @@ class ModbusUI:
         self.log_popups = [None] * num_boxes
         self.log_popup_texts = [None] * num_boxes
         self.box_logs = [[] for _ in range(num_boxes)]
+
         self.tftp_supported = [True] * num_boxes
         self.fw_status_supported = [True] * num_boxes
+
+        # ✅ MOD: 감지기 모델 지원 여부는 capability probe에서만 결정
         self.sensor_model_supported = [False] * num_boxes
 
         self.load_ip_settings(num_boxes)
@@ -147,6 +150,7 @@ class ModbusUI:
         self.alarm_blink_interval = 1000
         self.start_data_processing_thread()
         self.schedule_ui_update()
+
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
             with open(self.SETTINGS_FILE, 'r') as file:
@@ -163,6 +167,7 @@ class ModbusUI:
         img = Image.open(path).convert('RGBA')
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
+
     def regs_to_ascii(self, regs):
         try:
             b = bytearray()
@@ -173,6 +178,7 @@ class ModbusUI:
             return s.replace('\x00', '').strip()
         except Exception:
             return ''
+
     def update_topright_label(self, box_index: int):
         state = self.box_states[box_index]
         tid = state.get('version_text_id')
@@ -194,6 +200,7 @@ class ModbusUI:
             txt = vtxt
 
         box_canvas.itemconfig(tid, text=txt)
+
     def add_ip_row(self, frame, ip_var, index):
         entry_border = Frame(frame, bg='#4a4a4a', bd=1, relief='solid')
         entry_border.grid(row=0, column=0, padx=(0, 0), pady=5)
@@ -447,6 +454,7 @@ class ModbusUI:
             anchor='center',
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
+
         version_text_id = box_canvas.create_text(
             sx(140),
             sy(12),
@@ -572,7 +580,6 @@ class ModbusUI:
         bar_item = self.box_data[box_index][4]
         bar_canvas.itemconfig(bar_item, state='normal' if show else 'hidden')
 
-
     def toggle_connection(self, i):
         if self.ip_vars[i].get() in self.connected_clients:
             self.disconnect(i, manual=True)
@@ -594,6 +601,7 @@ class ModbusUI:
                 self.last_fw_status[i] = None
                 self.box_states[i]['fw_upgrading'] = False
 
+                # ✅ MOD: 여기서 True로 가정하지 않음 (capability probe에서만 결정)
                 self.sensor_model_supported[i] = False
                 self.box_states[i]['last_sensor_model_str'] = ''
                 self.box_states[i]['last_sensor_model_poll'] = 0.0
@@ -756,10 +764,13 @@ class ModbusUI:
             )
             time.sleep(2)
         return False
+
     def detect_device_capabilities(self, ip: str, box_index: int):
         tmp_client = ModbusTcpClient(ip, port=502, timeout=2)
         try:
+            # ✅ MOD: 기본값은 “미지원”으로 두고, probe 성공 시에만 True로
             self.sensor_model_supported[box_index] = False
+
             if not tmp_client.connect():
                 self.console.print(
                     f'[FW] box {box_index} ({ip}) : capability probe connect fail → '
@@ -767,6 +778,7 @@ class ModbusUI:
                 )
                 self.fw_status_supported[box_index] = False
                 self.tftp_supported[box_index] = False
+                # 모델도 미지원으로 유지
                 return
 
             start_address = self.reg_addr(40001)
@@ -791,29 +803,49 @@ class ModbusUI:
                 )
                 self.fw_status_supported[box_index] = False
                 self.tftp_supported[box_index] = False
-                return
-
-            regs_ext = getattr(rr_ext, "registers", []) or []
-            if len(regs_ext) >= 24:
-                self.console.print(
-                    f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
-                    f'40023/40024 포함 확장 레지스터 지원 장비로 판단.'
-                )
-                self.fw_status_supported[box_index] = True
-                self.tftp_supported[box_index] = True
             else:
-                self.console.print(
-                    f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
-                    f'24개 미만 응답(={len(regs_ext)}) → 구형 장비 (FW/TFTP/ZERO/RST 비활성화).'
-                )
-                self.fw_status_supported[box_index] = False
-                self.tftp_supported[box_index] = False
+                regs_ext = getattr(rr_ext, "registers", []) or []
+                if len(regs_ext) >= 24:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
+                        f'40023/40024 포함 확장 레지스터 지원 장비로 판단.'
+                    )
+                    self.fw_status_supported[box_index] = True
+                    self.tftp_supported[box_index] = True
+                else:
+                    self.console.print(
+                        f'[FW] box {box_index} ({ip}) : capability probe 결과 → '
+                        f'24개 미만 응답(={len(regs_ext)}) → 구형 장비 (FW/TFTP/ZERO/RST 비활성화).'
+                    )
+                    self.fw_status_supported[box_index] = False
+                    self.tftp_supported[box_index] = False
+
+            # ✅ MOD: 감지기 모델 문자열(40030~) 지원 여부는 여기서만 판단
+            try:
+                addr = self.reg_addr(self.SENSOR_MODEL_REG)
+                rr_model = tmp_client.read_holding_registers(addr, self.SENSOR_MODEL_REG_COUNT)
+                if not isinstance(rr_model, ExceptionResponse) and not rr_model.isError():
+                    regs = getattr(rr_model, "registers", []) or []
+                    if len(regs) == self.SENSOR_MODEL_REG_COUNT:
+                        self.sensor_model_supported[box_index] = True
+                        self.console.print(
+                            f'[MODEL] box {box_index} ({ip}) : sensor model register supported'
+                        )
+            except Exception as e:
+                self.sensor_model_supported[box_index] = False
+                self.console.print(f'[MODEL] box {box_index} ({ip}) : model probe fail → unsupported ({e})')
 
         finally:
             try:
                 tmp_client.close()
             except Exception:
                 pass
+
+        # probe 결과 반영해서 라벨 갱신(연결 직후 빈값이더라도)
+        try:
+            self.update_topright_label(box_index)
+        except Exception:
+            pass
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
@@ -850,6 +882,7 @@ class ModbusUI:
                 value_40023 = None
                 value_40024 = None
 
+                # (FW 쪽은 기존 로직 유지)
                 if self.fw_status_supported[box_index] and len(raw_regs) < 24:
                     self.console.print(
                         f'[FW] box {box_index} ({ip}) : 40023/40024 레지스터가 없는 장비로 판단 → '
@@ -868,25 +901,29 @@ class ModbusUI:
                 value_40022 = raw_regs[21]
 
                 self.ui_update_queue.put(('version', box_index, value_40022))
+
+                # ✅ MOD: 센서 모델 read 실패해도 disable 하지 않음 (capability probe만 신뢰)
                 now = time.time()
                 st = self.box_states[box_index]
-                if self.sensor_model_supported[box_index] and (now - st.get('last_sensor_model_poll', 0.0) >= self.SENSOR_MODEL_POLL_SEC):
+                if self.sensor_model_supported[box_index] and (
+                    now - st.get('last_sensor_model_poll', 0.0) >= self.SENSOR_MODEL_POLL_SEC
+                ):
                     st['last_sensor_model_poll'] = now
                     addr = self.reg_addr(self.SENSOR_MODEL_REG)
                     try:
                         with lock:
                             rr = client.read_holding_registers(addr, self.SENSOR_MODEL_REG_COUNT)
-                        if isinstance(rr, ExceptionResponse) or rr.isError():
-                            self.sensor_model_supported[box_index] = False
-                            self.console.print(f'[MODEL] box {box_index} read {self.SENSOR_MODEL_REG}~ error → disable: {rr}')
-                        else:
+
+                        if not isinstance(rr, ExceptionResponse) and not rr.isError():
                             regs = getattr(rr, "registers", []) or []
                             model_str = self.regs_to_ascii(regs)
                             if model_str:
                                 self.ui_update_queue.put(('sensor_model', box_index, model_str))
+                        # 실패/에러면 그냥 무시 (disable 금지)
                     except Exception as e:
-                        self.sensor_model_supported[box_index] = False
-                        self.console.print(f'[MODEL] box {box_index} read sensor model exception → disable: {e}')
+                        # 예외도 무시 (disable 금지)
+                        self.console.print(f'[MODEL] box {box_index} read sensor model exception (ignored): {e}')
+
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
                 self.box_states[box_index]['alarm1_on'] = bit_6_on
@@ -1005,6 +1042,7 @@ class ModbusUI:
                 self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
+
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
         state = self.box_states[box_index]
         last_val = state.get('last_log_value')
@@ -1085,7 +1123,7 @@ class ModbusUI:
 
         self.schedule_ui_update()
 
-
+    # ---------- 이하 UI/기능 함수들은 원본 그대로 ----------
     def open_segment_popup(self, box_index: int):
         existing = self.log_popups[box_index]
         if existing is not None and existing.winfo_exists():
@@ -1345,7 +1383,8 @@ class ModbusUI:
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
 
-                    self.sensor_model_supported[box_index] = True
+                    # ✅ MOD: 여기서 True로 가정하지 않음 (capability probe에서만 결정)
+                    self.sensor_model_supported[box_index] = False
                     self.box_states[box_index]['last_sensor_model_str'] = ''
                     self.box_states[box_index]['last_sensor_model_poll'] = 0.0
                     self.update_topright_label(box_index)
@@ -1355,7 +1394,8 @@ class ModbusUI:
                         self.console.print(
                             f'[FW] box {box_index} ({ip}) : reconnect 성공 '
                             f'(fw_status_supported={self.fw_status_supported[box_index]}, '
-                            f'tftp_supported={self.tftp_supported[box_index]})'
+                            f'tftp_supported={self.tftp_supported[box_index]}, '
+                            f'sensor_model_supported={self.sensor_model_supported[box_index]})'
                         )
                     except Exception as e:
                         self.console.print(
@@ -1457,11 +1497,8 @@ class ModbusUI:
 
         toggle_color()
 
-
     def check_alarms(self, box_index):
-
         state = self.box_states[box_index]
-
         if state.get('blinking_error'):
             return
 
@@ -1476,7 +1513,6 @@ class ModbusUI:
             new_mode = 'none'
 
         prev_mode = state.get('alarm_mode', 'none')
-
         state['alarm_mode'] = new_mode
 
         if new_mode == 'none':
@@ -1511,7 +1547,6 @@ class ModbusUI:
                 alarm2_on=True,  blink2=False,
             )
 
-        # --- AL1 단독 모드 ---
         elif new_mode == 'al1':
             state['alarm1_blinking'] = True
             state['alarm2_blinking'] = False
@@ -1528,7 +1563,6 @@ class ModbusUI:
 
     def set_alarm_lamp(self, box_index, alarm1_on, blink1, alarm2_on, blink2):
         box_canvas, circle_items, *_ = self.box_data[box_index]
-        # AL1
         if alarm1_on:
             if blink1:
                 box_canvas.itemconfig(circle_items[0], fill='#fdc8c8', outline='#fdc8c8')
@@ -1537,7 +1571,6 @@ class ModbusUI:
         else:
             box_canvas.itemconfig(circle_items[0], fill='#fdc8c8', outline='#fdc8c8')
 
-        # AL2
         if alarm2_on:
             if blink2:
                 box_canvas.itemconfig(circle_items[1], fill='#fdc8c8', outline='#fdc8c8')
@@ -1548,7 +1581,6 @@ class ModbusUI:
 
     def blink_alarms(self, box_index):
         state = self.box_states[box_index]
-
         if state.get('alarm_blink_running'):
             return
         state['alarm_blink_running'] = True
@@ -1603,9 +1635,9 @@ class ModbusUI:
             self.parent.after(self.alarm_blink_interval, _blink)
 
         _blink()
+
     def start_error_blink(self, box_index: int):
         state = self.box_states[box_index]
-
         if state.get('error_blink_running'):
             return
 
@@ -1619,7 +1651,6 @@ class ModbusUI:
         state['alarm_mode'] = 'none'
 
         box_canvas, circle_items, *_ = self.box_data[box_index]
-
         box_canvas.itemconfig(circle_items[0], fill='red', outline='red')
         box_canvas.itemconfig(circle_items[1], fill='red', outline='red')
         box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')
@@ -1630,7 +1661,6 @@ class ModbusUI:
                 return
 
             box_canvas, circle_items, *_ = self.box_data[box_index]
-
             st['error_blink_state'] = not st['error_blink_state']
 
             if st['error_blink_state']:
@@ -1663,6 +1693,7 @@ class ModbusUI:
         box_canvas.itemconfig(circle_items[3],
                               fill=self.LAMP_COLORS_OFF[3],
                               outline=self.LAMP_COLORS_OFF[3])
+
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
         if not self.fw_status_supported[box_index]:
             return
@@ -1718,15 +1749,16 @@ class ModbusUI:
                 self.ui_update_queue.put(('segment_display', box_index, ' End', False))
             elif upgrade_fail or rollback_fail:
                 self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
+
+    # --- 아래 FW/TFTP/ZERO/RST/MODEL/UI 팝업 등 원본 함수들은 그대로 유지 ---
+    # (사용자 제공 코드 그대로: delayed_load_tftp_ip_from_device ~ open_settings_popup ~ format_version 등)
+
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
         if not self.tftp_supported[box_index]:
             return
-
         time.sleep(delay)
-
         if not self.tftp_supported[box_index]:
             return
-
         try:
             self.load_tftp_ip_from_device(box_index)
         except Exception as e:
@@ -2032,6 +2064,7 @@ class ModbusUI:
                 _treat_as_ok(msg)
             else:
                 messagebox.showerror('MODEL', f'모델 변경 중 오류가 발생했습니다.\n{e}')
+
     def open_settings_popup(self, box_index: int):
         existing = self.settings_popups[box_index]
         if existing is not None and existing.winfo_exists():
@@ -2122,6 +2155,7 @@ class ModbusUI:
             relief='raised',
             bd=1,
         ).grid(row=1, column=1, padx=5, pady=5)
+
         Label(
             win,
             text='모델 변경:',
@@ -2178,6 +2212,7 @@ class ModbusUI:
                     self.console.print(f"[UI] settings popup grab_set skipped: {e}")
 
         win.after(50, _safe_grab)
+
     def format_version(self, version: int) -> str:
         try:
             v = int(version)
@@ -2194,6 +2229,7 @@ class ModbusUI:
             return
         state['last_version_value'] = version
         self.update_topright_label(box_index)
+
     def set_sensor_model_label(self, box_index: int, model_str: str):
         state = self.box_states[box_index]
         model_str = (model_str or '').strip()
