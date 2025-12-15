@@ -1546,11 +1546,17 @@ class ModbusUI:
             st['error_blink_state'] = not st['error_blink_state']
 
             if st['error_blink_state']:
-                box_canvas.itemconfig(circle_items[1], fill='red', outline='red')
-                box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')
+                # ON 상태
+                box_canvas.itemconfig(circle_items[1], fill='red', outline='red')      # AL2
+                box_canvas.itemconfig(circle_items[3], fill='yellow', outline='yellow')  # FUT
             else:
-                box_canvas.itemconfig(circle_items[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
-                box_canvas.itemconfig(circle_items[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
+                # OFF 상태
+                box_canvas.itemconfig(circle_items[1],
+                                      fill=self.LAMP_COLORS_OFF[1],
+                                      outline=self.LAMP_COLORS_OFF[1])
+                box_canvas.itemconfig(circle_items[3],
+                                      fill=self.LAMP_COLORS_OFF[3],
+                                      outline=self.LAMP_COLORS_OFF[3])
 
             self.parent.after(self.alarm_blink_interval, _blink)
 
@@ -1562,9 +1568,15 @@ class ModbusUI:
         state['error_blink_state'] = False
 
         box_canvas, circle_items, *_ = self.box_data[box_index]
-        box_canvas.itemconfig(circle_items[0], fill=self.LAMP_COLORS_OFF[0], outline=self.LAMP_COLORS_OFF[0])
-        box_canvas.itemconfig(circle_items[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
-        box_canvas.itemconfig(circle_items[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
+        box_canvas.itemconfig(circle_items[0],
+                              fill=self.LAMP_COLORS_OFF[0],
+                              outline=self.LAMP_COLORS_OFF[0])
+        box_canvas.itemconfig(circle_items[1],
+                              fill=self.LAMP_COLORS_OFF[1],
+                              outline=self.LAMP_COLORS_OFF[1])
+        box_canvas.itemconfig(circle_items[3],
+                              fill=self.LAMP_COLORS_OFF[3],
+                              outline=self.LAMP_COLORS_OFF[3])
 
     # -------------------- FW 상태 표시/업데이트 --------------------
 
@@ -1616,13 +1628,21 @@ class ModbusUI:
 
         if upgrading:
             disp = f"{progress:4d}"
-            self.ui_update_queue.put(('segment_display', box_index, disp, False))
-            self.ui_update_queue.put(('bar', box_index, progress))
+            self.ui_update_queue.put(
+                ('segment_display', box_index, disp, False)
+            )
+            self.ui_update_queue.put(
+                ('bar', box_index, progress)
+            )
         else:
             if upgrade_ok:
-                self.ui_update_queue.put(('segment_display', box_index, ' End', False))
+                self.ui_update_queue.put(
+                    ('segment_display', box_index, ' End', False)
+                )
             elif upgrade_fail or rollback_fail:
-                self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
+                self.ui_update_queue.put(
+                    ('segment_display', box_index, 'Err ', True)
+                )
 
     # -------------------- TFTP IP 읽기 --------------------
 
@@ -1717,19 +1737,30 @@ class ModbusUI:
         lock = self.modbus_locks.get(ip)
 
         if client is None or lock is None:
-            self.parent.after(0, lambda: messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.'))
+            self.console.print(f'[FW] Box {box_index} ({ip}) not connected.')
+            self.parent.after(
+                0,
+                lambda: messagebox.showwarning('FW', '먼저 Modbus 연결을 해주세요.')
+            )
             return
 
         src_path = self.fw_file_paths[box_index]
         if not src_path or not os.path.isfile(src_path):
-            self.parent.after(0, lambda: messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.'))
+            self.parent.after(
+                0,
+                lambda: messagebox.showwarning('FW', 'FW 파일을 먼저 선택해주세요.')
+            )
             return
 
         device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
         try:
             os.makedirs(device_dir, exist_ok=True)
         except Exception as e:
-            self.parent.after(0, lambda e=e: messagebox.showerror('FW', f'TFTP 디렉터리 생성 실패\n{e}'))
+            self.console.print(f'[FW] mkdir error: {e}')
+            self.parent.after(
+                0,
+                lambda e=e: messagebox.showerror('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}')
+            )
             return
 
         dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
@@ -1738,11 +1769,21 @@ class ModbusUI:
             if os.path.exists(dst_path):
                 try:
                     os.remove(dst_path)
-                except PermissionError:
-                    pass
+                    self.console.print(f'[FW] old TFTP file removed: {dst_path}')
+                except PermissionError as e:
+                    self.console.print(f'[FW] warning: cannot remove old file: {e}')
+
             shutil.copyfile(src_path, dst_path)
+            self.console.print(
+                f'[FW] box {box_index} file copy: {src_path} → {dst_path} '
+                f'(RRQ path: {TFTP_DEVICE_SUBDIR}/{TFTP_DEVICE_FILENAME})'
+            )
         except Exception as e:
-            self.parent.after(0, lambda e=e: messagebox.showerror('FW', f'FW 파일 복사 실패\n{e}'))
+            self.console.print(f'[FW] file copy error: {e}')
+            self.parent.after(
+                0,
+                lambda e=e: messagebox.showerror('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
+            )
             return
 
         tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
@@ -1753,29 +1794,76 @@ class ModbusUI:
             with lock:
                 try:
                     w1, w2 = encode_ip_to_words(tftp_ip_str)
-                    client.write_registers(addr_ip1, [w1, w2])
-                except Exception:
-                    pass
+                    r1 = client.write_registers(addr_ip1, [w1, w2])
+                    if isinstance(r1, ExceptionResponse) or r1.isError():
+                        self.console.print(f'[FW] write 40088/40089 error (non-fatal): {r1}')
+                    else:
+                        self.console.print(
+                            f'[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})'
+                        )
+                except (ValueError, ModbusIOException, ConnectionException, Exception) as e:
+                    self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
 
-                r2 = client.write_register(addr_ctrl, 1)
-                if isinstance(r2, ExceptionResponse) or r2.isError():
-                    self.parent.after(0, lambda r2=r2: messagebox.showerror('FW', f'FW 시작 명령 실패\n{r2}'))
-                    return
+                try:
+                    r2 = client.write_register(addr_ctrl, 1)
+                    if isinstance(r2, ExceptionResponse) or r2.isError():
+                        self.console.print(f'[FW] write 40091 error: {r2}')
+                        self.parent.after(
+                            0,
+                            lambda r2=r2: messagebox.showerror(
+                                'FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}'
+                            ),
+                        )
+                        return
+                    self.console.print('[FW] write 40091 = 1 OK')
+                except Exception as e:
+                    self.console.print(
+                        f'[FW] write 40091 exception (treated as non-fatal): {e}'
+                    )
 
             self.box_states[box_index]['fw_upgrading'] = True
-            self.parent.after(0, lambda: messagebox.showinfo('FW', 'FW 업그레이드 명령을 전송했습니다.'))
+            self.console.print(f'[FW] box {box_index} : local fw_upgrading = True')
+
+            self.console.print(
+                f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
+                f"TFTP IP='{tftp_ip_str}', file={dst_path}"
+            )
+            self.parent.after(
+                0,
+                lambda: messagebox.showinfo(
+                    'FW',
+                    'FW 업그레이드 명령을 전송했습니다.\n'
+                    '※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
+                ),
+            )
         except Exception as e:
-            self.parent.after(0, lambda e=e: messagebox.showerror('FW', f'FW 업그레이드 중 오류\n{e}'))
+            self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
+            self.parent.after(
+                0,
+                lambda e=e: messagebox.showerror('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
+            )
 
     def zero_calibration(self, box_index: int):
+        self.console.print(f'[ZERO] button clicked (box_index={box_index})')
+
+        # 이 박스가 ZERO(40092)를 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
-            messagebox.showwarning('ZERO', '이 장치는 ZERO 명령(40092)을 지원하지 않는 것으로 판단되어 수행하지 않습니다.')
+            self.console.print(
+                f'[ZERO] box {box_index} : ZERO 기능(40092) 미지원으로 판단, 명령 전송을 무시합니다.'
+            )
+            messagebox.showwarning(
+                'ZERO',
+                '이 장치는 ZERO 명령(40092)을 지원하지 않는 것으로 판단되어,\n'
+                'ZERO 기능을 수행하지 않습니다.'
+            )
             return
 
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
+
         if client is None or lock is None:
+            self.console.print(f'[ZERO] Box {box_index} ({ip}) not connected.')
             messagebox.showwarning('ZERO', '먼저 Modbus 연결을 해주세요.')
             return
 
@@ -1783,26 +1871,55 @@ class ModbusUI:
         try:
             with lock:
                 r = client.write_register(addr, 1)
-            if isinstance(r, ExceptionResponse) or r.isError():
-                messagebox.showerror('ZERO', f'ZERO 명령 전송 실패.\n{r}')
-                return
+                if isinstance(r, ExceptionResponse) or r.isError():
+                    self.console.print(f'[ZERO] write 40092=1 error: {r}')
+                    messagebox.showerror('ZERO', f'ZERO 명령 전송 실패.\n{r}')
+                    return
+                self.console.print('[ZERO] write 40092 = 1 OK')
+
+            self.console.print(
+                f'[ZERO] Zero calibration command sent for box {box_index} ({ip})'
+            )
             messagebox.showinfo('ZERO', 'ZERO 명령을 전송했습니다.')
         except Exception as e:
-            messagebox.showerror('ZERO', f'ZERO 중 오류\n{e}')
+            self.console.print(f'[ZERO] Error on zero calibration for {ip}: {e}')
+            messagebox.showerror('ZERO', f'ZERO 중 오류가 발생했습니다.\n{e}')
 
     def reboot_device(self, box_index: int):
+        self.console.print(f'[RST] button clicked (box_index={box_index})')
+
+        # 이 박스가 RST(40093)를 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
-            messagebox.showwarning('RST', '이 장치는 재부팅 명령(40093)을 지원하지 않는 것으로 판단되어 수행하지 않습니다.')
+            self.console.print(
+                f'[RST] box {box_index} : 재부팅 기능(40093) 미지원으로 판단, 명령 전송을 무시합니다.'
+            )
+            messagebox.showwarning(
+                'RST',
+                '이 장치는 재부팅 명령(40093)을 지원하지 않는 것으로 판단되어,\n'
+                'RST 기능을 수행하지 않습니다.'
+            )
             return
 
         ip = self.ip_vars[box_index].get()
         client = self.clients.get(ip)
         lock = self.modbus_locks.get(ip)
         if client is None or lock is None:
+            self.console.print(f'[RST] Box {box_index} ({ip}) not connected.')
             messagebox.showwarning('RST', '먼저 Modbus 연결을 해주세요.')
             return
 
         addr = self.reg_addr(40093)
+
+        def _treat_as_ok(msg: str):
+            self.console.print(
+                f'[RST] no/invalid response after write (device is rebooting): {msg}'
+            )
+            messagebox.showinfo(
+                'RST',
+                '재부팅 명령을 전송했습니다.\n'
+                '장비가 재부팅되는 동안 잠시 통신 오류가 발생할 수 있습니다.',
+            )
+
         try:
             with lock:
                 r = client.write_register(addr, 1)
