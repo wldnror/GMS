@@ -310,6 +310,9 @@ class ModbusUI:
                 # ▼ FW 버전 표시용
                 'version_text_id': None,
                 'last_version_value': None,
+                # ▼ 감지기 모델 표시용
+                'last_model_str': None,
+                'detector_model_str': None,
                 # ▼ 알람 모드 (none / al1 / al2)
                 'alarm_mode': 'none',
                 # ▼ 에러 깜빡이 상태
@@ -429,7 +432,7 @@ class ModbusUI:
         )
         self.box_states[index]['gas_type_text_id'] = gas_type_text_id
 
-        # ▼ FW 버전 라벨
+        # ▼ FW 버전 + 감지기 모델 라벨(우측 상단)
         version_text_id = box_canvas.create_text(
             sx(140),
             sy(12),
@@ -633,6 +636,14 @@ class ModbusUI:
                 self.blink_pwr(i)
                 self.save_ip_settings()
                 self.entries[i].event_generate('<FocusOut>')
+
+                # ✅ 감지기 모델(40030~40033) 1회 읽기(미지원이면 조용히 무시)
+                threading.Thread(
+                    target=self.delayed_load_detector_model,
+                    args=(i, 1.0),
+                    daemon=True
+                ).start()
+
             else:
                 self.console.print(f'Failed to connect to {ip}')
                 self.parent.after(
@@ -731,12 +742,11 @@ class ModbusUI:
         self.update_segment_display('    ', box_index=box_index)
         self.show_bar(box_index, show=False)
 
-        # ▼ FW 버전 라벨 초기화
+        # ▼ 헤더(버전/모델) 초기화
         state['last_version_value'] = None
-        version_text_id = state.get('version_text_id')
-        if version_text_id is not None:
-            box_canvas = self.box_data[box_index][0]
-            box_canvas.itemconfig(version_text_id, text='')
+        state['last_model_str'] = None
+        state['detector_model_str'] = None
+        self.set_header_label(box_index)
 
         self.console.print(f'Reset UI elements for box {box_index}')
 
@@ -784,7 +794,6 @@ class ModbusUI:
             start_address = self.reg_addr(40001)
             BASE_REG_COUNT = 22
 
-            # 1단계: 기본 레지스터(40001~40022)가 정상인지 확인
             rr_base = tmp_client.read_holding_registers(start_address, BASE_REG_COUNT)
             if isinstance(rr_base, ExceptionResponse) or rr_base.isError():
                 raise ModbusIOException(
@@ -796,7 +805,6 @@ class ModbusUI:
                     f'Base regs length < {BASE_REG_COUNT} during capability probe (got {len(regs_base)})'
                 )
 
-            # 2단계: 확장 포함 24개 읽기 시도
             rr_ext = tmp_client.read_holding_registers(start_address, 24)
             if isinstance(rr_ext, ExceptionResponse) or rr_ext.isError():
                 self.console.print(
@@ -834,6 +842,7 @@ class ModbusUI:
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
         BASE_REG_COUNT = 22  # 40001 ~ 40022
+        last_model_read = 0.0
 
         while not stop_flag.is_set():
             try:
@@ -844,11 +853,10 @@ class ModbusUI:
                 if lock is None:
                     break
 
-                # FW 상태 레지스터를 지원하면 40023/40024까지, 아니면 40001~40022만 읽기
                 if self.fw_status_supported[box_index]:
-                    num_registers = 24  # 40001 ~ 40024
+                    num_registers = 24
                 else:
-                    num_registers = BASE_REG_COUNT  # 40001 ~ 40022
+                    num_registers = BASE_REG_COUNT
 
                 with lock:
                     response = client.read_holding_registers(start_address, num_registers)
@@ -860,13 +868,11 @@ class ModbusUI:
 
                 raw_regs = getattr(response, "registers", []) or []
 
-                # 공통 레지스터(40001~40022)는 반드시 있어야 함
                 if len(raw_regs) < BASE_REG_COUNT:
                     raise ModbusIOException(
                         f'Error reading from {ip}: expected at least {BASE_REG_COUNT} regs, got {len(raw_regs)}'
                     )
 
-                # FW 상태 레지스터 미지원 장비 자동 감지 (fallback):
                 value_40023 = None
                 value_40024 = None
 
@@ -881,24 +887,30 @@ class ModbusUI:
                     value_40023 = raw_regs[22]
                     value_40024 = raw_regs[23]
 
-                # 공통 레지스터
                 value_40001 = raw_regs[0]
                 value_40005 = raw_regs[4]
                 value_40007 = raw_regs[7]
                 value_40011 = raw_regs[10]
                 value_40022 = raw_regs[21]
 
-                # ▼ 버전 정보(40022)를 UI에 전달
+                # ▼ 버전 정보(40022) UI 전달
                 self.ui_update_queue.put(('version', box_index, value_40022))
 
-                # 알람 비트(40001 bit6, bit7)
+                # (선택) 감지기 모델(40030~40033) 5초마다 갱신 시도
+                now = time.monotonic()
+                if now - last_model_read > 5.0:
+                    last_model_read = now
+                    try:
+                        self.read_detector_model_from_device(box_index)
+                    except Exception:
+                        pass
+
                 bit_6_on = bool(value_40001 & (1 << 6))
                 bit_7_on = bool(value_40001 & (1 << 7))
                 self.box_states[box_index]['alarm1_on'] = bit_6_on
                 self.box_states[box_index]['alarm2_on'] = bit_7_on
                 self.ui_update_queue.put(('alarm_check', box_index))
 
-                # 로그 기록
                 self.maybe_log_event(
                     box_index,
                     value_40005,
@@ -907,10 +919,8 @@ class ModbusUI:
                     value_40007,
                 )
 
-                # 에러 레지스터(40007) → 세그먼트 표시
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
                 if not any(bits):
-                    # 에러 없음 → 에러 깜빡이 종료
                     if self.box_states[box_index]['blinking_error']:
                         self.box_states[box_index]['blinking_error'] = False
                         self.ui_update_queue.put(('error_off', box_index))
@@ -926,23 +936,19 @@ class ModbusUI:
                     error_display = error_display.ljust(4)
 
                     if 'E' in error_display:
-                        # 에러 존재 → 에러 깜빡이 시작
                         if not self.box_states[box_index]['blinking_error']:
                             self.box_states[box_index]['blinking_error'] = True
                             self.ui_update_queue.put(('error_on', box_index))
                         self.data_queue.put((box_index, error_display, True))
                     else:
-                        # 에러지만 E 표시가 아닌 경우는 에러 깜빡이 종료
                         if self.box_states[box_index]['blinking_error']:
                             self.box_states[box_index]['blinking_error'] = False
                             self.ui_update_queue.put(('error_off', box_index))
                         self.data_queue.put((box_index, error_display, False))
 
-                # FW 업그레이드 중이 아닐 때만 40011 값으로 bar 업데이트
                 if not self.box_states[box_index].get('fw_upgrading', False):
                     self.ui_update_queue.put(('bar', box_index, value_40011))
 
-                # FW 상태 레지스터를 지원하는 장비에서만 fw_status 업데이트
                 if self.fw_status_supported[box_index] and value_40023 is not None and value_40024 is not None:
                     self.ui_update_queue.put(
                         ('fw_status', box_index, value_40022, value_40023, value_40024)
@@ -957,7 +963,6 @@ class ModbusUI:
                     self.console.print(
                         f'[FW] box {box_index} disconnected during upgrade (expected).'
                     )
-                    # 업그레이드 도중 장비 리부트로 끊긴 경우
                     self.box_states[box_index]['fw_upgrading'] = False
                     self.last_fw_status[box_index] = None
                     self.ui_update_queue.put(('bar', box_index, 0))
@@ -971,7 +976,6 @@ class ModbusUI:
             except ModbusIOException as e:
                 msg = str(e)
 
-                # 40001~40024 읽기에서 에러가 난 경우 → FW 상태/확장 레지스터 미지원으로 판단
                 if self.fw_status_supported[box_index] and '40001~40024' in msg:
                     self.console.print(
                         f'[Modbus] box {box_index} ({ip}) : 40023/40024 등 확장 레지스터 미지원으로 판단, '
@@ -1023,10 +1027,6 @@ class ModbusUI:
     # -------------------- 로그 --------------------
 
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
-        """
-        숫자 값 / AL1 / AL2 / 에러레지스터 중 하나라도 변하면 로그 1줄 추가.
-        박스별 최대 LOG_MAX_ENTRIES까지만 유지.
-        """
         state = self.box_states[box_index]
         last_val = state.get('last_log_value')
         last_a1 = state.get('last_log_alarm1')
@@ -1090,9 +1090,11 @@ class ModbusUI:
             elif typ == 'version':
                 _, box_index, version = item
                 self.set_version_label(box_index, version)
+            elif typ == 'detector_model':
+                _, box_index, model = item
+                self.set_detector_model(box_index, model)
             elif typ == 'fw_status':
                 _, box_index, v_40022, v_40023, v_40024 = item
-                # FW 상태 레지스터 미지원 장비면 그냥 무시
                 if self.fw_status_supported[box_index]:
                     self.update_fw_status(box_index, v_40022, v_40023, v_40024)
             elif typ == 'error_on':
@@ -1104,6 +1106,8 @@ class ModbusUI:
 
         self.schedule_ui_update()
 
+    # -------------------- 로그 팝업 --------------------
+    # (이하 로그/재연결/알람/에러/업그레이드/TFTP/ZERO/RST 로직은 기존 그대로)
     # -------------------- 로그 팝업 --------------------
 
     def open_segment_popup(self, box_index: int):
