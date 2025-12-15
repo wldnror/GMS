@@ -87,6 +87,13 @@ class ModbusUI:
 
     LOG_MAX_ENTRIES = 1000
 
+    # ▼▼▼ 추가: 모델 변경 레지스터(필요시 여기만 바꾸면 됨)
+    MODEL_SELECT_REG = 40094  # 예: 0/1을 써서 모델 변경 (장비에 맞게 수정)
+    # ▼▼▼ 추가: 감지기(센서) 모델 문자열 레지스터(예: 40030~40033)
+    SENSOR_MODEL_REG = 40030
+    SENSOR_MODEL_REG_COUNT = 4
+    SENSOR_MODEL_POLL_SEC = 2.0
+
     @staticmethod
     def reg_addr(addr_4xxxx: int) -> int:
         return addr_4xxxx - 40001
@@ -132,6 +139,8 @@ class ModbusUI:
         self.tftp_supported = [True] * num_boxes
         # FW 상태 레지스터(40023/40024) 지원 여부
         self.fw_status_supported = [True] * num_boxes
+        # ▼▼▼ 추가: 감지기 모델(문자열) 레지스터 지원 여부
+        self.sensor_model_supported = [True] * num_boxes
 
         self.load_ip_settings(num_boxes)
 
@@ -345,6 +354,9 @@ class ModbusUI:
                 # ▼ FW 버전 표시용
                 'version_text_id': None,
                 'last_version_value': None,
+                # ▼ 추가: 감지기 모델 표시용
+                'last_sensor_model_str': '',
+                'last_sensor_model_poll': 0.0,
                 # ▼ 알람 모드 (none / al1 / al2)
                 'alarm_mode': 'none',
                 # ▼ 에러 깜빡이 상태
