@@ -636,12 +636,6 @@ class ModbusUI:
                 self.last_fw_status[i] = None
                 self.box_states[i]['fw_upgrading'] = False
 
-                # ▼▼▼ 추가: 감지기 모델 표시도 일단 True로 두고, 실제 읽기 실패 시 자동 비활성화
-                self.sensor_model_supported[i] = True
-                self.box_states[i]['last_sensor_model_str'] = ''
-                self.box_states[i]['last_sensor_model_poll'] = 0.0
-                self.update_topright_label(i)
-
                 # ★ 별도의 임시 클라이언트로 확장 레지스터 지원 여부만 사전 검사
                 try:
                     self.detect_device_capabilities(ip, i)
@@ -1446,12 +1440,6 @@ class ModbusUI:
                     self.last_fw_status[box_index] = None
                     self.box_states[box_index]['fw_upgrading'] = False
 
-                    # ▼▼▼ 추가: 감지기 모델 표시 리셋
-                    self.sensor_model_supported[box_index] = True
-                    self.box_states[box_index]['last_sensor_model_str'] = ''
-                    self.box_states[box_index]['last_sensor_model_poll'] = 0.0
-                    self.update_topright_label(box_index)
-
                     # ★ 재연결 시에도 capability probe를 다시 한 번 수행
                     try:
                         self.detect_device_capabilities(ip, box_index)
@@ -1835,21 +1823,13 @@ class ModbusUI:
 
         if upgrading:
             disp = f"{progress:4d}"
-            self.ui_update_queue.put(
-                ('segment_display', box_index, disp, False)
-            )
-            self.ui_update_queue.put(
-                ('bar', box_index, progress)
-            )
+            self.ui_update_queue.put(('segment_display', box_index, disp, False))
+            self.ui_update_queue.put(('bar', box_index, progress))
         else:
             if upgrade_ok:
-                self.ui_update_queue.put(
-                    ('segment_display', box_index, ' End', False)
-                )
+                self.ui_update_queue.put(('segment_display', box_index, ' End', False))
             elif upgrade_fail or rollback_fail:
-                self.ui_update_queue.put(
-                    ('segment_display', box_index, 'Err ', True)
-                )
+                self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
 
     # -------------------- TFTP IP 읽기 --------------------
 
@@ -2055,7 +2035,6 @@ class ModbusUI:
     def zero_calibration(self, box_index: int):
         self.console.print(f'[ZERO] button clicked (box_index={box_index})')
 
-        # 이 박스가 ZERO(40092)를 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
             self.console.print(
                 f'[ZERO] box {box_index} : ZERO 기능(40092) 미지원으로 판단, 명령 전송을 무시합니다.'
@@ -2097,7 +2076,6 @@ class ModbusUI:
     def reboot_device(self, box_index: int):
         self.console.print(f'[RST] button clicked (box_index={box_index})')
 
-        # 이 박스가 RST(40093)를 지원하지 않는다고 판단되면 애초에 pass
         if not self.tftp_supported[box_index]:
             self.console.print(
                 f'[RST] box {box_index} : 재부팅 기능(40093) 미지원으로 판단, 명령 전송을 무시합니다.'
