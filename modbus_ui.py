@@ -2017,8 +2017,6 @@ class ModbusUI:
         if not messagebox.askyesno(
             '모델 변경',
             f'장치 모델을 {model_value} 로 변경합니다.\n'
-            f'(REG {self.MODEL_SELECT_REG} = {model_value})\n\n'
-            f'※ 장비가 재부팅/통신 끊김이 잠시 발생할 수 있습니다.\n'
             f'진행할까요?'
         ):
             return
