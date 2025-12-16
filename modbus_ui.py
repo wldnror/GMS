@@ -2023,14 +2023,14 @@ class ModbusUI:
 
         if not messagebox.askyesno(
             '모델 변경',
-            f'장치 모델을 {model_value} 로 변경합니다.\n'
+            f'장치 모델을 {model_name} 로 변경합니다.\n'
             f'진행할까요?'
         ):
             return
 
         def _treat_as_ok(msg: str):
             self.console.print(f'[MODEL] no response (maybe rebooting): {msg}')
-            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.\n장비가 재부팅될 수 있습니다.')
+            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.\n({model_name})\n장비가 재부팅될 수 있습니다.')
 
         try:
             with lock:
@@ -2041,16 +2041,16 @@ class ModbusUI:
                 if "No response received" in msg or "Invalid Message" in msg:
                     _treat_as_ok(msg)
                     return
-                messagebox.showerror('MODEL', f'모델 변경 실패.\n{msg}')
+                messagebox.showerror('MODEL', f'모델 변경 실패.\n({model_name})\n{msg}')
                 return
 
-            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.')
+            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.\n({model_name})')
         except Exception as e:
             msg = str(e)
             if "No response received" in msg or "Invalid Message" in msg:
                 _treat_as_ok(msg)
             else:
-                messagebox.showerror('MODEL', f'모델 변경 중 오류가 발생했습니다.\n{e}')
+                messagebox.showerror('MODEL', f'모델 변경 중 오류가 발생했습니다.\n({model_name})\n{e}')
 
     def open_settings_popup(self, box_index: int):
         existing = self.settings_popups[box_index]
