@@ -81,6 +81,11 @@ class ModbusUI:
     LAMP_COLORS_ON = ['red', 'red', 'green', 'yellow']
     LAMP_COLORS_OFF = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
 
+    MODEL_VALUE_TO_NAME = {
+        0: 'ASGD3200',
+        1: 'ASGD3210',
+    }
+    
     LOG_MAX_ENTRIES = 1000
     MODEL_SELECT_REG = 40094
     SENSOR_MODEL_REG = 40030
@@ -2013,6 +2018,8 @@ class ModbusUI:
             return
 
         addr = self.reg_addr(self.MODEL_SELECT_REG)
+
+        model_name = self.MODEL_VALUE_TO_NAME.get(int(model_value), str(model_value))
 
         if not messagebox.askyesno(
             '모델 변경',
