@@ -130,8 +130,6 @@ class ModbusUI:
 
         self.tftp_supported = [True] * num_boxes
         self.fw_status_supported = [True] * num_boxes
-
-        # ✅ MOD: 감지기 모델 지원 여부는 capability probe에서만 결정
         self.sensor_model_supported = [False] * num_boxes
 
         self.load_ip_settings(num_boxes)
@@ -775,7 +773,6 @@ class ModbusUI:
                 )
                 self.fw_status_supported[box_index] = False
                 self.tftp_supported[box_index] = False
-                # 모델도 미지원으로 유지
                 return
 
             start_address = self.reg_addr(40001)
@@ -835,8 +832,6 @@ class ModbusUI:
                 tmp_client.close()
             except Exception:
                 pass
-
-        # probe 결과 반영해서 라벨 갱신(연결 직후 빈값이더라도)
         try:
             self.update_topright_label(box_index)
         except Exception:
@@ -1116,8 +1111,6 @@ class ModbusUI:
                 self.stop_error_blink(box_index)
 
         self.schedule_ui_update()
-
-    # ---------- 이하 UI/기능 함수들은 원본 그대로 ----------
     def open_segment_popup(self, box_index: int):
         existing = self.log_popups[box_index]
         if existing is not None and existing.winfo_exists():
