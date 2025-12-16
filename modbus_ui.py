@@ -1895,7 +1895,7 @@ class ModbusUI:
             if not src_path or not os.path.isfile(src_path):
                 final_msg = '실패: FW 파일을 먼저 선택해주세요.'
                 self._show_warn('FW', 'FW 파일을 먼저 선택해주세요.')
-            return
+                return
 
             device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
             os.makedirs(device_dir, exist_ok=True)
