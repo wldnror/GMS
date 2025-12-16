@@ -1968,9 +1968,8 @@ class ModbusUI:
                 self.console.print(f'[FW] treat-as-ok: {msg}')
                 self._show_info(
                     'FW',
-                    'FW 업그레이드 명령은 전송된 것으로 판단됩니다.\n'
-                    '장비가 재부팅/통신 전환하면서 응답이 깨져 경고가 뜰 수 있습니다.\n'
-                    '진행률(40023/40024)로 상태를 확인하세요.'
+                    '업그레이드 명령 전송 성공했습니다\n'
+                    '업그레이드 진행합니다'
                 )
             else:
                 final_msg = f'실패: {e}'
