@@ -2044,7 +2044,7 @@ class ModbusUI:
                 messagebox.showerror('MODEL', f'모델 변경 실패.\n({model_name})\n{msg}')
                 return
 
-            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.\n({model_name})')
+            messagebox.showinfo('MODEL', f'모델 변경 명령을 전송했습니다.\n({model_name})')
         except Exception as e:
             msg = str(e)
             if "No response received" in msg or "Invalid Message" in msg:
