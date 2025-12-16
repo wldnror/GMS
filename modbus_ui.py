@@ -1967,7 +1967,7 @@ class ModbusUI:
                 final_msg = '업그레이드 진행중…'
                 self.console.print(f'[FW] treat-as-ok: {msg}')
                 self._show_info(
-                    'FW',
+                    '업그레이드',
                     '업그레이드 명령 전송 성공했습니다\n'
                     '업그레이드 진행합니다'
                 )
