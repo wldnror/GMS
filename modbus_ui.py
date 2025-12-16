@@ -1781,7 +1781,7 @@ class ModbusUI:
                 self._set_fw_ui(box_index, False, '업그레이드 완료')
 
         # 3초 후 멘트 자동 삭제(원하면 시간 조절)
-                self.parent.after(3000, lambda i=box_index: self.box_states[i]['fw_status_var'].set(''))
+                self.parent.after(5000, lambda i=box_index: self.box_states[i]['fw_status_var'].set(''))
 
             elif upgrade_fail or rollback_fail:
                 self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
