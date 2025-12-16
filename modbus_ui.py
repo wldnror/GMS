@@ -1964,7 +1964,7 @@ class ModbusUI:
             if any(k in msg for k in ok_like):
                 self.box_states[box_index]['fw_upgrading'] = True
                 keep_disabled = True
-                final_msg = '명령 전송 완료(응답 파싱 오류는 무시). 업그레이드 진행중…'
+                final_msg = '업그레이드 진행중…'
                 self.console.print(f'[FW] treat-as-ok: {msg}')
                 self._show_info(
                     'FW',
