@@ -1879,19 +1879,25 @@ class ModbusUI:
         self._run_bg(self._do_firmware_upgrade, box_index)
 
     def _do_firmware_upgrade(self, box_index: int):
-        ip = self.ip_vars[box_index].get()
-        client = self.clients.get(ip)
-        lock = self.modbus_locks.get(ip)
+        st = self.box_states[box_index]
+        final_msg = ''
+        keep_disabled = False
+        
+        try:
+            ip = self.ip_vars[box_index].get()
+            client = self.clients.get(ip)
+            lock = self.modbus_locks.get(ip)
+            
+            if client is None or lock is None:
+                final_msg = '실패: 먼저 Modbus 연결을 해주세요.'
+                self._show_warn('FW', '먼저 Modbus 연결을 해주세요.')
+                return
 
-        if client is None or lock is None:
-            self.console.print(f'[FW] Box {box_index} ({ip}) not connected.')
-            self._show_warn('FW', '먼저 Modbus 연결을 해주세요.')
-            return
-
-        src_path = self.fw_file_paths[box_index]
-        if not src_path or not os.path.isfile(src_path):
-            self._show_warn('FW', 'FW 파일을 먼저 선택해주세요.')
-            return
+            src_path = self.fw_file_paths[box_index]
+            if not src_path or not os.path.isfile(src_path):
+                final_msg = '실패: FW 파일을 먼저 선택해주세요.'
+                self._show_warn('FW', 'FW 파일을 먼저 선택해주세요.')
+                return
 
         device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
         try:
@@ -1907,55 +1913,55 @@ class ModbusUI:
             if os.path.exists(dst_path):
                 try:
                     os.remove(dst_path)
-                    self.console.print(f'[FW] old TFTP file removed: {dst_path}')
-                except PermissionError as e:
-                    self.console.print(f'[FW] warning: cannot remove old file: {e}')
-
+                except PermissionError:
+                    pass
             shutil.copyfile(src_path, dst_path)
-            self.console.print(
-                f'[FW] box {box_index} file copy: {src_path} → {dst_path} '
-                f'(RRQ path: {TFTP_DEVICE_SUBDIR}/{TFTP_DEVICE_FILENAME})'
-            )
         except Exception as e:
-            self.console.print(f'[FW] file copy error: {e}')
+            final_msg = f'실패: FW 파일 복사 오류 ({e})'
             self._show_error('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
             return
 
         tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
         addr_ip1 = self.reg_addr(40088)
         addr_ctrl = self.reg_addr(40091)
-
+        
+        if not self._try_acquire_lock(lock, 'FW', '통신이 바쁩니다. 잠시 후 다시 시도해주세요.'):
+            final_msg = '실패: 통신이 바쁩니다. 잠시 후 재시도.'
+            return
+            
         try:
-            # acquire lock (avoid long waits)
-            if not self._try_acquire_lock(lock, 'FW', '통신이 바쁩니다. 잠시 후 다시 시도해주세요.'):
-                return
+            # TFTP IP write (non-fatal)
             try:
-                try:
-                    w1, w2 = encode_ip_to_words(tftp_ip_str)
-                    r1 = client.write_registers(addr_ip1, [w1, w2])
-                    if isinstance(r1, ExceptionResponse) or r1.isError():
-                        self.console.print(f'[FW] write 40088/40089 error (non-fatal): {r1}')
-                    else:
-                        self.console.print(f'[FW] write 40088/40089 OK (0x{w1:04X}, 0x{w2:04X})')
-                except (ValueError, ModbusIOException, ConnectionException, Exception) as e:
-                    self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
+                w1, w2 = encode_ip_to_words(tftp_ip_str)
+                r1 = client.write_registers(addr_ip1, [w1, w2])
+                # 실패해도 계속 진행
+            except Exception as e:
+                self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
 
-                try:
-                    r2 = client.write_register(addr_ctrl, 1)
-                    if isinstance(r2, ExceptionResponse) or r2.isError():
-                        self.console.print(f'[FW] write 40091 error: {r2}')
-                        self._show_error('FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}')
-                        return
-                    self.console.print('[FW] write 40091 = 1 OK')
-                except Exception as e:
-                    self.console.print(f'[FW] write 40091 exception (treated as non-fatal): {e}')
-            finally:
-                try:
-                    lock.release()
-                except Exception:
-                    pass
+            # FW start command (fatal)
+            r2 = client.write_register(addr_ctrl, 1)
+            if isinstance(r2, ExceptionResponse) or r2.isError():
+                final_msg = f'실패: FW 시작 명령 쓰기 실패 ({r2})'
+                self._show_error('FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}')
+                return
+        finally:
+            try:
+                lock.release()
+            except Exception:
+                pass
 
             self.box_states[box_index]['fw_upgrading'] = True
+            keep_disabled = True
+            final_msg = '명령 전송 완료. (업그레이드 진행중…)'
+            self._show_info('FW', 'FW 업그레이드 명령을 전송했습니다.')
+    finally:
+        st['fw_cmd_inflight'] = False
+        if keep_disabled or st.get('fw_upgrading', False):
+            self._ui_call(self._set_fw_ui, box_index, True, final_msg)
+        else:
+            self._ui_call(self._set_fw_ui, box_index, False, final_msg)
+
+            
             self.console.print(f'[FW] box {box_index} : local fw_upgrading = True')
 
             self.console.print(
