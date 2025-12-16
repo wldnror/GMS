@@ -1842,17 +1842,17 @@ class ModbusUI:
                     self.tftp_supported[box_index] = False
 
     def _set_fw_ui(self, box_index: int, inflight: bool, msg: str = ''):
-    st = self.box_states[box_index]
-    # 상태 문구
-    st['fw_status_var'].set(msg)
+        st = self.box_states[box_index]
+        # 상태 문구
+        st['fw_status_var'].set(msg)
 
-    # 버튼 상태/텍스트
-    btn = st.get('fw_upgrade_btn')
-    if btn is not None and btn.winfo_exists():
-        if inflight:
-            btn.config(state='disabled', text='전송중...')
-        else:
-            btn.config(state='normal', text='FW 업그레이드 시작')
+        # 버튼 상태/텍스트
+        btn = st.get('fw_upgrade_btn')
+        if btn is not None and btn.winfo_exists():
+            if inflight:
+                btn.config(state='disabled', text='전송중...')
+            else:
+                btn.config(state='normal', text='FW 업그레이드 시작')
 
     def start_firmware_upgrade(self, box_index: int):
         if not self.tftp_supported[box_index]:
