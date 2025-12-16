@@ -1953,10 +1953,30 @@ class ModbusUI:
             self._show_info('FW', 'FW 업그레이드 명령을 전송했습니다.')
 
         except Exception as e:
-            final_msg = f'실패: {e}'
-            self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
-            self._show_error('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
-
+            msg = str(e)
+            
+            ok_like = [
+                "unpack requires a buffer of 4 bytes",
+                "Unable to decode response",
+                "No response received",
+                "Invalid Message",
+            ]
+            if any(k in msg for k in ok_like):
+                self.box_states[box_index]['fw_upgrading'] = True
+                keep_disabled = True
+                final_msg = '명령 전송 완료(응답 파싱 오류는 무시). 업그레이드 진행중…'
+                self.console.print(f'[FW] treat-as-ok: {msg}')
+                self._show_info(
+                    'FW',
+                    'FW 업그레이드 명령은 전송된 것으로 판단됩니다.\n'
+                    '장비가 재부팅/통신 전환하면서 응답이 깨져 경고가 뜰 수 있습니다.\n'
+                    '진행률(40023/40024)로 상태를 확인하세요.'
+                )
+            else:
+                final_msg = f'실패: {e}'
+                self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
+                self._show_error('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
+                
         finally:
             st['fw_cmd_inflight'] = False
             # 업그레이드 중이면 버튼 계속 비활성
