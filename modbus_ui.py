@@ -382,6 +382,9 @@ class ModbusUI:
                 'alarm_mode': 'none',
                 'error_blink_running': False,
                 'error_blink_state': False,
+                'fw_cmd_inflight': False,                 # FW 버튼 중복 클릭 방지용
+                'fw_status_var': StringVar(value=''),     # 설정창에 상태 표시용
+                'fw_upgrade_btn': None,                   # 설정창 FW 버튼 위젯 참조
             }
         )
 
@@ -1838,6 +1841,19 @@ class ModbusUI:
                     )
                     self.tftp_supported[box_index] = False
 
+    def _set_fw_ui(self, box_index: int, inflight: bool, msg: str = ''):
+    st = self.box_states[box_index]
+    # 상태 문구
+    st['fw_status_var'].set(msg)
+
+    # 버튼 상태/텍스트
+    btn = st.get('fw_upgrade_btn')
+    if btn is not None and btn.winfo_exists():
+        if inflight:
+            btn.config(state='disabled', text='전송중...')
+        else:
+            btn.config(state='normal', text='FW 업그레이드 시작')
+
     def start_firmware_upgrade(self, box_index: int):
         if not self.tftp_supported[box_index]:
             self.console.print(
@@ -1849,12 +1865,18 @@ class ModbusUI:
                 'FW 업그레이드를 수행하지 않습니다.'
             )
             return
+        
+        st = self.box_states[box_index]
+        if st.get('fw_cmd_inflight', False):
+            self._show_warn('FW', '이미 FW 업그레이드 명령을 전송 중입니다.\n잠시만 기다려주세요.')
+            return
+            
+        # ✅ 즉시 UI 반응 + 중복 클릭 방지 플래그
+        st['fw_cmd_inflight'] = True
+        self._ui_call(self._set_fw_ui, box_index, True, '명령 전송 중…')
 
-        threading.Thread(
-            target=self._do_firmware_upgrade,
-            args=(box_index,),
-            daemon=True,
-        ).start()
+        # ✅ 백그라운드 실행
+        self._run_bg(self._do_firmware_upgrade, box_index)
 
     def _do_firmware_upgrade(self, box_index: int):
         ip = self.ip_vars[box_index].get()
@@ -2189,6 +2211,14 @@ class ModbusUI:
             font=('Helvetica', 10),
         ).pack(padx=10, pady=(0, 10))
 
+        Label(
+            win,
+            textvariable=self.box_states[box_index]['fw_status_var'],
+            fg='#ffd966',
+            bg='#1e1e1e',
+            font=('Helvetica', 10, 'bold'),
+        ).pack(padx=10, pady=(0, 8))
+
         btn_frame = Frame(win, bg='#1e1e1e')
         btn_frame.pack(padx=10, pady=10)
 
@@ -2203,7 +2233,7 @@ class ModbusUI:
             bd=1,
         ).grid(row=0, column=0, padx=5, pady=5)
 
-        Button(
+        upgrade_btn = Button(
             btn_frame,
             text='FW 업그레이드 시작',
             command=lambda idx=box_index: self.start_firmware_upgrade(idx),
@@ -2212,7 +2242,10 @@ class ModbusUI:
             fg='white',
             relief='raised',
             bd=1,
-        ).grid(row=0, column=1, padx=5, pady=5)
+        )
+        upgrade_btn.grid(row=0, column=1, padx=5, pady=5)
+        
+        self.box_states[box_index]['fw_upgrade_btn'] = upgrade_btn
 
         Button(
             btn_frame,
