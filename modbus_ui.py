@@ -156,10 +156,7 @@ class ModbusUI:
         self.alarm_blink_interval = 1000
         self.start_data_processing_thread()
         self.schedule_ui_update()
-
-    # -------------------------
-    # Thread-safe messageboxes
-    # -------------------------
+        
     def _ui_call(self, fn, *args, **kwargs):
         """Run a UI function on the Tkinter main thread."""
         try:
@@ -1879,103 +1876,92 @@ class ModbusUI:
         self._run_bg(self._do_firmware_upgrade, box_index)
 
     def _do_firmware_upgrade(self, box_index: int):
-        st = self.box_states[box_index]
-        final_msg = ''
-        keep_disabled = False
-        
+    st = self.box_states[box_index]
+    final_msg = ''
+    keep_disabled = False
+    ip = ''
+
+    try:
+        ip = self.ip_vars[box_index].get().strip()
+        client = self.clients.get(ip)
+        lock = self.modbus_locks.get(ip)
+
+        if client is None or lock is None:
+            final_msg = '실패: 먼저 Modbus 연결을 해주세요.'
+            self._show_warn('FW', '먼저 Modbus 연결을 해주세요.')
+            return
+
+        src_path = self.fw_file_paths[box_index]
+        if not src_path or not os.path.isfile(src_path):
+            final_msg = '실패: FW 파일을 먼저 선택해주세요.'
+            self._show_warn('FW', 'FW 파일을 먼저 선택해주세요.')
+            return
+
+        device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
+        os.makedirs(device_dir, exist_ok=True)
+
+        dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
         try:
-            ip = self.ip_vars[box_index].get().strip()
-            client = self.clients.get(ip)
-            lock = self.modbus_locks.get(ip)
-            
-            if client is None or lock is None:
-                final_msg = '실패: 먼저 Modbus 연결을 해주세요.'
-                self._show_warn('FW', '먼저 Modbus 연결을 해주세요.')
-                return
-
-            src_path = self.fw_file_paths[box_index]
-            if not src_path or not os.path.isfile(src_path):
-                final_msg = '실패: FW 파일을 먼저 선택해주세요.'
-                self._show_warn('FW', 'FW 파일을 먼저 선택해주세요.')
-                return
-
-            device_dir = os.path.join(TFTP_ROOT_DIR, TFTP_DEVICE_SUBDIR)
-            try:
-                os.makedirs(device_dir, exist_ok=True)
-            except Exception as e:
-                self.console.print(f'[FW] mkdir error: {e}')
-                self._show_error('FW', f'TFTP 디렉터리 생성에 실패했습니다.\n{e}')
-                return
-
-            dst_path = os.path.join(device_dir, TFTP_DEVICE_FILENAME)
-            try:
-                if os.path.exists(dst_path):
-                    try:
-                        os.remove(dst_path)
-                    except PermissionError:
-                        pass
-                shutil.copyfile(src_path, dst_path)
-            except Exception as e:
-                final_msg = f'실패: FW 파일 복사 오류 ({e})'
-                self._show_error('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
-                return
-
-            tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
-            addr_ip1 = self.reg_addr(40088)
-            addr_ctrl = self.reg_addr(40091)
-        
-            if not self._try_acquire_lock(lock, 'FW', '통신이 바쁩니다. 잠시 후 다시 시도해주세요.'):
-                final_msg = '실패: 통신이 바쁩니다. 잠시 후 재시도.'
-                return
-            
-            try:
-            # TFTP IP write (non-fatal)
+            if os.path.exists(dst_path):
                 try:
-                    w1, w2 = encode_ip_to_words(tftp_ip_str)
-                    r1 = client.write_registers(addr_ip1, [w1, w2])
-                # 실패해도 계속 진행
-                except Exception as e:
-                    self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
+                    os.remove(dst_path)
+                except PermissionError:
+                    pass
+            shutil.copyfile(src_path, dst_path)
+        except Exception as e:
+            final_msg = f'실패: FW 파일 복사 오류 ({e})'
+            self._show_error('FW', f'FW 파일 복사에 실패했습니다.\n{e}')
+            return
+
+        tftp_ip_str = self.tftp_ip_vars[box_index].get().strip()
+        addr_ip1 = self.reg_addr(40088)
+        addr_ctrl = self.reg_addr(40091)
+
+        # lock acquire (timeout)
+        if not self._try_acquire_lock(lock, 'FW', '통신이 바쁩니다. 잠시 후 다시 시도해주세요.'):
+            final_msg = '실패: 통신이 바쁩니다. 잠시 후 재시도.'
+            return
+
+        try:
+            # TFTP IP write (non-fatal)
+            try:
+                w1, w2 = encode_ip_to_words(tftp_ip_str)
+                client.write_registers(addr_ip1, [w1, w2])
+            except Exception as e:
+                self.console.print(f'[FW] write 40088/40089 failed (non-fatal): {e}')
 
             # FW start command (fatal)
-                r2 = client.write_register(addr_ctrl, 1)
-                if isinstance(r2, ExceptionResponse) or r2.isError():
-                    final_msg = f'실패: FW 시작 명령 쓰기 실패 ({r2})'
-                    self._show_error('FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}')
-                    return
-            finally:
-                try:
-                    lock.release()
-                except Exception:
-                    pass
-
-                self.box_states[box_index]['fw_upgrading'] = True
-                keep_disabled = True
-                final_msg = '명령 전송 완료. (업그레이드 진행중…)'
-                self._show_info('FW', 'FW 업그레이드 명령을 전송했습니다.')
+            r2 = client.write_register(addr_ctrl, 1)
+            if isinstance(r2, ExceptionResponse) or getattr(r2, "isError", lambda: False)():
+                final_msg = f'실패: FW 시작 명령 쓰기 실패 ({r2})'
+                self._show_error('FW', f'장비에 FW 시작 명령을 쓰는 데 실패했습니다.\n{r2}')
+                return
         finally:
-            st['fw_cmd_inflight'] = False
-            if keep_disabled or st.get('fw_upgrading', False):
-                self._ui_call(self._set_fw_ui, box_index, True, final_msg)
-            else:
-                self._ui_call(self._set_fw_ui, box_index, False, final_msg)
+            try:
+                lock.release()
+            except Exception:
+                pass
 
-            
-                self.console.print(f'[FW] box {box_index} : local fw_upgrading = True')
+        # success
+        self.box_states[box_index]['fw_upgrading'] = True
+        keep_disabled = True
+        final_msg = '명령 전송 완료. (업그레이드 진행중…)'
+        self.console.print(
+            f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
+            f"TFTP IP='{tftp_ip_str}', file={dst_path}"
+        )
+        self._show_info('FW', 'FW 업그레이드 명령을 전송했습니다.')
 
-                self.console.print(
-                    f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
-                    f"TFTP IP='{tftp_ip_str}', file={dst_path}"
-                )
-                self._show_info(
-                    'FW',
-                    'FW 업그레이드 명령을 전송했습니다.\n'
-                   '※ TFTP IP 레지스터는 장비에 설정된 값을 그대로 사용할 수도 있습니다.',
-                )
-        except Exception as e:
-            self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
-            self._show_error('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
+    except Exception as e:
+        final_msg = f'실패: {e}'
+        self.console.print(f'[FW] Error starting upgrade for {ip}: {e}')
+        self._show_error('FW', f'FW 업그레이드 중 오류가 발생했습니다.\n{e}')
 
+    finally:
+        st['fw_cmd_inflight'] = False
+        # 업그레이드 중이면 버튼 계속 비활성
+        inflight = keep_disabled or st.get('fw_upgrading', False)
+        self._ui_call(self._set_fw_ui, box_index, inflight, final_msg)
     # --------------------
     # Command send: ZERO
     # --------------------
