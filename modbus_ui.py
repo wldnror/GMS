@@ -1726,7 +1726,6 @@ class ModbusUI:
 
         version = v_40022
         error_code = (v_40023 >> 8) & 0xFF
-
         progress = v_40024 & 0xFF
         remain = (v_40024 >> 8) & 0xFF
 
@@ -1767,15 +1766,31 @@ class ModbusUI:
         self.box_states[box_index]['fw_upgrading'] = upgrading
 
         if upgrading:
+    # 진행중: 세그/바 유지 + "업그레이드 진행중…" 멘트 갱신 + 버튼 비활성 유지
             disp = f"{progress:4d}"
             self.ui_update_queue.put(('segment_display', box_index, disp, False))
             self.ui_update_queue.put(('bar', box_index, progress))
+
+            # update_fw_status는 UI thread에서 호출되므로 바로 UI 반영 가능
+            self._set_fw_ui(box_index, True, f'업그레이드 진행중… {progress}% (남은 {remain}s)')
+
         else:
-            if upgrade_ok:
+            # 종료: 완료/실패에 따라 멘트/버튼 정리 + 기존 End/Err 표시 유지
+            if upgrade_ok or rollback_ok:
                 self.ui_update_queue.put(('segment_display', box_index, ' End', False))
+                self._set_fw_ui(box_index, False, '업그레이드 완료')
+
+        # 3초 후 멘트 자동 삭제(원하면 시간 조절)
+                self.parent.after(3000, lambda i=box_index: self.box_states[i]['fw_status_var'].set(''))
+
             elif upgrade_fail or rollback_fail:
                 self.ui_update_queue.put(('segment_display', box_index, 'Err ', True))
+                self._set_fw_ui(box_index, False, f'업그레이드 실패 (err={error_code})')
 
+            else:
+                # 업그레이드 상태 비트가 꺼졌는데 OK/FAIL도 아닌 애매한 경우
+                self._set_fw_ui(box_index, False, '')
+        
     def delayed_load_tftp_ip_from_device(self, box_index: int, delay: float = 1.0):
         if not self.tftp_supported[box_index]:
             return
