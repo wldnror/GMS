@@ -1970,12 +1970,13 @@ class ModbusUI:
         addr = self.reg_addr(40093)
 
         def _treat_as_ok(msg: str):
-            self.console.print(f'[MODEL] no response (maybe rebooting): {msg}')
+            self.console.print(
+                f'[RST] no/invalid response after write (device is rebooting): {msg}'
+            )
             messagebox.showinfo(
-                'MODEL',
-                f'모델 변경 명령을 전송했습니다.\n'
-                f'(대상: {model_name})\n'
-                f'장비가 재부팅될 수 있습니다.'
+                'RST',
+                '재부팅 명령을 전송했습니다.\n'
+                '장비가 재부팅되는 동안 잠시 통신 오류가 발생할 수 있습니다.',
             )
 
         try:
@@ -2036,7 +2037,7 @@ class ModbusUI:
                 messagebox.showerror('MODEL', f'모델 변경 실패.\n{msg}')
                 return
 
-            messagebox.showinfo('MODEL', f'모델 변경 명령을 전송했습니다.\n(대상: {model_name})')
+            messagebox.showinfo('MODEL', '모델 변경 명령을 전송했습니다.')
         except Exception as e:
             msg = str(e)
             if "No response received" in msg or "Invalid Message" in msg:
