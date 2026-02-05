@@ -88,7 +88,6 @@ class LogViewer(tk.Toplevel):
         self.last_n_var = tk.StringVar(value="200")
         self.last_n_entry = tk.Entry(top_bar, textvariable=self.last_n_var, width=6)
         self.last_n_entry.pack(side="left", padx=(6, 10))
-        self.last_n_entry.bind("<Return>", lambda e: self.refresh())
 
         self.btn_refresh = tk.Button(top_bar, text="새로고침", command=self.refresh)
         self.btn_refresh.pack(side="left", padx=5)
@@ -113,7 +112,7 @@ class LogViewer(tk.Toplevel):
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # 주기 새로고침
+        # 주기 새로고침 (원하면 끌 수 있음)
         self._auto_refresh_ms = 1000
         self._alive = True
         self.after(self._auto_refresh_ms, self._auto_refresh)
@@ -141,32 +140,15 @@ class LogViewer(tk.Toplevel):
             pass
         self.after(self._auto_refresh_ms, self._auto_refresh)
 
-    def _get_last_n(self) -> int:
+    def _parse_logs(self):
+        logs = list(self.get_logs() or [])
+        # last N
         try:
-            n = int((self.last_n_var.get() or "").strip())
+            n = int(self.last_n_var.get().strip())
             if n <= 0:
                 n = 200
         except Exception:
             n = 200
-
-        # 너무 큰 값 방지(선택): UI 느려질 수 있음
-        if n > 5000:
-            n = 5000
-
-        # 입력칸 보정
-        try:
-            if str(n) != (self.last_n_var.get() or "").strip():
-                self.last_n_var.set(str(n))
-        except Exception:
-            pass
-
-        return n
-
-    def _parse_logs(self):
-        logs = list(self.get_logs() or [])
-
-        # last N
-        n = self._get_last_n()
         if len(logs) > n:
             logs = logs[-n:]
 
@@ -177,6 +159,7 @@ class LogViewer(tk.Toplevel):
         err_flags = []
 
         for ts, val, a1, a2, err in logs:
+            # ts: "YYYY-MM-DD HH:MM:SS"
             try:
                 dt = datetime.datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
             except Exception:
@@ -196,15 +179,12 @@ class LogViewer(tk.Toplevel):
         self.text.config(state="normal")
         self.text.delete("1.0", "end")
 
-        if not logs:
-            self.text.insert("end", "로그가 없습니다.\n")
-        else:
-            for ts, val, al1, al2, err_reg in logs:
-                a1_str = "ON " if al1 else "OFF"
-                a2_str = "ON " if al2 else "OFF"
-                err_str = f"0x{int(err_reg):04X}"
-                line = f"{ts}  {int(val):6d}  {a1_str:>3}  {a2_str:>3}  {err_str}\n"
-                self.text.insert("end", line)
+        for ts, val, al1, al2, err_reg in logs:
+            a1_str = "ON " if al1 else "OFF"
+            a2_str = "ON " if al2 else "OFF"
+            err_str = f"0x{int(err_reg):04X}"
+            line = f"{ts}  {int(val):6d}  {a1_str:>3}  {a2_str:>3}  {err_str}\n"
+            self.text.insert("end", line)
 
         self.text.see("end")
         self.text.config(state="disabled")
@@ -215,11 +195,6 @@ class LogViewer(tk.Toplevel):
         self.ax.set_xlabel("Time")
         self.ax.set_ylabel("Value")
 
-        if not ys:
-            self.ax.text(0.5, 0.5, "No logs", ha="center", va="center", transform=self.ax.transAxes)
-            self.canvas.draw_idle()
-            return
-
         # dt가 없는 경우 대비: 인덱스로 표시
         if any(x is None for x in xs) or len(xs) == 0:
             self.ax.plot(list(range(len(ys))), ys)
@@ -228,24 +203,25 @@ class LogViewer(tk.Toplevel):
             self.ax.plot(xs, ys)
             self.fig.autofmt_xdate()
 
-        # AL1/AL2 상태는 점으로 오버레이
-        idxs_a1 = [i for i, f in enumerate(a1) if f]
-        idxs_a2 = [i for i, f in enumerate(a2) if f]
+        # AL1/AL2 상태는 점으로 오버레이(간단 표시)
+        # (색 지정 안 하려면 matplotlib 기본 cycle 사용)
+        # True인 지점만 찍음
+        if ys:
+            idxs_a1 = [i for i, f in enumerate(a1) if f]
+            idxs_a2 = [i for i, f in enumerate(a2) if f]
+            if idxs_a1:
+                if any(x is None for x in xs):
+                    self.ax.scatter(idxs_a1, [ys[i] for i in idxs_a1], marker="o", label="AL1")
+                else:
+                    self.ax.scatter([xs[i] for i in idxs_a1], [ys[i] for i in idxs_a1], marker="o", label="AL1")
+            if idxs_a2:
+                if any(x is None for x in xs):
+                    self.ax.scatter(idxs_a2, [ys[i] for i in idxs_a2], marker="x", label="AL2")
+                else:
+                    self.ax.scatter([xs[i] for i in idxs_a2], [ys[i] for i in idxs_a2], marker="x", label="AL2")
 
-        if idxs_a1:
-            if any(x is None for x in xs):
-                self.ax.scatter(idxs_a1, [ys[i] for i in idxs_a1], marker="o", label="AL1")
-            else:
-                self.ax.scatter([xs[i] for i in idxs_a1], [ys[i] for i in idxs_a1], marker="o", label="AL1")
-
-        if idxs_a2:
-            if any(x is None for x in xs):
-                self.ax.scatter(idxs_a2, [ys[i] for i in idxs_a2], marker="x", label="AL2")
-            else:
-                self.ax.scatter([xs[i] for i in idxs_a2], [ys[i] for i in idxs_a2], marker="x", label="AL2")
-
-        if idxs_a1 or idxs_a2:
-            self.ax.legend(loc="best")
+            if idxs_a1 or idxs_a2:
+                self.ax.legend(loc="best")
 
         self.canvas.draw_idle()
 
