@@ -1,17 +1,15 @@
-from tkinter import Toplevel, Label, Entry, Button, Frame, messagebox, StringVar, Checkbutton, IntVar
+from tkinter import Toplevel, Label, Entry, Button, Frame, StringVar, Checkbutton, IntVar
 from tkinter import ttk
 import json
 import os
-import sys
 import threading
 import subprocess
 import time
 import utils
-# import pygame  # 오디오 재생을 위한 pygame 모듈 추가
+import tkinter as tk
 
 SETTINGS_FILE = "settings.json"
 
-# 글로벌 변수 선언
 settings_window = None
 password_window = None
 attempt_count = 0
@@ -19,19 +17,19 @@ lock_time = 0
 lock_window = None
 box_settings_window = None
 new_password_window = None
-update_notification_frame = None
-ignore_commit = None
 branch_window = None
-audio_selection_window = None  # 오디오 선택 창 전역 변수
+audio_selection_window = None
 root = None
 selected_audio_file = None
+
+on_fw_file_all = None
+on_fw_upgrade_all = None
 
 def initialize_globals(main_root, change_branch_func):
     global root, change_branch
     root = main_root
     change_branch = change_branch_func
 
-# 암호화 키 생성 및 로드
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
 
@@ -41,25 +39,58 @@ def encrypt_data(data):
 def decrypt_data(data):
     return utils.decrypt_data(data)
 
+def toast(msg, duration=1800, bg="#222222", fg="white"):
+    if root is None or not root.winfo_exists():
+        return
+
+    win = tk.Toplevel(root)
+    win.overrideredirect(True)
+    win.attributes("-topmost", True)
+
+    frm = tk.Frame(win, bg=bg, bd=1, relief="solid")
+    frm.pack(fill="both", expand=True)
+
+    lbl = tk.Label(frm, text=msg, bg=bg, fg=fg, font=("Arial", 12))
+    lbl.pack(padx=14, pady=10)
+
+    root.update_idletasks()
+
+    w = win.winfo_reqwidth()
+    h = win.winfo_reqheight()
+
+    rx = root.winfo_rootx()
+    ry = root.winfo_rooty()
+    rw = root.winfo_width()
+    rh = root.winfo_height()
+
+    x = rx + rw - w - 20
+    y = ry + rh - h - 20
+    win.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _close():
+        if win.winfo_exists():
+            win.destroy()
+
+    win.after(duration, _close)
+
 def load_settings():
     if os.path.exists(SETTINGS_FILE):
-        with open(SETTINGS_FILE, 'rb') as file:
+        with open(SETTINGS_FILE, "rb") as file:
             encrypted_data = file.read()
         decrypted_data = decrypt_data(encrypted_data)
         return json.loads(decrypted_data)
-    else:
-        return {
-            "modbus_boxes": 0,  # 기본값으로 0으로 초기화
-            "analog_boxes": 0,  # 기본값으로 0으로 초기화
-            "admin_password": None,
-            "modbus_gas_types": {},
-            "analog_gas_types": {},
-            "audio_file": None,  # 오디오 파일 설정 추가
-            "battery_box_enabled": 0  # 배터리 박스 활성화 설정 추가
-        }
+    return {
+        "modbus_boxes": 0,
+        "analog_boxes": 0,
+        "admin_password": None,
+        "modbus_gas_types": {},
+        "analog_gas_types": {},
+        "audio_file": None,
+        "battery_box_enabled": 0,
+    }
 
 def save_settings(settings):
-    with open(SETTINGS_FILE, 'wb') as file:
+    with open(SETTINGS_FILE, "wb") as file:
         encrypted_data = encrypt_data(json.dumps(settings))
         file.write(encrypted_data)
 
@@ -90,7 +121,7 @@ def prompt_new_password():
     Button(new_password_window, text="다음", command=confirm_password).pack(pady=5)
 
 def prompt_confirm_password(new_password):
-    global new_password_window
+    global new_password_window, settings, admin_password
     if new_password_window and new_password_window.winfo_exists():
         new_password_window.focus()
         return
@@ -105,22 +136,27 @@ def prompt_confirm_password(new_password):
     utils.create_keypad(confirm_password_entry, new_password_window, geometry="pack")
 
     def save_new_password():
+        nonlocal new_password
         confirm_password = confirm_password_entry.get()
         if new_password == confirm_password and new_password:
             settings["admin_password"] = new_password
             save_settings(settings)
-            messagebox.showinfo("비밀번호 설정", "새로운 비밀번호가 설정되었습니다.")
+            admin_password = new_password
+            toast("새로운 비밀번호가 설정되었습니다.", bg="#1f4f1f")
             new_password_window.destroy()
             utils.restart_application()
         else:
-            messagebox.showerror("비밀번호 오류", "비밀번호가 일치하지 않거나 유효하지 않습니다.")
+            toast("비밀번호가 일치하지 않습니다.", bg="#7a1f1f")
             new_password_window.destroy()
             prompt_new_password()
 
     Button(new_password_window, text="저장", command=save_new_password).pack(pady=5)
 
 def show_password_prompt(callback):
-    global attempt_count, lock_time, password_window, settings_window, lock_window
+    global attempt_count, lock_time, password_window, settings_window, lock_window, admin_password
+
+    settings = load_settings()
+    admin_password = settings.get("admin_password")
 
     if time.time() < lock_time:
         if not lock_window or not lock_window.winfo_exists():
@@ -160,6 +196,9 @@ def show_password_prompt(callback):
     password_entry.pack(pady=5)
     utils.create_keypad(password_entry, password_window, geometry="pack")
 
+    msg_label = Label(password_window, text="", font=("Arial", 12), fg="red")
+    msg_label.pack(pady=5)
+
     def check_password():
         global attempt_count, lock_time
         if password_entry.get() == admin_password:
@@ -168,17 +207,28 @@ def show_password_prompt(callback):
         else:
             attempt_count += 1
             if attempt_count >= 5:
-                lock_time = time.time() + 60  # 60초 잠금
+                lock_time = time.time() + 60
                 attempt_count = 0
                 password_window.destroy()
                 show_password_prompt(callback)
             else:
-                Label(password_window, text="비밀번호가 틀렸습니다.", font=("Arial", 12), fg="red").pack(pady=5)
+                msg_label.config(text="비밀번호가 틀렸습니다.")
 
     Button(password_window, text="확인", command=check_password).pack(pady=5)
 
+def _call(cb):
+    if cb:
+        cb()
+    else:
+        toast("기능이 연결되지 않았습니다.", bg="#7a1f1f")
+
 def show_settings():
-    global settings_window, selected_audio_file
+    global settings_window, selected_audio_file, settings, admin_password
+
+    settings = load_settings()
+    admin_password = settings.get("admin_password")
+    selected_audio_file = settings.get("audio_file")
+
     if settings_window and settings_window.winfo_exists():
         settings_window.focus()
         return
@@ -190,51 +240,51 @@ def show_settings():
     Label(settings_window, text="GMS-1000 설정", font=("Arial", 16)).pack(pady=10)
 
     button_font = ("Arial", 14)
-    button_style = {'font': button_font, 'width': 25, 'height': 2, 'padx': 10, 'pady': 10}
+    button_style = {"font": button_font, "width": 25, "height": 2, "padx": 10, "pady": 10}
 
     Button(settings_window, text="상자 설정", command=show_box_settings, **button_style).pack(pady=5)
     Button(settings_window, text="비밀번호 변경", command=prompt_new_password, **button_style).pack(pady=5)
 
-    # "전체 화면 설정"과 "창 크기 설정" 버튼을 한 줄에 나란히 배치
+    Button(settings_window, text="FW 파일 전체 적용", command=lambda: _call(on_fw_file_all), **button_style).pack(pady=5)
+    Button(settings_window, text="전체 FW 업데이트", command=lambda: _call(on_fw_upgrade_all), **button_style).pack(pady=5)
+
     frame1 = Frame(settings_window)
     frame1.pack(pady=5)
-    fullscreen_button = Button(frame1, text="전체 화면 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.enter_fullscreen(root))
-    fullscreen_button.grid(row=0, column=0)
-    windowed_button = Button(frame1, text="창 크기 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_fullscreen(root))
-    windowed_button.grid(row=0, column=1)
+    Button(frame1, text="전체 화면 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.enter_fullscreen(root)).grid(row=0, column=0)
+    Button(frame1, text="창 크기 설정", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_fullscreen(root)).grid(row=0, column=1)
 
-    # "시스템 업데이트"와 "브랜치 변경" 버튼을 한 줄에 나란히 배치
     frame2 = Frame(settings_window)
     frame2.pack(pady=5)
-    update_button = Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=check_and_update_system).start())
-    update_button.grid(row=0, column=0)
-    branch_button = Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch)
-    branch_button.grid(row=0, column=1)
 
-    # "재시작" 및 "종료" 버튼을 추가하고 동일한 위치에 배치
+    def _update_thread():
+        check_and_update_system()
+
+    Button(frame2, text="시스템 업데이트", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: threading.Thread(target=_update_thread, daemon=True).start()).grid(row=0, column=0)
+    Button(frame2, text="브랜치 변경", font=button_font, width=12, height=2, padx=10, pady=10, command=change_branch).grid(row=0, column=1)
+
     frame3 = Frame(settings_window)
     frame3.pack(pady=5)
-    restart_button = Button(frame3, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=utils.restart_application)
-    restart_button.grid(row=0, column=0)
-    exit_button = Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_application(root))
-    exit_button.grid(row=0, column=1)
+    Button(frame3, text="재시작", font=button_font, width=12, height=2, padx=10, pady=10, command=utils.restart_application).grid(row=0, column=0)
+    Button(frame3, text="종료", font=button_font, width=12, height=2, padx=10, pady=10, command=lambda: utils.exit_application(root)).grid(row=0, column=1)
 
-    # 현재 선택된 오디오 파일을 표시
     selected_audio_label = Label(settings_window, text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file) if selected_audio_file else 'None'}", font=("Arial", 12))
     selected_audio_label.pack(pady=10)
 
-    # 오디오 파일 선택 버튼 추가
     def select_audio_file():
-        global selected_audio_file, audio_selection_window
+        global selected_audio_file, audio_selection_window, settings
 
         if audio_selection_window and audio_selection_window.winfo_exists():
             audio_selection_window.focus()
             return
 
         audio_folder = "audio"
-        audio_files = [f for f in os.listdir(audio_folder) if f.endswith(('.mp3', '.wav'))]
+        if not os.path.isdir(audio_folder):
+            toast("audio 폴더가 없습니다.", bg="#7a1f1f")
+            return
+
+        audio_files = [f for f in os.listdir(audio_folder) if f.endswith((".mp3", ".wav"))]
         if not audio_files:
-            messagebox.showerror("오류", "audio 폴더에 mp3 또는 wav 파일이 없습니다.")
+            toast("audio 폴더에 mp3/wav 파일이 없습니다.", bg="#7a1f1f")
             return
 
         def on_audio_select(event):
@@ -243,7 +293,7 @@ def show_settings():
             settings["audio_file"] = selected_audio_file
             save_settings(settings)
             selected_audio_label.config(text=f"선택된 오디오 파일: {os.path.basename(selected_audio_file)}")
-            messagebox.showinfo("오디오 파일 선택", f"선택된 오디오 파일: {selected_audio_file}")
+            toast(f"오디오 선택: {os.path.basename(selected_audio_file)}", bg="#1f4f1f")
             audio_selection_window.destroy()
 
         audio_selection_window = Toplevel(settings_window)
@@ -254,26 +304,29 @@ def show_settings():
         audio_combo.pack(pady=5)
         audio_combo.bind("<<ComboboxSelected>>", on_audio_select)
 
-    Button(settings_window, text="경고 오디오 선택", command=select_audio_file, font=("Arial", 14), width=25, height=2, padx=10, pady=10).pack(pady=5)
+    Button(settings_window, text="경고 오디오 선택", command=select_audio_file, **button_style).pack(pady=5)
 
 def check_and_update_system():
     try:
-        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
-        local_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD']).strip()
-        remote_commit = subprocess.check_output(['git', 'ls-remote', 'origin', current_branch]).split()[0]
+        current_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
+        local_commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip()
+        remote_commit = subprocess.check_output(["git", "ls-remote", "origin", current_branch]).split()[0]
 
         if local_commit != remote_commit:
-            messagebox.showinfo("시스템 업데이트", "새로운 업데이트가 있습니다. 시스템을 업데이트합니다.")
+            toast("새로운 업데이트가 있습니다. 업데이트를 시작합니다.", bg="#1f4f7a")
             utils.update_system(root)
         else:
-            messagebox.showinfo("시스템 업데이트", "현재 최신 버전을 사용 중입니다.")
+            toast("현재 최신 버전입니다.", bg="#1f4f1f")
     except Exception as e:
-        messagebox.showerror("시스템 업데이트 오류", f"업데이트 확인 중 오류가 발생했습니다: {e}")
+        toast(f"업데이트 확인 오류: {e}", bg="#7a1f1f")
 
 def show_box_settings():
-    global box_settings_window
+    global box_settings_window, settings
+
+    settings = load_settings()
+
     if box_settings_window and box_settings_window.winfo_exists():
-        box_settings_window.attributes("-topmost", True)  # 창이 존재하는 경우 다시 최상위로 설정
+        box_settings_window.attributes("-topmost", True)
         box_settings_window.focus()
         return
 
@@ -281,43 +334,45 @@ def show_box_settings():
     box_settings_window.title("상자 설정")
     box_settings_window.attributes("-topmost", True)
 
-    # 상자 수와 배터리 박스를 동일 줄에 배치
     Label(box_settings_window, text="Modbus TCP 상자 수", font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2, sticky="w")
     modbus_boxes_var = StringVar(value=str(settings.get("modbus_boxes", 0)))
     analog_boxes_var = StringVar(value=str(settings.get("analog_boxes", 0)))
 
-    # 상자 수 변경 시 자동으로 update_gas_type_options 호출
-    modbus_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
-    analog_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
-
-    # 배터리 박스 활성화 체크박스 추가
     battery_box_var = IntVar(value=settings.get("battery_box_enabled", 0))
     battery_box_check = Checkbutton(box_settings_window, text="배터리 박스 활성화", variable=battery_box_var, font=("Arial", 12))
-    battery_box_check.grid(row=0, column=2, padx=2, pady=2, sticky="e")  # 같은 줄 오른쪽 끝에 배치
+    battery_box_check.grid(row=0, column=2, padx=2, pady=2, sticky="e")
 
-    # 배터리 박스 변경 시 총합 검사 함수 호출
+    def check_total_boxes():
+        try:
+            modbus_boxes = int(modbus_boxes_var.get())
+            analog_boxes = int(analog_boxes_var.get())
+            battery_box = int(battery_box_var.get())
+        except ValueError:
+            return
+
+        total_boxes = modbus_boxes + analog_boxes + battery_box
+        if total_boxes > 12:
+            if battery_box_var.get() == 1:
+                battery_box_var.set(0)
+            toast("상자의 총합이 12개를 초과할 수 없습니다.", bg="#7a1f1f")
+
     battery_box_var.trace_add("write", lambda *args: check_total_boxes())
 
-    try:
-        modbus_box_count = int(modbus_boxes_var.get())
-        analog_box_count = int(analog_boxes_var.get())
-    except ValueError:
-        modbus_box_count = 0
-        analog_box_count = 0
-        modbus_boxes_var.set("0")
-        analog_boxes_var.set("0")
-        messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
-
     def modify_box_count(var, delta):
-        current_value = int(var.get())
-        other_value = int(analog_boxes_var.get() if var == modbus_boxes_var else modbus_boxes_var.get())
-        battery_box = battery_box_var.get()
+        try:
+            current_value = int(var.get())
+            other_value = int(analog_boxes_var.get() if var == modbus_boxes_var else modbus_boxes_var.get())
+            battery_box = int(battery_box_var.get())
+        except ValueError:
+            toast("올바른 숫자를 입력하세요.", bg="#7a1f1f")
+            return
+
         new_value = current_value + delta
         total_boxes = new_value + other_value + battery_box
         if 0 <= new_value <= 12 and total_boxes <= 12:
             var.set(str(new_value))
         else:
-            messagebox.showerror("입력 오류", "상자의 총합이 12개를 초과할 수 없습니다.")
+            toast("상자의 총합이 12개를 초과할 수 없습니다.", bg="#7a1f1f")
 
     frame_modbus = Frame(box_settings_window)
     frame_modbus.grid(row=0, column=1, padx=2, pady=2)
@@ -325,7 +380,7 @@ def show_box_settings():
     Label(frame_modbus, textvariable=modbus_boxes_var, font=("Arial", 12)).grid(row=0, column=1, padx=2, pady=2)
     Button(frame_modbus, text="+", command=lambda: modify_box_count(modbus_boxes_var, 1), font=("Arial", 12)).grid(row=0, column=2, padx=2, pady=2)
 
-    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=2, pady=2)
+    Label(box_settings_window, text="4~20mA 상자 수", font=("Arial", 12)).grid(row=1, column=0, padx=2, pady=2, sticky="w")
     frame_analog = Frame(box_settings_window)
     frame_analog.grid(row=1, column=1, padx=2, pady=2)
     Button(frame_analog, text="-", command=lambda: modify_box_count(analog_boxes_var, -1), font=("Arial", 12)).grid(row=0, column=0, padx=2, pady=2)
@@ -350,12 +405,15 @@ def show_box_settings():
         for combo in analog_gas_type_combos:
             combo.grid_remove()
 
-        modbus_boxes = int(modbus_boxes_var.get())
-        analog_boxes = int(analog_boxes_var.get())
+        try:
+            modbus_boxes = int(modbus_boxes_var.get())
+            analog_boxes = int(analog_boxes_var.get())
+        except ValueError:
+            return
 
-        for i in range(modbus_boxes):  # Modbus 상자 설정을 표시
+        for i in range(modbus_boxes):
             if len(modbus_gas_type_combos) <= i:
-                modbus_gas_type_var = StringVar(value=settings["modbus_gas_types"].get(f"modbus_box_{i}", "ORG"))
+                modbus_gas_type_var = StringVar(value=settings.get("modbus_gas_types", {}).get(f"modbus_box_{i}", "ORG"))
                 modbus_gas_type_vars.append(modbus_gas_type_var)
                 combo = ttk.Combobox(box_settings_window, textvariable=modbus_gas_type_var, values=gas_type_labels, font=("Arial", 12))
                 modbus_gas_type_combos.append(combo)
@@ -365,12 +423,12 @@ def show_box_settings():
                 combo = modbus_gas_type_combos[i]
                 label = modbus_labels[i]
 
-            label.grid(row=i + 2, column=0, padx=2, pady=2)
+            label.grid(row=i + 2, column=0, padx=2, pady=2, sticky="w")
             combo.grid(row=i + 2, column=1, padx=2, pady=2)
 
-        for i in range(analog_boxes):  # 4~20mA 상자 설정을 표시
+        for i in range(analog_boxes):
             if len(analog_gas_type_combos) <= i:
-                analog_gas_type_var = StringVar(value=settings["analog_gas_types"].get(f"analog_box_{i}", "ORG"))
+                analog_gas_type_var = StringVar(value=settings.get("analog_gas_types", {}).get(f"analog_box_{i}", "ORG"))
                 analog_gas_type_vars.append(analog_gas_type_var)
                 combo = ttk.Combobox(box_settings_window, textvariable=analog_gas_type_var, values=gas_type_labels, font=("Arial", 12))
                 analog_gas_type_combos.append(combo)
@@ -380,43 +438,45 @@ def show_box_settings():
                 combo = analog_gas_type_combos[i]
                 label = analog_labels[i]
 
-            label.grid(row=i + 2, column=2, padx=2, pady=2)
+            label.grid(row=i + 2, column=2, padx=2, pady=2, sticky="w")
             combo.grid(row=i + 2, column=3, padx=2, pady=2)
+
+        check_total_boxes()
+
+    modbus_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
+    analog_boxes_var.trace_add("write", lambda *args: update_gas_type_options())
 
     update_gas_type_options()
 
-    # 총합 검사 함수
-    def check_total_boxes():
-        modbus_boxes = int(modbus_boxes_var.get())
-        analog_boxes = int(analog_boxes_var.get())
-        battery_box = battery_box_var.get()
-        total_boxes = modbus_boxes + analog_boxes + battery_box
-        if total_boxes > 12:
-            # 배터리 박스 체크박스 변경으로 인한 초과 시 체크 해제
-            if battery_box_var.get() == 1:
-                battery_box_var.set(0)
-            messagebox.showerror("입력 오류", "상자의 총합이 12개를 초과할 수 없습니다.")
-
     def save_and_close():
+        global settings
         try:
             modbus_boxes = int(modbus_boxes_var.get())
             analog_boxes = int(analog_boxes_var.get())
-            battery_box = battery_box_var.get()
-            if modbus_boxes + analog_boxes + battery_box > 12:
-                messagebox.showerror("입력 오류", "상자의 총합이 12개를 초과할 수 없습니다.")
-                return
-            settings["modbus_boxes"] = modbus_boxes
-            settings["analog_boxes"] = analog_boxes
-            settings["battery_box_enabled"] = battery_box  # 배터리 박스 활성화 설정 저장
-            for i, var in enumerate(modbus_gas_type_vars):
-                settings["modbus_gas_types"][f"modbus_box_{i}"] = var.get()
-            for i, var in enumerate(analog_gas_type_vars):
-                settings["analog_gas_types"][f"analog_box_{i}"] = var.get()
-            save_settings(settings)
-            messagebox.showinfo("설정 저장", "설정이 저장되었습니다.")
-            box_settings_window.destroy()
-            utils.restart_application()  # 설정이 변경되면 애플리케이션을 재시작
+            battery_box = int(battery_box_var.get())
         except ValueError:
-            messagebox.showerror("입력 오류", "올바른 숫자를 입력하세요.")
+            toast("올바른 숫자를 입력하세요.", bg="#7a1f1f")
+            return
+
+        if modbus_boxes + analog_boxes + battery_box > 12:
+            toast("상자의 총합이 12개를 초과할 수 없습니다.", bg="#7a1f1f")
+            return
+
+        settings["modbus_boxes"] = modbus_boxes
+        settings["analog_boxes"] = analog_boxes
+        settings["battery_box_enabled"] = battery_box
+
+        settings.setdefault("modbus_gas_types", {})
+        settings.setdefault("analog_gas_types", {})
+
+        for i, var in enumerate(modbus_gas_type_vars):
+            settings["modbus_gas_types"][f"modbus_box_{i}"] = var.get()
+        for i, var in enumerate(analog_gas_type_vars):
+            settings["analog_gas_types"][f"analog_box_{i}"] = var.get()
+
+        save_settings(settings)
+        toast("설정이 저장되었습니다. 재시작합니다.", bg="#1f4f1f")
+        box_settings_window.destroy()
+        utils.restart_application()
 
     Button(box_settings_window, text="저장", command=save_and_close, font=("Arial", 12), width=15, height=2).grid(row=16, columnspan=4, pady=10)
