@@ -41,11 +41,14 @@ GPIO.setup(YELLOW_PIN, GPIO.OUT)
 GPIO.output(RED_PIN, GPIO.LOW)
 GPIO.output(YELLOW_PIN, GPIO.LOW)
 
+
 def encrypt_data(data):
     return utils.encrypt_data(data)
 
+
 def decrypt_data(data):
     return utils.decrypt_data(data)
+
 
 settings = settings_ui.load_settings()
 admin_password = settings.get("admin_password")
@@ -66,6 +69,7 @@ box_alarm_states = {}
 
 pygame.mixer.init()
 
+
 def play_alarm_sound():
     global selected_audio_file, audio_playing
     if selected_audio_file is None:
@@ -79,11 +83,13 @@ def play_alarm_sound():
             except pygame.error:
                 pass
 
+
 def stop_alarm_sound():
     global audio_playing
     if audio_playing:
         pygame.mixer.music.stop()
         audio_playing = False
+
 
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
@@ -109,17 +115,20 @@ def set_alarm_status(active, box_id, fut=False):
         if prev_global_alarm_active or prev_global_fut_active:
             stop_all_alarms()
 
+
 def start_alarm_blinking():
     global alarm_blinking
     if not alarm_blinking:
         alarm_blinking = True
         alarm_blink()
 
+
 def start_fut_blinking():
     global fut_blinking
     if not fut_blinking:
         fut_blinking = True
         fut_blink()
+
 
 def stop_all_alarms():
     global alarm_blinking, fut_blinking
@@ -129,6 +138,7 @@ def stop_all_alarms():
     GPIO.output(YELLOW_PIN, GPIO.LOW)
     root.config(background=default_background)
     stop_alarm_sound()
+
 
 def alarm_blink():
     red_duration = 1000
@@ -151,6 +161,7 @@ def alarm_blink():
 
     toggle_color()
 
+
 def fut_blink():
     yellow_duration = 1000
     off_duration = 1000
@@ -172,14 +183,51 @@ def fut_blink():
 
     toggle_color()
 
+
 def exit_fullscreen(event=None):
     utils.exit_fullscreen(root, event)
+
 
 def enter_fullscreen(event=None):
     utils.enter_fullscreen(root, event)
 
+
 def restart_application():
     utils.restart_application()
+
+
+# ✅ 여기부터 수정: "외부로 나가는 경로"를 기준으로 IP 구하는 방식(10.254...) 제거
+# 허브만 연결/게이트웨이 없음에서도 eth0에 실제 잡힌 IPv4를 안정적으로 가져오도록 변경
+def get_ip_address(preferred_ifaces=("eth0", "en0", "wlan0")):
+    try:
+        iface_addrs = psutil.net_if_addrs()
+
+        # 1) 우선순위 인터페이스(eth0 등)에서 IPv4 찾기
+        for iface in preferred_ifaces:
+            addrs = iface_addrs.get(iface, [])
+            for a in addrs:
+                if a.family == socket.AF_INET:
+                    ip = a.address
+                    if ip and not ip.startswith("169.254.") and ip != "127.0.0.1":
+                        return ip
+                    # 169.254라도 일단 표시가 필요하면 아래를 주석 해제:
+                    # return ip
+
+        # 2) 우선순위 인터페이스에 없으면: lo 제외하고 첫 IPv4 반환
+        for iface, addrs in iface_addrs.items():
+            if iface == "lo":
+                continue
+            for a in addrs:
+                if a.family == socket.AF_INET:
+                    ip = a.address
+                    if ip and ip != "127.0.0.1":
+                        return ip
+
+    except Exception:
+        pass
+
+    return "N/A"
+
 
 def get_system_info():
     try:
@@ -198,20 +246,10 @@ def get_system_info():
     except Exception as e:
         return f"System info could not be retrieved: {str(e)}"
 
-def get_ip_address():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.settimeout(0)
-    try:
-        s.connect(("10.254.254.254", 1))
-        IP = s.getsockname()[0]
-    except Exception:
-        IP = "N/A"
-    finally:
-        s.close()
-    return IP
 
 def update_status_label():
     status_label.config(text=get_system_info())
+
 
 def change_branch():
     global branch_window
@@ -254,6 +292,7 @@ def change_branch():
         settings_ui.toast(f"브랜치 정보 오류: {e}", bg="#7a1f1f")
         branch_window.destroy()
 
+
 def update_clock_thread(clock_label, date_label, stop_event):
     while not stop_event.is_set():
         now = datetime.datetime.now()
@@ -262,6 +301,7 @@ def update_clock_thread(clock_label, date_label, stop_event):
         clock_label.config(text=current_time)
         date_label.config(text=current_date)
         time.sleep(1)
+
 
 if __name__ == "__main__":
     root = tk.Tk()
