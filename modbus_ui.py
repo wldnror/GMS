@@ -1,3 +1,4 @@
+# modbus_ui.py
 import json
 import os
 import time
@@ -16,16 +17,20 @@ from tkinter import (
     filedialog,
     messagebox,
     Toplevel,
-    Text,
-    Scrollbar,
 )
+from tkinter import ttk
+
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from pymodbus.pdu import ExceptionResponse
 from rich.console import Console
 from PIL import Image, ImageTk
+
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
+
+# ✅ 새로 만든 로그 뷰어(그래프/텍스트)
+from log_viewer import LogViewer
 
 
 def get_local_ip() -> str:
@@ -128,9 +133,14 @@ class ModbusUI:
 
         self.settings_popups = [None] * num_boxes
 
-        self.log_popups = [None] * num_boxes
-        self.log_popup_texts = [None] * num_boxes
+        # ✅ 로그: 각 박스별 로그 리스트
         self.box_logs = [[] for _ in range(num_boxes)]
+
+        # ✅ “안읽은 로그” 계산용: 마지막으로 읽은 로그 길이
+        self.last_viewed_log_len = [0] * num_boxes
+
+        # ✅ 로그 뷰어(그래프/텍스트) 창 핸들
+        self.log_viewers = [None] * num_boxes
 
         self.tftp_supported = [True] * num_boxes
         self.fw_status_supported = [True] * num_boxes
@@ -183,6 +193,38 @@ class ModbusUI:
             return False
         return True
 
+    # =========================
+    # ✅ 로그 배지 관련
+    # =========================
+    def update_log_badge(self, box_index: int):
+        st = self.box_states[box_index]
+        box_canvas = self.box_data[box_index][0]
+
+        bg_id = st.get("log_badge_bg")
+        tx_id = st.get("log_badge_text")
+        if bg_id is None or tx_id is None:
+            return
+
+        total = len(self.box_logs[box_index])
+        unread = max(0, total - int(self.last_viewed_log_len[box_index]))
+
+        if unread <= 0:
+            box_canvas.itemconfig(bg_id, state="hidden")
+            box_canvas.itemconfig(tx_id, state="hidden")
+            return
+
+        label = f"LOG {unread}"
+        box_canvas.itemconfig(tx_id, text=label, state="normal")
+
+        box_canvas.update_idletasks()
+        x1, y1, x2, y2 = box_canvas.bbox(tx_id)
+        pad_x, pad_y = sx(4), sy(2)
+        box_canvas.coords(bg_id, x1 - pad_x, y1 - pad_y, x2 + pad_x, y2 + pad_y)
+        box_canvas.itemconfig(bg_id, state="normal")
+
+    # =========================
+    # FW Bulk
+    # =========================
     def start_firmware_upgrade_all(self, only_connected=True, delay_sec=0.5):
         targets = []
         for i in range(len(self.ip_vars)):
@@ -232,6 +274,9 @@ class ModbusUI:
             self.box_states[i]["fw_file_name_var"].set(os.path.basename(file_path))
         messagebox.showinfo("FW", "선택한 FW 파일을 전체 박스에 적용했습니다.")
 
+    # =========================
+    # Settings I/O
+    # =========================
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
             with open(self.SETTINGS_FILE, "r") as file:
@@ -430,11 +475,15 @@ class ModbusUI:
                 "fw_cmd_inflight": False,
                 "fw_status_var": StringVar(value=""),
                 "fw_upgrade_btn": None,
+
+                # ✅ 로그 배지 아이템 id 저장용
+                "log_badge_bg": None,
+                "log_badge_text": None,
             }
         )
 
         def _on_segment_click(event, idx=index):
-            self.open_segment_popup(idx)
+            self.open_log_viewer(idx)
 
         box_canvas.tag_bind("segment_click_area", "<Button-1>", _on_segment_click)
         if hasattr(box_canvas, "segment_canvas"):
@@ -561,6 +610,23 @@ class ModbusUI:
         )
         self.box_states[index]["version_text_id"] = version_text_id
 
+        # ✅ 로그 배지(안읽은 로그 개수) - 기본 숨김
+        badge_bg = box_canvas.create_rectangle(
+            sx(6), sy(6), sx(55), sy(20),
+            fill="#2b2b2b", outline="#444444",
+            state="hidden"
+        )
+        badge_text = box_canvas.create_text(
+            sx(10), sy(8),
+            text="LOG 0",
+            font=("Helvetica", int(8 * SCALE_FACTOR), "bold"),
+            fill="#ffd966",
+            anchor="nw",
+            state="hidden"
+        )
+        self.box_states[index]["log_badge_bg"] = badge_bg
+        self.box_states[index]["log_badge_text"] = badge_text
+
         gms1000_text_id = box_canvas.create_text(
             sx(80),
             sy(270),
@@ -599,6 +665,55 @@ class ModbusUI:
             blink2=False,
         )
 
+        # ✅ 초기 배지 상태 정리
+        self.update_log_badge(index)
+
+    # =========================
+    # 로그 뷰어(그래프/텍스트) 오픈
+    # =========================
+    def open_log_viewer(self, box_index: int):
+        existing = self.log_viewers[box_index]
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_set()
+            return
+
+        ip = (self.ip_vars[box_index].get() or "").strip()
+
+        def _get_logs():
+            return self.box_logs[box_index]
+
+        def _clear_logs():
+            self.box_logs[box_index].clear()
+            self.last_viewed_log_len[box_index] = 0
+            self.update_log_badge(box_index)
+
+        win = LogViewer(
+            self.parent,
+            box_index=box_index,
+            ip=ip,
+            get_logs_callable=_get_logs,
+            on_clear_callable=_clear_logs,
+        )
+        self.log_viewers[box_index] = win
+
+        # ✅ 창 닫힘 처리
+        def _on_close():
+            self.log_viewers[box_index] = None
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", _on_close)
+
+        # ✅ "열었을 때까지"는 읽음 처리 → 배지 0으로
+        self.last_viewed_log_len[box_index] = len(self.box_logs[box_index])
+        self.update_log_badge(box_index)
+
+    # =========================
+    # 개별 FW 파일 선택
+    # =========================
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
             title="FW 파일 선택", filetypes=[("BIN files", "*.bin"), ("All files", "*.*")]
@@ -684,6 +799,9 @@ class ModbusUI:
         else:
             threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
+    # =========================
+    # 연결/통신/로그 기록
+    # =========================
     def connect(self, i):
         ip = self.ip_vars[i].get()
         if self.auto_reconnect_failed[i]:
@@ -948,6 +1066,7 @@ class ModbusUI:
                 self.box_states[box_index]["alarm2_on"] = bit_7_on
                 self.ui_update_queue.put(("alarm_check", box_index))
 
+                # ✅ 로그 이벤트 기록 + 배지 업데이트 이벤트
                 self.maybe_log_event(box_index, value_40005, bit_6_on, bit_7_on, value_40007)
 
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
@@ -1047,6 +1166,9 @@ class ModbusUI:
         logs.append(entry)
         if len(logs) > self.LOG_MAX_ENTRIES:
             del logs[0]
+
+        # ✅ 배지 갱신 이벤트
+        self.ui_update_queue.put(("log_badge", box_index))
 
     def start_data_processing_thread(self):
         threading.Thread(target=self.process_data, daemon=True).start()
