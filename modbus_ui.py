@@ -1218,6 +1218,9 @@ class ModbusUI:
             elif typ == "error_off":
                 _, box_index = item
                 self.stop_error_blink(box_index)
+            elif typ == "log_badge":
+                _, box_index = item
+                self.update_log_badge(box_index)
 
         self.schedule_ui_update()
 
