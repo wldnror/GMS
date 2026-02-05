@@ -277,6 +277,65 @@ def update_clock_thread(clock_label, date_label, stop_event):
         date_label.config(text=current_date)
         time.sleep(1)
 
+def _find_latest_toplevel():
+    tops = [w for w in root.winfo_children() if isinstance(w, tk.Toplevel) and w.winfo_exists()]
+    if not tops:
+        return None
+    return tops[-1]
+
+def _attach_fw_bulk_ui(settings_win):
+    if settings_win is None or not settings_win.winfo_exists():
+        return
+
+    if getattr(settings_win, "_fw_bulk_attached", False):
+        settings_win.lift()
+        settings_win.focus_set()
+        return
+    settings_win._fw_bulk_attached = True
+
+    try:
+        bg = settings_win.cget("bg")
+    except Exception:
+        bg = None
+
+    container = tk.Frame(settings_win, bg=bg if bg else None)
+    container.pack(fill="x", padx=10, pady=(10, 0))
+
+    title = tk.Label(container, text="FW 일괄", font=("Arial", 11, "bold"), bg=bg if bg else None)
+    title.pack(anchor="w")
+
+    row = tk.Frame(container, bg=bg if bg else None)
+    row.pack(fill="x", pady=(6, 0))
+
+    btn_style = {
+        "font": ("Arial", 11),
+        "padx": 8,
+        "pady": 2,
+        "bd": 1,
+        "relief": "solid",
+        "cursor": "hand2",
+    }
+
+    b1 = tk.Button(
+        row,
+        text="파일 전체 적용",
+        command=modbus_ui.select_fw_file_all,
+        **btn_style,
+    )
+    b1.pack(side="left", padx=(0, 6))
+
+    b2 = tk.Button(
+        row,
+        text="전체 업데이트",
+        command=lambda: modbus_ui.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5),
+        **btn_style,
+    )
+    b2.pack(side="left")
+
+def open_settings_with_fw():
+    show_settings()
+    root.after(50, lambda: _attach_fw_bulk_ui(_find_latest_toplevel()))
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("GDSENG - 스마트 모니터링 시스템")
@@ -366,7 +425,12 @@ if __name__ == "__main__":
         frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    settings_button = tk.Button(
+        root,
+        text="⚙",
+        command=lambda: prompt_new_password() if not admin_password else show_password_prompt(open_settings_with_fw),
+        font=("Arial", 20),
+    )
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
@@ -380,22 +444,6 @@ if __name__ == "__main__":
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor="sw")
-
-    fw_all_file_btn = tk.Button(
-        root,
-        text="FW 파일 전체 적용",
-        font=("Arial", 14),
-        command=modbus_ui.select_fw_file_all,
-    )
-    fw_all_file_btn.place(relx=1.0, rely=0.82, anchor="se")
-
-    fw_all_btn = tk.Button(
-        root,
-        text="전체 FW 업데이트",
-        font=("Arial", 14),
-        command=lambda: modbus_ui.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5),
-    )
-    fw_all_btn.place(relx=1.0, rely=0.88, anchor="se")
 
     total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
