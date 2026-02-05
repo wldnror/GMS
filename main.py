@@ -12,14 +12,7 @@ import signal
 import sys
 import subprocess
 import socket
-from settings import (
-    show_settings,
-    prompt_new_password,
-    show_password_prompt,
-    load_settings,
-    save_settings,
-    initialize_globals,
-)
+from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
 import pygame
@@ -76,7 +69,6 @@ pygame.mixer.init()
 def play_alarm_sound():
     global selected_audio_file, audio_playing
     if selected_audio_file is None:
-        print("No audio file selected. Skipping alarm sound.")
         return
     if not audio_playing:
         if os.path.isfile(selected_audio_file):
@@ -84,10 +76,8 @@ def play_alarm_sound():
                 pygame.mixer.music.load(selected_audio_file)
                 pygame.mixer.music.play(loops=-1)
                 audio_playing = True
-            except pygame.error as e:
-                print(f"Pygame error: {e}")
-        else:
-            print(f"File not found: {selected_audio_file}")
+            except pygame.error:
+                pass
 
 def stop_alarm_sound():
     global audio_playing
@@ -97,11 +87,12 @@ def stop_alarm_sound():
 
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
+
     prev_state = box_alarm_states.get(box_id, {"active": False, "fut": False})
     prev_global_alarm_active = global_alarm_active
     prev_global_fut_active = global_fut_active
 
-    box_alarm_states[box_id] = {"active": bool(active), "fut": bool(fut)}
+    box_alarm_states[box_id] = {"active": active, "fut": fut}
 
     global_alarm_active = any(state["active"] for state in box_alarm_states.values())
     global_fut_active = any(state["fut"] for state in box_alarm_states.values())
@@ -152,9 +143,7 @@ def alarm_blink():
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
             GPIO.output(RED_PIN, GPIO.HIGH)
-            toggle_color_id = root.after(
-                red_duration if new_color == "red" else off_duration, toggle_color
-            )
+            toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
             GPIO.output(RED_PIN, GPIO.LOW)
@@ -175,9 +164,7 @@ def fut_blink():
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
             GPIO.output(YELLOW_PIN, GPIO.HIGH)
-            toggle_color_id = root.after(
-                yellow_duration if new_color == "yellow" else off_duration, toggle_color
-            )
+            toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
             GPIO.output(YELLOW_PIN, GPIO.LOW)
@@ -225,14 +212,8 @@ def get_system_info():
         memory_usage = psutil.virtual_memory().percent
         disk_usage = psutil.disk_usage("/").percent
         net_io = psutil.net_io_counters()
-        network_info = (
-            f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, "
-            f"Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
-        )
-        return (
-            f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | "
-            f"CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
-        )
+        network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
+        return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
     except Exception as e:
         return f"System info could not be retrieved: {str(e)}"
 
@@ -241,12 +222,12 @@ def get_ip_address():
     s.settimeout(0)
     try:
         s.connect(("10.254.254.254", 1))
-        ip = s.getsockname()[0]
+        IP = s.getsockname()[0]
     except Exception:
-        ip = "N/A"
+        IP = "N/A"
     finally:
         s.close()
-    return ip
+    return IP
 
 def update_status_label():
     status_label.config(text=get_system_info())
@@ -266,23 +247,14 @@ def change_branch():
         Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
 
         branches = subprocess.check_output(["git", "branch", "-r"]).decode().split("\n")
-        branches = [b.strip().replace("origin/", "") for b in branches if b.strip()]
+        branches = [branch.strip().replace("origin/", "") for branch in branches if branch]
 
         selected_branch = StringVar(branch_window)
-        selected_branch.set(branches[0] if branches else "")
-        ttk.Combobox(
-            branch_window,
-            textvariable=selected_branch,
-            values=branches,
-            font=("Arial", 12),
-            state="readonly",
-        ).pack(pady=5)
+        selected_branch.set(branches[0])
+        ttk.Combobox(branch_window, textvariable=selected_branch, values=branches, font=("Arial", 12)).pack(pady=5)
 
         def switch_branch():
             new_branch = selected_branch.get()
-            if not new_branch:
-                messagebox.showwarning("브랜치 변경", "변경할 브랜치를 선택해주세요.")
-                return
             try:
                 subprocess.check_output(["git", "checkout", new_branch])
                 messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
@@ -292,19 +264,17 @@ def change_branch():
                 messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
 
         Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
-
     except Exception as e:
         messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
-        try:
-            branch_window.destroy()
-        except Exception:
-            pass
+        branch_window.destroy()
 
 def update_clock_thread(clock_label, date_label, stop_event):
     while not stop_event.is_set():
         now = datetime.datetime.now()
-        clock_label.config(text=now.strftime("%H:%M:%S"))
-        date_label.config(text=now.strftime("%Y-%m-%d %A"))
+        current_time = now.strftime("%H:%M:%S")
+        current_date = now.strftime("%Y-%m-%d %A")
+        clock_label.config(text=current_time)
+        date_label.config(text=current_date)
         time.sleep(1)
 
 if __name__ == "__main__":
@@ -314,7 +284,6 @@ if __name__ == "__main__":
     default_background = root.cget("background")
 
     def signal_handler(sig, frame):
-        print("Exiting gracefully...")
         GPIO.cleanup()
         root.destroy()
         sys.exit(0)
@@ -335,34 +304,25 @@ if __name__ == "__main__":
     root.bind("<Escape>", exit_fullscreen)
 
     settings = load_settings()
-
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
         modbus_boxes = [None] * modbus_boxes
+
     analog_boxes = settings.get("analog_boxes", [])
     if isinstance(analog_boxes, int):
         analog_boxes = [None] * analog_boxes
 
     if not isinstance(modbus_boxes, list):
         raise TypeError("modbus_boxes should be a list, got {}".format(type(modbus_boxes)))
+
     if not isinstance(analog_boxes, list):
         raise TypeError("analog_boxes should be a list, got {}".format(type(analog_boxes)))
 
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")
 
-    modbus_ui = ModbusUI(
-        main_frame,
-        len(modbus_boxes),
-        settings["modbus_gas_types"],
-        lambda active, box_id: set_alarm_status(active, box_id),
-    )
-    analog_ui = AnalogUI(
-        main_frame,
-        len(analog_boxes),
-        settings["analog_gas_types"],
-        lambda active, box_id: set_alarm_status(active, box_id),
-    )
+    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
+    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
 
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
@@ -406,12 +366,7 @@ if __name__ == "__main__":
         frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    settings_button = tk.Button(
-        root,
-        text="⚙",
-        command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings),
-        font=("Arial", 20),
-    )
+    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
 
     def on_enter(event):
         event.widget.config(background="#b2b2b2", foreground="black")
@@ -426,31 +381,29 @@ if __name__ == "__main__":
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor="sw")
 
+    fw_all_file_btn = tk.Button(
+        root,
+        text="FW 파일 전체 적용",
+        font=("Arial", 14),
+        command=modbus_ui.select_fw_file_all,
+    )
+    fw_all_file_btn.place(relx=1.0, rely=0.82, anchor="se")
+
+    fw_all_btn = tk.Button(
+        root,
+        text="전체 FW 업데이트",
+        font=("Arial", 14),
+        command=lambda: modbus_ui.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5),
+    )
+    fw_all_btn.place(relx=1.0, rely=0.88, anchor="se")
+
     total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
-    stop_event = None
-    clock_thread = None
     if 0 <= total_boxes <= 6:
-        clock_label = tk.Label(
-            root,
-            font=("Helvetica", 60, "bold"),
-            fg="white",
-            bg="black",
-            anchor="center",
-            padx=10,
-            pady=10,
-        )
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor="center", padx=10, pady=10)
         clock_label.place(relx=0.5, rely=0.1, anchor="n")
 
-        date_label = tk.Label(
-            root,
-            font=("Helvetica", 25),
-            fg="white",
-            bg="black",
-            anchor="center",
-            padx=5,
-            pady=5,
-        )
+        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor="center", padx=5, pady=5)
         date_label.place(relx=0.5, rely=0.20, anchor="n")
 
         stop_event = threading.Event()
@@ -458,7 +411,7 @@ if __name__ == "__main__":
         clock_thread.start()
 
     def on_closing():
-        if stop_event is not None and clock_thread is not None and 0 <= total_boxes <= 4:
+        if 0 <= total_boxes <= 4:
             stop_event.set()
             clock_thread.join()
         GPIO.cleanup()
@@ -483,7 +436,4 @@ if __name__ == "__main__":
     root.mainloop()
 
     for _, client in modbus_ui.clients.items():
-        try:
-            client.close()
-        except Exception:
-            pass
+        client.close()
