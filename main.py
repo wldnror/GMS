@@ -12,13 +12,14 @@ import signal
 import sys
 import subprocess
 import socket
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
 import pygame
 import datetime
 import locale
 import RPi.GPIO as GPIO
+
+import settings as settings_ui
 
 os.environ["DISPLAY"] = ":0"
 locale.setlocale(locale.LC_TIME, "ko_KR.UTF-8")
@@ -46,11 +47,10 @@ def encrypt_data(data):
 def decrypt_data(data):
     return utils.decrypt_data(data)
 
-settings = load_settings()
+settings = settings_ui.load_settings()
 admin_password = settings.get("admin_password")
 
 ignore_commit = None
-update_notification_frame = None
 checking_updates = True
 branch_window = None
 
@@ -88,7 +88,6 @@ def stop_alarm_sound():
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
 
-    prev_state = box_alarm_states.get(box_id, {"active": False, "fut": False})
     prev_global_alarm_active = global_alarm_active
     prev_global_fut_active = global_fut_active
 
@@ -179,24 +178,6 @@ def exit_fullscreen(event=None):
 def enter_fullscreen(event=None):
     utils.enter_fullscreen(root, event)
 
-def exit_application():
-    utils.exit_application(root)
-
-def update_system():
-    utils.update_system(root)
-
-def check_for_updates():
-    utils.check_for_updates(root)
-
-def show_update_notification(remote_commit):
-    utils.show_update_notification(root, remote_commit)
-
-def start_update(remote_commit):
-    utils.start_update(root, remote_commit)
-
-def ignore_update(remote_commit):
-    utils.ignore_update(root, remote_commit)
-
 def restart_application():
     utils.restart_application()
 
@@ -247,7 +228,12 @@ def change_branch():
         Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
 
         branches = subprocess.check_output(["git", "branch", "-r"]).decode().split("\n")
-        branches = [branch.strip().replace("origin/", "") for branch in branches if branch]
+        branches = [branch.strip().replace("origin/", "") for branch in branches if branch.strip()]
+
+        if not branches:
+            settings_ui.toast("원격 브랜치를 찾지 못했습니다.", bg="#7a1f1f")
+            branch_window.destroy()
+            return
 
         selected_branch = StringVar(branch_window)
         selected_branch.set(branches[0])
@@ -257,15 +243,15 @@ def change_branch():
             new_branch = selected_branch.get()
             try:
                 subprocess.check_output(["git", "checkout", new_branch])
-                messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
+                settings_ui.toast(f"{new_branch} 브랜치로 변경되었습니다.", bg="#1f4f1f")
                 branch_window.destroy()
                 restart_application()
             except subprocess.CalledProcessError as e:
-                messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
+                settings_ui.toast(f"브랜치 변경 오류: {e}", bg="#7a1f1f")
 
         Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
     except Exception as e:
-        messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
+        settings_ui.toast(f"브랜치 정보 오류: {e}", bg="#7a1f1f")
         branch_window.destroy()
 
 def update_clock_thread(clock_label, date_label, stop_event):
@@ -276,65 +262,6 @@ def update_clock_thread(clock_label, date_label, stop_event):
         clock_label.config(text=current_time)
         date_label.config(text=current_date)
         time.sleep(1)
-
-def _find_latest_toplevel():
-    tops = [w for w in root.winfo_children() if isinstance(w, tk.Toplevel) and w.winfo_exists()]
-    if not tops:
-        return None
-    return tops[-1]
-
-def _attach_fw_bulk_ui(settings_win):
-    if settings_win is None or not settings_win.winfo_exists():
-        return
-
-    if getattr(settings_win, "_fw_bulk_attached", False):
-        settings_win.lift()
-        settings_win.focus_set()
-        return
-    settings_win._fw_bulk_attached = True
-
-    try:
-        bg = settings_win.cget("bg")
-    except Exception:
-        bg = None
-
-    container = tk.Frame(settings_win, bg=bg if bg else None)
-    container.pack(fill="x", padx=10, pady=(10, 0))
-
-    title = tk.Label(container, text="FW 일괄", font=("Arial", 11, "bold"), bg=bg if bg else None)
-    title.pack(anchor="w")
-
-    row = tk.Frame(container, bg=bg if bg else None)
-    row.pack(fill="x", pady=(6, 0))
-
-    btn_style = {
-        "font": ("Arial", 11),
-        "padx": 8,
-        "pady": 2,
-        "bd": 1,
-        "relief": "solid",
-        "cursor": "hand2",
-    }
-
-    b1 = tk.Button(
-        row,
-        text="파일 전체 적용",
-        command=modbus_ui.select_fw_file_all,
-        **btn_style,
-    )
-    b1.pack(side="left", padx=(0, 6))
-
-    b2 = tk.Button(
-        row,
-        text="전체 업데이트",
-        command=lambda: modbus_ui.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5),
-        **btn_style,
-    )
-    b2.pack(side="left")
-
-def open_settings_with_fw():
-    show_settings()
-    root.after(50, lambda: _attach_fw_bulk_ui(_find_latest_toplevel()))
 
 if __name__ == "__main__":
     root = tk.Tk()
@@ -349,10 +276,10 @@ if __name__ == "__main__":
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    initialize_globals(root, change_branch)
+    settings_ui.initialize_globals(root, change_branch)
 
     if not admin_password:
-        prompt_new_password()
+        settings_ui.prompt_new_password()
 
     root.attributes("-fullscreen", True)
     root.attributes("-topmost", True)
@@ -362,7 +289,9 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
-    settings = load_settings()
+    settings = settings_ui.load_settings()
+    admin_password = settings.get("admin_password")
+
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
         modbus_boxes = [None] * modbus_boxes
@@ -380,8 +309,18 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")
 
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
+    modbus_ui = ModbusUI(
+        main_frame,
+        len(modbus_boxes),
+        settings.get("modbus_gas_types", {}),
+        lambda active, idx: set_alarm_status(active, f"modbus_{idx}")
+    )
+    analog_ui = AnalogUI(
+        main_frame,
+        len(analog_boxes),
+        settings.get("analog_gas_types", {}),
+        lambda active, idx: set_alarm_status(active, f"analog_{idx}")
+    )
 
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
@@ -425,27 +364,55 @@ if __name__ == "__main__":
         frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    settings_button = tk.Button(
+    def _fw_file_all():
+        try:
+            modbus_ui.select_fw_file_all()
+            settings_ui.toast("FW 파일을 전체 박스에 적용했습니다.", bg="#1f4f1f")
+        except Exception as e:
+            settings_ui.toast(f"실패: {e}", bg="#7a1f1f")
+
+    def _fw_upgrade_all():
+        try:
+            modbus_ui.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5)
+            settings_ui.toast("전체 FW 업데이트 시작", bg="#1f4f7a")
+        except Exception as e:
+            settings_ui.toast(f"실패: {e}", bg="#7a1f1f")
+
+    settings_ui.on_fw_file_all = _fw_file_all
+    settings_ui.on_fw_upgrade_all = _fw_upgrade_all
+
+    def _open_settings():
+        cur = settings_ui.load_settings()
+        if not cur.get("admin_password"):
+            settings_ui.prompt_new_password()
+            return
+        settings_ui.show_password_prompt(settings_ui.show_settings)
+
+    gear_btn = tk.Button(
         root,
         text="⚙",
-        command=lambda: prompt_new_password() if not admin_password else show_password_prompt(open_settings_with_fw),
-        font=("Arial", 20),
+        command=_open_settings,
+        font=("Arial", 18),
+        bg="#b2b2b2",
+        fg="black",
+        bd=0,
+        relief="flat",
+        highlightthickness=0,
+        padx=10,
+        pady=6,
+        cursor="hand2",
+        activebackground="#d0d0d0",
+        activeforeground="black",
     )
-
-    def on_enter(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
-
-    def on_leave(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
-
-    settings_button.bind("<Enter>", on_enter)
-    settings_button.bind("<Leave>", on_leave)
-    settings_button.place(relx=1.0, rely=1.0, anchor="se")
+    gear_btn.place(relx=1.0, rely=1.0, anchor="se")
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
     status_label.place(relx=0.0, rely=1.0, anchor="sw")
 
     total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
+
+    stop_event = None
+    clock_thread = None
 
     if 0 <= total_boxes <= 6:
         clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor="center", padx=10, pady=10)
@@ -455,14 +422,16 @@ if __name__ == "__main__":
         date_label.place(relx=0.5, rely=0.20, anchor="n")
 
         stop_event = threading.Event()
-        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
+        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event), daemon=True)
         clock_thread.start()
 
     def on_closing():
-        if 0 <= total_boxes <= 4:
-            stop_event.set()
-            clock_thread.join()
-        GPIO.cleanup()
+        try:
+            if stop_event:
+                stop_event.set()
+            GPIO.cleanup()
+        except Exception:
+            pass
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
@@ -484,4 +453,7 @@ if __name__ == "__main__":
     root.mainloop()
 
     for _, client in modbus_ui.clients.items():
-        client.close()
+        try:
+            client.close()
+        except Exception:
+            pass
