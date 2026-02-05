@@ -28,8 +28,6 @@ from PIL import Image, ImageTk
 
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
-
-# ✅ 새로 만든 로그 뷰어(그래프/텍스트)
 from log_viewer import LogViewer
 
 
@@ -85,10 +83,7 @@ class ModbusUI:
     LAMP_COLORS_ON = ["red", "red", "green", "yellow"]
     LAMP_COLORS_OFF = ["#fdc8c8", "#fdc8c8", "#e0fbba", "#fcf1bf"]
 
-    MODEL_VALUE_TO_NAME = {
-        0: "ASGD3200",
-        1: "ASGD3210",
-    }
+    MODEL_VALUE_TO_NAME = {0: "ASGD3200", 1: "ASGD3210"}
 
     LOG_MAX_ENTRIES = 1000
     MODEL_SELECT_REG = 40094
@@ -130,16 +125,10 @@ class ModbusUI:
         self.reconnect_attempt_labels = [None] * num_boxes
 
         self.last_fw_status = [None] * num_boxes
-
         self.settings_popups = [None] * num_boxes
 
-        # ✅ 로그: 각 박스별 로그 리스트
         self.box_logs = [[] for _ in range(num_boxes)]
-
-        # ✅ “안읽은 로그” 계산용: 마지막으로 읽은 로그 길이
         self.last_viewed_log_len = [0] * num_boxes
-
-        # ✅ 로그 뷰어(그래프/텍스트) 창 핸들
         self.log_viewers = [None] * num_boxes
 
         self.tftp_supported = [True] * num_boxes
@@ -193,13 +182,9 @@ class ModbusUI:
             return False
         return True
 
-    # =========================
-    # ✅ 로그 배지 관련
-    # =========================
     def update_log_badge(self, box_index: int):
         st = self.box_states[box_index]
         box_canvas = self.box_data[box_index][0]
-
         bg_id = st.get("log_badge_bg")
         tx_id = st.get("log_badge_text")
         if bg_id is None or tx_id is None:
@@ -217,14 +202,14 @@ class ModbusUI:
         box_canvas.itemconfig(tx_id, text=label, state="normal")
 
         box_canvas.update_idletasks()
-        x1, y1, x2, y2 = box_canvas.bbox(tx_id)
+        bbox = box_canvas.bbox(tx_id)
+        if not bbox:
+            return
+        x1, y1, x2, y2 = bbox
         pad_x, pad_y = sx(4), sy(2)
         box_canvas.coords(bg_id, x1 - pad_x, y1 - pad_y, x2 + pad_x, y2 + pad_y)
         box_canvas.itemconfig(bg_id, state="normal")
 
-    # =========================
-    # FW Bulk
-    # =========================
     def start_firmware_upgrade_all(self, only_connected=True, delay_sec=0.5):
         targets = []
         for i in range(len(self.ip_vars)):
@@ -246,10 +231,7 @@ class ModbusUI:
             messagebox.showinfo("FW", "일괄 업데이트 대상이 없습니다.\n(연결/파일선택/지원여부 확인)")
             return
 
-        if not messagebox.askyesno(
-            "FW 일괄 업데이트",
-            f"{len(targets)}개 장치에 FW 업그레이드 명령을 순차 전송합니다.\n진행할까요?",
-        ):
+        if not messagebox.askyesno("FW 일괄 업데이트", f"{len(targets)}개 장치에 FW 업그레이드 명령을 순차 전송합니다.\n진행할까요?"):
             return
 
         self._run_bg(self._fw_upgrade_all_worker, targets, float(delay_sec))
@@ -274,9 +256,6 @@ class ModbusUI:
             self.box_states[i]["fw_file_name_var"].set(os.path.basename(file_path))
         messagebox.showinfo("FW", "선택한 FW 파일을 전체 박스에 적용했습니다.")
 
-    # =========================
-    # Settings I/O
-    # =========================
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
             with open(self.SETTINGS_FILE, "r") as file:
@@ -425,15 +404,7 @@ class ModbusUI:
 
         seg_x1, seg_y1 = sx(10), sy(25)
         seg_x2, seg_y2 = sx(150 - 10), sy(90)
-        box_canvas.create_rectangle(
-            seg_x1,
-            seg_y1,
-            seg_x2,
-            seg_y2,
-            outline="",
-            fill="",
-            tags="segment_click_area",
-        )
+        box_canvas.create_rectangle(seg_x1, seg_y1, seg_x2, seg_y2, outline="", fill="", tags="segment_click_area")
 
         gas_key = self.gas_types.get(f"modbus_box_{index}", "ORG")
         gas_type_var = StringVar(value=gas_key)
@@ -465,6 +436,7 @@ class ModbusUI:
                 "last_log_alarm1": None,
                 "last_log_alarm2": None,
                 "last_log_error_reg": None,
+                "skip_first_log": True,
                 "version_text_id": None,
                 "last_version_value": None,
                 "last_sensor_model_str": "",
@@ -475,8 +447,6 @@ class ModbusUI:
                 "fw_cmd_inflight": False,
                 "fw_status_var": StringVar(value=""),
                 "fw_upgrade_btn": None,
-
-                # ✅ 로그 배지 아이템 id 저장용
                 "log_badge_bg": None,
                 "log_badge_text": None,
             }
@@ -526,13 +496,7 @@ class ModbusUI:
             fill=self.LAMP_COLORS_OFF[0],
             outline=self.LAMP_COLORS_OFF[0],
         )
-        box_canvas.create_text(
-            sx(95) - sx(25),
-            sy(222) - sy(40),
-            text="AL1",
-            fill="#cccccc",
-            anchor="e",
-        )
+        box_canvas.create_text(sx(95) - sx(25), sy(222) - sy(40), text="AL1", fill="#cccccc", anchor="e")
 
         circle_al2 = box_canvas.create_oval(
             sx(133) - sy(30),
@@ -542,13 +506,7 @@ class ModbusUI:
             fill=self.LAMP_COLORS_OFF[1],
             outline=self.LAMP_COLORS_OFF[1],
         )
-        box_canvas.create_text(
-            sx(140) - sy(35),
-            sy(222) - sy(40),
-            text="AL2",
-            fill="#cccccc",
-            anchor="e",
-        )
+        box_canvas.create_text(sx(140) - sy(35), sy(222) - sy(40), text="AL2", fill="#cccccc", anchor="e")
 
         circle_pwr = box_canvas.create_oval(
             sx(30) - sx(10),
@@ -558,13 +516,7 @@ class ModbusUI:
             fill=self.LAMP_COLORS_OFF[2],
             outline=self.LAMP_COLORS_OFF[2],
         )
-        box_canvas.create_text(
-            sx(35) - sx(10),
-            sy(222) - sy(40),
-            text="PWR",
-            fill="#cccccc",
-            anchor="center",
-        )
+        box_canvas.create_text(sx(35) - sx(10), sy(222) - sy(40), text="PWR", fill="#cccccc", anchor="center")
 
         circle_fut = box_canvas.create_oval(
             sx(171) - sy(40),
@@ -574,13 +526,7 @@ class ModbusUI:
             fill=self.LAMP_COLORS_OFF[3],
             outline=self.LAMP_COLORS_OFF[3],
         )
-        box_canvas.create_text(
-            sx(175) - sy(40),
-            sy(217) - sy(40),
-            text="FUT",
-            fill="#cccccc",
-            anchor="n",
-        )
+        box_canvas.create_text(sx(175) - sy(40), sy(217) - sy(40), text="FUT", fill="#cccccc", anchor="n")
 
         def _on_lamp_click(event, idx=index):
             self.open_settings_popup(idx)
@@ -610,19 +556,15 @@ class ModbusUI:
         )
         self.box_states[index]["version_text_id"] = version_text_id
 
-        # ✅ 로그 배지(안읽은 로그 개수) - 기본 숨김
-        badge_bg = box_canvas.create_rectangle(
-            sx(6), sy(6), sx(55), sy(20),
-            fill="#2b2b2b", outline="#444444",
-            state="hidden"
-        )
+        badge_bg = box_canvas.create_rectangle(sx(6), sy(6), sx(55), sy(20), fill="#2b2b2b", outline="#444444", state="hidden")
         badge_text = box_canvas.create_text(
-            sx(10), sy(8),
+            sx(10),
+            sy(8),
             text="LOG 0",
             font=("Helvetica", int(8 * SCALE_FACTOR), "bold"),
             fill="#ffd966",
             anchor="nw",
-            state="hidden"
+            state="hidden",
         )
         self.box_states[index]["log_badge_bg"] = badge_bg
         self.box_states[index]["log_badge_text"] = badge_text
@@ -656,26 +598,16 @@ class ModbusUI:
 
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
-
-        self.set_alarm_lamp(
-            index,
-            alarm1_on=False,
-            blink1=False,
-            alarm2_on=False,
-            blink2=False,
-        )
-
-        # ✅ 초기 배지 상태 정리
+        self.set_alarm_lamp(index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
         self.update_log_badge(index)
 
-    # =========================
-    # 로그 뷰어(그래프/텍스트) 오픈
-    # =========================
     def open_log_viewer(self, box_index: int):
         existing = self.log_viewers[box_index]
         if existing is not None and existing.winfo_exists():
             existing.lift()
             existing.focus_set()
+            self.last_viewed_log_len[box_index] = len(self.box_logs[box_index])
+            self.update_log_badge(box_index)
             return
 
         ip = (self.ip_vars[box_index].get() or "").strip()
@@ -697,7 +629,6 @@ class ModbusUI:
         )
         self.log_viewers[box_index] = win
 
-        # ✅ 창 닫힘 처리
         def _on_close():
             self.log_viewers[box_index] = None
             try:
@@ -707,13 +638,9 @@ class ModbusUI:
 
         win.protocol("WM_DELETE_WINDOW", _on_close)
 
-        # ✅ "열었을 때까지"는 읽음 처리 → 배지 0으로
         self.last_viewed_log_len[box_index] = len(self.box_logs[box_index])
         self.update_log_badge(box_index)
 
-    # =========================
-    # 개별 FW 파일 선택
-    # =========================
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
             title="FW 파일 선택", filetypes=[("BIN files", "*.bin"), ("All files", "*.*")]
@@ -746,7 +673,6 @@ class ModbusUI:
 
     def update_segment_display(self, value, box_index=0, blink=False):
         box_canvas = self.box_data[box_index][0]
-
         value = str(value)
         value = value.rjust(4)[:4]
 
@@ -799,9 +725,14 @@ class ModbusUI:
         else:
             threading.Thread(target=self.connect, args=(i,), daemon=True).start()
 
-    # =========================
-    # 연결/통신/로그 기록
-    # =========================
+    def _reset_log_baseline(self, box_index: int):
+        st = self.box_states[box_index]
+        st["last_log_value"] = None
+        st["last_log_alarm1"] = None
+        st["last_log_alarm2"] = None
+        st["last_log_error_reg"] = None
+        st["skip_first_log"] = True
+
     def connect(self, i):
         ip = self.ip_vars[i].get()
         if self.auto_reconnect_failed[i]:
@@ -812,6 +743,8 @@ class ModbusUI:
         if ip and ip not in self.connected_clients:
             client = ModbusTcpClient(ip, port=502, timeout=3)
             if self.connect_to_server(ip, client):
+                self._reset_log_baseline(i)
+
                 self.tftp_supported[i] = True
                 self.fw_status_supported[i] = True
                 self.last_fw_status[i] = None
@@ -830,11 +763,7 @@ class ModbusUI:
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
                 self.modbus_locks[ip] = threading.Lock()
-                t = threading.Thread(
-                    target=self.read_modbus_data,
-                    args=(ip, client, stop_flag, i),
-                    daemon=True,
-                )
+                t = threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, i), daemon=True)
                 self.connected_clients[ip] = t
                 t.start()
 
@@ -845,14 +774,7 @@ class ModbusUI:
                 self.disconnection_labels[i].grid()
                 self.reconnect_attempt_labels[i].grid()
 
-                self.parent.after(
-                    0,
-                    lambda idx=i: self.action_buttons[idx].config(
-                        image=self.disconnect_image,
-                        relief="flat",
-                        borderwidth=0,
-                    ),
-                )
+                self.parent.after(0, lambda idx=i: self.action_buttons[idx].config(image=self.disconnect_image, relief="flat", borderwidth=0))
                 self.parent.after(0, lambda idx=i: self.entries[idx].config(state="disabled"))
 
                 self.update_circle_state([False, False, True, False], box_index=i)
@@ -868,11 +790,7 @@ class ModbusUI:
     def disconnect(self, i, manual=False):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(
-                target=self.disconnect_client,
-                args=(ip, i, manual),
-                daemon=True,
-            ).start()
+            threading.Thread(target=self.disconnect_client, args=(ip, i, manual), daemon=True).start()
 
     def disconnect_client(self, ip, i, manual=False):
         stop_flag = self.stop_flags.get(ip)
@@ -908,7 +826,6 @@ class ModbusUI:
 
     def reset_ui_elements(self, box_index):
         state = self.box_states[box_index]
-
         state["alarm1_on"] = False
         state["alarm2_on"] = False
         state["alarm1_blinking"] = False
@@ -943,7 +860,7 @@ class ModbusUI:
 
     def connect_to_server(self, ip, client):
         retries = 5
-        for attempt in range(retries):
+        for _ in range(retries):
             if client.connect():
                 return True
             time.sleep(2)
@@ -1066,7 +983,6 @@ class ModbusUI:
                 self.box_states[box_index]["alarm2_on"] = bit_7_on
                 self.ui_update_queue.put(("alarm_check", box_index))
 
-                # ✅ 로그 이벤트 기록 + 배지 업데이트 이벤트
                 self.maybe_log_event(box_index, value_40005, bit_6_on, bit_7_on, value_40007)
 
                 bits = [bool(value_40007 & (1 << n)) for n in range(4)]
@@ -1125,11 +1041,7 @@ class ModbusUI:
 
             except Exception as e:
                 msg = str(e)
-                decode_keywords = [
-                    "unpack requires a buffer of 4 bytes",
-                    "Unable to decode response",
-                    "No response received",
-                ]
+                decode_keywords = ["unpack requires a buffer of 4 bytes", "Unable to decode response", "No response received"]
                 if any(k in msg for k in decode_keywords):
                     if self.box_states[box_index].get("fw_upgrading", False):
                         self.box_states[box_index]["fw_upgrading"] = False
@@ -1147,6 +1059,15 @@ class ModbusUI:
 
     def maybe_log_event(self, box_index, value_40005, alarm1, alarm2, error_reg):
         state = self.box_states[box_index]
+
+        if state.get("skip_first_log", False):
+            state["skip_first_log"] = False
+            state["last_log_value"] = value_40005
+            state["last_log_alarm1"] = alarm1
+            state["last_log_alarm2"] = alarm2
+            state["last_log_error_reg"] = error_reg
+            return
+
         last_val = state.get("last_log_value")
         last_a1 = state.get("last_log_alarm1")
         last_a2 = state.get("last_log_alarm2")
@@ -1161,13 +1082,12 @@ class ModbusUI:
         state["last_log_error_reg"] = error_reg
 
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        entry = (ts, value_40005, alarm1, alarm2, error_reg)
+        entry = (ts, int(value_40005), bool(alarm1), bool(alarm2), int(error_reg))
         logs = self.box_logs[box_index]
         logs.append(entry)
         if len(logs) > self.LOG_MAX_ENTRIES:
             del logs[0]
 
-        # ✅ 배지 갱신 이벤트
         self.ui_update_queue.put(("log_badge", box_index))
 
     def start_data_processing_thread(self):
@@ -1224,142 +1144,6 @@ class ModbusUI:
 
         self.schedule_ui_update()
 
-    def open_segment_popup(self, box_index: int):
-        existing = self.log_popups[box_index]
-        if existing is not None and existing.winfo_exists():
-            existing.lift()
-            existing.focus_set()
-            self.refresh_log_view(box_index)
-            return
-
-        win = Toplevel(self.parent)
-        win.title(f"Box {box_index + 1} 로그 뷰어")
-        win.configure(bg="#1e1e1e")
-        win.resizable(True, True)
-
-        self.log_popups[box_index] = win
-
-        def on_close():
-            self.log_popups[box_index] = None
-            self.log_popup_texts[box_index] = None
-            win.destroy()
-
-        win.protocol("WM_DELETE_WINDOW", on_close)
-
-        Label(
-            win,
-            text=f"장치 {box_index + 1} 로그 (IP: {self.ip_vars[box_index].get()})",
-            fg="white",
-            bg="#1e1e1e",
-            font=("Helvetica", 12, "bold"),
-        ).pack(padx=10, pady=(10, 5))
-
-        header = Label(
-            win,
-            text="시간                 값      AL1  AL2  ERR",
-            fg="#aaaaaa",
-            bg="#1e1e1e",
-            font=("Consolas", 10),
-        )
-        header.pack(padx=10, pady=(0, 0), anchor="w")
-
-        log_frame = Frame(win, bg="#1e1e1e")
-        log_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-
-        scrollbar = Scrollbar(log_frame)
-        scrollbar.pack(side="right", fill="y")
-
-        text = Text(
-            log_frame,
-            bg="#121212",
-            fg="#f0f0f0",
-            insertbackground="white",
-            font=("Consolas", 10),
-            yscrollcommand=scrollbar.set,
-            wrap="none",
-        )
-        text.pack(side="left", fill="both", expand=True)
-        scrollbar.config(command=text.yview)
-
-        self.log_popup_texts[box_index] = text
-
-        btn_frame = Frame(win, bg="#1e1e1e")
-        btn_frame.pack(padx=10, pady=(0, 10))
-
-        def clear_log():
-            if messagebox.askyesno("로그 삭제", "이 장치의 로그를 모두 삭제할까요?"):
-                self.box_logs[box_index].clear()
-                self.refresh_log_view(box_index)
-
-        def export_log():
-            logs = self.box_logs[box_index]
-            if not logs:
-                messagebox.showinfo("로그 저장", "저장할 로그가 없습니다.")
-                return
-            path = filedialog.asksaveasfilename(
-                title="로그 파일 저장",
-                defaultextension=".txt",
-                filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-            )
-            if not path:
-                return
-            try:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write("시간,값,AL1,AL2,ERR\n")
-                    for ts, val, a1, a2, err_reg in logs:
-                        a1_str = "ON" if a1 else "OFF"
-                        a2_str = "ON" if a2 else "OFF"
-                        err_str = f"0x{err_reg:04X}"
-                        f.write(f"{ts},{val},{a1_str},{a2_str},{err_str}\n")
-                messagebox.showinfo("로그 저장", "로그 파일이 저장되었습니다.")
-            except Exception as e:
-                messagebox.showerror("로그 저장", f"로그 저장 중 오류가 발생했습니다.\n{e}")
-
-        Button(btn_frame, text="새로고침", command=lambda idx=box_index: self.refresh_log_view(idx), width=12, bg="#555555", fg="white", relief="raised", bd=1).grid(row=0, column=0, padx=5, pady=5)
-        Button(btn_frame, text="로그 삭제", command=clear_log, width=12, bg="#aa4444", fg="white", relief="raised", bd=1).grid(row=0, column=1, padx=5, pady=5)
-        Button(btn_frame, text="파일로 저장", command=export_log, width=12, bg="#4444aa", fg="white", relief="raised", bd=1).grid(row=0, column=2, padx=5, pady=5)
-        Button(btn_frame, text="닫기", command=on_close, width=10, bg="#333333", fg="white", relief="raised", bd=1).grid(row=0, column=3, padx=5, pady=5)
-
-        self.refresh_log_view(box_index)
-
-        def _auto_refresh():
-            if win.winfo_exists() and self.log_popups[box_index] is win:
-                self.refresh_log_view(box_index)
-                win.after(1000, _auto_refresh)
-
-        win.after(1000, _auto_refresh)
-
-        win.transient(self.parent)
-
-        def _safe_grab():
-            try:
-                if win.winfo_exists() and win.winfo_viewable():
-                    win.grab_set()
-                    win.focus_set()
-            except Exception:
-                pass
-
-        win.after(50, _safe_grab)
-
-    def refresh_log_view(self, box_index: int):
-        text = self.log_popup_texts[box_index]
-        if text is None:
-            return
-
-        logs = self.box_logs[box_index]
-        text.config(state="normal")
-        text.delete("1.0", "end")
-
-        for ts, val, a1, a2, err_reg in logs:
-            a1_str = "ON " if a1 else "OFF"
-            a2_str = "ON " if a2 else "OFF"
-            err_str = f"0x{err_reg:04X}"
-            line = f"{ts}  {val:6d}  {a1_str:>3}  {a2_str:>3}  {err_str}\n"
-            text.insert("end", line)
-
-        text.see("end")
-        text.config(state="disabled")
-
     def handle_disconnection(self, box_index):
         self.disconnection_counts[box_index] += 1
         count = self.disconnection_counts[box_index]
@@ -1393,6 +1177,8 @@ class ModbusUI:
             try:
                 new_client = ModbusTcpClient(ip, port=502, timeout=3)
                 if new_client.connect():
+                    self._reset_log_baseline(box_index)
+
                     try:
                         if client is not None:
                             client.close()
@@ -1496,11 +1282,11 @@ class ModbusUI:
             state["alarm2_blinking"] = False
             state["alarm_border_blink"] = False
             state["alarm_blink_running"] = False
-
             self.set_alarm_lamp(box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
             self.box_frames[box_index].config(highlightbackground="#000000")
             state["border_blink_state"] = False
             return
+
         if new_mode == prev_mode and state.get("alarm_blink_running", False):
             return
 
@@ -1510,7 +1296,6 @@ class ModbusUI:
             state["alarm2_blinking"] = True
             state["alarm_border_blink"] = True
             self.set_alarm_lamp(box_index, alarm1_on=True, blink1=False, alarm2_on=True, blink2=False)
-
         elif new_mode == "al1":
             state["alarm1_blinking"] = True
             state["alarm2_blinking"] = False
@@ -1571,11 +1356,19 @@ class ModbusUI:
 
             if st["alarm1_blinking"]:
                 fill_now = box_canvas.itemcget(circle_items[0], "fill")
-                box_canvas.itemconfig(circle_items[0], fill="#fdc8c8" if fill_now == "red" else "red", outline="#fdc8c8" if fill_now == "red" else "red")
+                box_canvas.itemconfig(
+                    circle_items[0],
+                    fill="#fdc8c8" if fill_now == "red" else "red",
+                    outline="#fdc8c8" if fill_now == "red" else "red",
+                )
 
             if st["alarm2_blinking"]:
                 fill_now = box_canvas.itemcget(circle_items[1], "fill")
-                box_canvas.itemconfig(circle_items[1], fill="#fdc8c8" if fill_now == "red" else "red", outline="#fdc8c8" if fill_now == "red" else "red")
+                box_canvas.itemconfig(
+                    circle_items[1],
+                    fill="#fdc8c8" if fill_now == "red" else "red",
+                    outline="#fdc8c8" if fill_now == "red" else "red",
+                )
 
             self.parent.after(self.alarm_blink_interval, _blink)
 
@@ -1647,7 +1440,6 @@ class ModbusUI:
         upgrading = bool(v_40023 & (1 << 2))
         upgrade_ok = bool(v_40023 & (1 << 0))
         upgrade_fail = bool(v_40023 & (1 << 1))
-        rollback_running = bool(v_40023 & (1 << 6))
         rollback_ok = bool(v_40023 & (1 << 4))
         rollback_fail = bool(v_40023 & (1 << 5))
 
@@ -1764,12 +1556,7 @@ class ModbusUI:
 
         except Exception as e:
             msg = str(e)
-            ok_like = [
-                "unpack requires a buffer of 4 bytes",
-                "Unable to decode response",
-                "No response received",
-                "Invalid Message",
-            ]
+            ok_like = ["unpack requires a buffer of 4 bytes", "Unable to decode response", "No response received", "Invalid Message"]
             if any(k in msg for k in ok_like):
                 self.box_states[box_index]["fw_upgrading"] = True
                 keep_disabled = True
@@ -1944,18 +1731,34 @@ class ModbusUI:
 
         win.protocol("WM_DELETE_WINDOW", on_close)
 
-        Label(win, text=f"IP: {self.ip_vars[box_index].get()}", fg="white", bg="#1e1e1e", font=("Helvetica", 12, "bold")).pack(padx=10, pady=(10, 5))
+        Label(win, text=f"IP: {self.ip_vars[box_index].get()}", fg="white", bg="#1e1e1e", font=("Helvetica", 12, "bold")).pack(
+            padx=10, pady=(10, 5)
+        )
 
         Label(win, text="현재 FW 파일:", fg="white", bg="#1e1e1e", font=("Helvetica", 10)).pack(padx=10, pady=(5, 0))
 
-        Label(win, textvariable=self.box_states[box_index]["fw_file_name_var"], fg="#cccccc", bg="#1e1e1e", font=("Helvetica", 10)).pack(padx=10, pady=(0, 10))
+        Label(
+            win,
+            textvariable=self.box_states[box_index]["fw_file_name_var"],
+            fg="#cccccc",
+            bg="#1e1e1e",
+            font=("Helvetica", 10),
+        ).pack(padx=10, pady=(0, 10))
 
-        Label(win, textvariable=self.box_states[box_index]["fw_status_var"], fg="#ffd966", bg="#1e1e1e", font=("Helvetica", 10, "bold")).pack(padx=10, pady=(0, 8))
+        Label(
+            win,
+            textvariable=self.box_states[box_index]["fw_status_var"],
+            fg="#ffd966",
+            bg="#1e1e1e",
+            font=("Helvetica", 10, "bold"),
+        ).pack(padx=10, pady=(0, 8))
 
         btn_frame = Frame(win, bg="#1e1e1e")
         btn_frame.pack(padx=10, pady=10)
 
-        Button(btn_frame, text="FW 파일 선택", command=lambda idx=box_index: self.select_fw_file(idx), width=18, bg="#555555", fg="white", relief="raised", bd=1).grid(row=0, column=0, padx=5, pady=5)
+        Button(btn_frame, text="FW 파일 선택", command=lambda idx=box_index: self.select_fw_file(idx), width=18, bg="#555555", fg="white", relief="raised", bd=1).grid(
+            row=0, column=0, padx=5, pady=5
+        )
 
         upgrade_btn = Button(btn_frame, text="FW 업그레이드 시작", command=lambda idx=box_index: self.start_firmware_upgrade(idx), width=18, bg="#4444aa", fg="white", relief="raised", bd=1)
         upgrade_btn.grid(row=0, column=1, padx=5, pady=5)
@@ -1968,7 +1771,9 @@ class ModbusUI:
         bulk_frame.pack(padx=10, pady=(0, 10))
 
         Button(bulk_frame, text="FW 파일 전체 적용", command=self.select_fw_file_all, width=18, bg="#444444", fg="white", relief="raised", bd=1).grid(row=0, column=0, padx=5, pady=5)
-        Button(bulk_frame, text="전체 FW 업데이트", command=lambda: self.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5), width=18, bg="#222222", fg="white", relief="raised", bd=1).grid(row=0, column=1, padx=5, pady=5)
+        Button(bulk_frame, text="전체 FW 업데이트", command=lambda: self.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5), width=18, bg="#222222", fg="white", relief="raised", bd=1).grid(
+            row=0, column=1, padx=5, pady=5
+        )
 
         Label(win, text="모델 변경:", fg="white", bg="#1e1e1e", font=("Helvetica", 10, "bold")).pack(padx=10, pady=(5, 0))
 
