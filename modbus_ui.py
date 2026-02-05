@@ -1,3 +1,4 @@
+# modbus_ui.py
 import json
 import os
 import time
@@ -11,21 +12,22 @@ from tkinter import (
     StringVar,
     Entry,
     Button,
-    Tk,
     Label,
     filedialog,
     messagebox,
     Toplevel,
-    Text,
-    Scrollbar,
 )
 from pymodbus.client import ModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 from pymodbus.pdu import ExceptionResponse
 from rich.console import Console
 from PIL import Image, ImageTk
+
 from common import SEGMENTS, BIT_TO_SEGMENT, create_segment_display, create_gradient_bar
 from virtual_keyboard import VirtualKeyboard
+
+# ✅ 로그 뷰어(텍스트+그래프) 분리 파일
+from log_viewer import LogViewer
 
 
 def get_local_ip() -> str:
@@ -41,11 +43,10 @@ def get_local_ip() -> str:
 
 SCALE_FACTOR = 1.65
 DEFAULT_TFTP_IP = get_local_ip()
-TFTP_FW_BASENAME = 'ASGD3200E.bin'
-TFTP_ROOT_DIR = '/srv/tftp'
-
-TFTP_DEVICE_SUBDIR = os.path.join('GDS', 'ASGD-3200')
-TFTP_DEVICE_FILENAME = 'asgd3200.bin'
+TFTP_FW_BASENAME = "ASGD3200E.bin"
+TFTP_ROOT_DIR = "/srv/tftp"
+TFTP_DEVICE_SUBDIR = os.path.join("GDS", "ASGD-3200")
+TFTP_DEVICE_FILENAME = "asgd3200.bin"
 
 
 def sx(x: float) -> int:
@@ -58,32 +59,32 @@ def sy(y: float) -> int:
 
 def encode_ip_to_words(ip: str):
     try:
-        a, b, c, d = map(int, ip.split('.'))
+        a, b, c, d = map(int, ip.split("."))
     except ValueError:
-        raise ValueError(f'Invalid IP format: {ip}')
+        raise ValueError(f"Invalid IP format: {ip}")
     for octet in (a, b, c, d):
         if not 0 <= octet <= 255:
-            raise ValueError(f'Invalid octet in IP: {ip}')
+            raise ValueError(f"Invalid octet in IP: {ip}")
     word1 = (a << 8) | b
     word2 = (c << 8) | d
     return (word1, word2)
 
 
 class ModbusUI:
-    SETTINGS_FILE = 'modbus_settings.json'
-    GAS_FULL_SCALE = {'ORG': 9999, 'ARF-T': 5000, 'HMDS': 3000, 'HC-100': 5000}
+    SETTINGS_FILE = "modbus_settings.json"
+    GAS_FULL_SCALE = {"ORG": 9999, "ARF-T": 5000, "HMDS": 3000, "HC-100": 5000}
     GAS_TYPE_POSITIONS = {
-        'ORG': (sx(115), sy(100)),
-        'ARF-T': (sx(107), sy(100)),
-        'HMDS': (sx(110), sy(100)),
-        'HC-100': (sx(104), sy(100)),
+        "ORG": (sx(115), sy(100)),
+        "ARF-T": (sx(107), sy(100)),
+        "HMDS": (sx(110), sy(100)),
+        "HC-100": (sx(104), sy(100)),
     }
-    LAMP_COLORS_ON = ['red', 'red', 'green', 'yellow']
-    LAMP_COLORS_OFF = ['#fdc8c8', '#fdc8c8', '#e0fbba', '#fcf1bf']
+    LAMP_COLORS_ON = ["red", "red", "green", "yellow"]
+    LAMP_COLORS_OFF = ["#fdc8c8", "#fdc8c8", "#e0fbba", "#fcf1bf"]
 
     MODEL_VALUE_TO_NAME = {
-        0: 'ASGD3200',
-        1: 'ASGD3210',
+        0: "ASGD3200",
+        1: "ASGD3210",
     }
 
     LOG_MAX_ENTRIES = 1000
@@ -129,22 +130,23 @@ class ModbusUI:
 
         self.settings_popups = [None] * num_boxes
 
-        self.log_popups = [None] * num_boxes
-        self.log_popup_texts = [None] * num_boxes
+        # ✅ LogViewer 창 핸들
+        self.log_windows = [None] * num_boxes
+
+        # ✅ 박스별 로그 저장소
         self.box_logs = [[] for _ in range(num_boxes)]
 
         self.tftp_supported = [True] * num_boxes
         self.fw_status_supported = [True] * num_boxes
         self.sensor_model_supported = [False] * num_boxes
 
-        # --- UI freeze fix helpers ---
-        self._cmd_lock_timeout_sec = 1.0  # how long to wait for modbus lock before "busy" message
+        self._cmd_lock_timeout_sec = 1.0
 
         self.load_ip_settings(num_boxes)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        connect_image_path = os.path.join(script_dir, 'img/on.png')
-        disconnect_image_path = os.path.join(script_dir, 'img/off.png')
+        connect_image_path = os.path.join(script_dir, "img/on.png")
+        disconnect_image_path = os.path.join(script_dir, "img/off.png")
         self.connect_image = self.load_image(connect_image_path, (sx(50), sy(70)))
         self.disconnect_image = self.load_image(disconnect_image_path, (sx(50), sy(70)))
 
@@ -156,13 +158,11 @@ class ModbusUI:
         self.alarm_blink_interval = 1000
         self.start_data_processing_thread()
         self.schedule_ui_update()
-        
+
     def _ui_call(self, fn, *args, **kwargs):
-        """Run a UI function on the Tkinter main thread."""
         try:
             self.parent.after(0, lambda: fn(*args, **kwargs))
         except Exception:
-            # If root already closed, ignore.
             pass
 
     def _show_info(self, title: str, msg: str):
@@ -187,20 +187,75 @@ class ModbusUI:
             return False
         return True
 
+    # -------------------------
+    # FW bulk
+    # -------------------------
+    def start_firmware_upgrade_all(self, only_connected=True, delay_sec=0.5):
+        targets = []
+        for i in range(len(self.ip_vars)):
+            ip = (self.ip_vars[i].get() or "").strip()
+            if not ip:
+                continue
+            if only_connected and (ip not in self.connected_clients):
+                continue
+            if not self.tftp_supported[i]:
+                continue
+            if self.box_states[i].get("fw_cmd_inflight") or self.box_states[i].get("fw_upgrading"):
+                continue
+            p = self.fw_file_paths[i]
+            if not p or not os.path.isfile(p):
+                continue
+            targets.append(i)
+
+        if not targets:
+            messagebox.showinfo("FW", "일괄 업데이트 대상이 없습니다.\n(연결/파일선택/지원여부 확인)")
+            return
+
+        if not messagebox.askyesno(
+            "FW 일괄 업데이트",
+            f"{len(targets)}개 장치에 FW 업그레이드 명령을 순차 전송합니다.\n진행할까요?",
+        ):
+            return
+
+        self._run_bg(self._fw_upgrade_all_worker, targets, float(delay_sec))
+
+    def _fw_upgrade_all_worker(self, targets, delay_sec):
+        for idx in targets:
+            try:
+                self._ui_call(self.start_firmware_upgrade, idx)
+            except Exception:
+                pass
+            time.sleep(delay_sec)
+
+    def select_fw_file_all(self):
+        file_path = filedialog.askopenfilename(
+            title="FW 파일 선택(전체 적용)",
+            filetypes=[("BIN files", "*.bin"), ("All files", "*.*")],
+        )
+        if not file_path:
+            return
+        for i in range(len(self.fw_file_paths)):
+            self.fw_file_paths[i] = file_path
+            self.box_states[i]["fw_file_name_var"].set(os.path.basename(file_path))
+        messagebox.showinfo("FW", "선택한 FW 파일을 전체 박스에 적용했습니다.")
+
+    # -------------------------
+    # settings I/O
+    # -------------------------
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
-            with open(self.SETTINGS_FILE, 'r') as file:
+            with open(self.SETTINGS_FILE, "r") as file:
                 ip_settings = json.load(file)
                 for i in range(min(num_boxes, len(ip_settings))):
                     self.ip_vars[i].set(ip_settings[i])
 
     def save_ip_settings(self):
         ip_settings = [ip_var.get() for ip_var in self.ip_vars]
-        with open(self.SETTINGS_FILE, 'w') as file:
+        with open(self.SETTINGS_FILE, "w") as file:
             json.dump(ip_settings, file)
 
     def load_image(self, path, size):
-        img = Image.open(path).convert('RGBA')
+        img = Image.open(path).convert("RGBA")
         img.thumbnail(size, Image.LANCZOS)
         return ImageTk.PhotoImage(img)
 
@@ -210,35 +265,41 @@ class ModbusUI:
             for w in regs:
                 b.append((w >> 8) & 0xFF)
                 b.append(w & 0xFF)
-            s = b.decode('ascii', errors='ignore')
-            return s.replace('\x00', '').strip()
+            s = b.decode("ascii", errors="ignore")
+            return s.replace("\x00", "").strip()
         except Exception:
-            return ''
+            return ""
 
+    # -------------------------
+    # UI helpers
+    # -------------------------
     def update_topright_label(self, box_index: int):
         state = self.box_states[box_index]
-        tid = state.get('version_text_id')
+        tid = state.get("version_text_id")
         if tid is None:
             return
         box_canvas = self.box_data[box_index][0]
 
-        v = state.get('last_version_value')
-        model = state.get('last_sensor_model_str', '')
+        v = state.get("last_version_value")
+        model = state.get("last_sensor_model_str", "")
 
-        if v is None:
-            vtxt = ''
-        else:
-            vtxt = self.format_version(v)
-
-        if model:
-            txt = f'{vtxt} / {model}' if vtxt else model
-        else:
-            txt = vtxt
+        vtxt = self.format_version(v) if v is not None else ""
+        txt = f"{vtxt} / {model}" if (vtxt and model) else (model or vtxt)
 
         box_canvas.itemconfig(tid, text=txt)
 
+    def _update_log_badge(self, box_index: int):
+        """박스 화면 LOG:N 텍스트 갱신"""
+        st = self.box_states[box_index]
+        tid = st.get("log_count_text_id")
+        if tid is None:
+            return
+        cnt = len(self.box_logs[box_index])
+        canvas = self.box_data[box_index][0]
+        canvas.itemconfig(tid, text=f"LOG:{cnt}")
+
     def add_ip_row(self, frame, ip_var, index):
-        entry_border = Frame(frame, bg='#4a4a4a', bd=1, relief='solid')
+        entry_border = Frame(frame, bg="#4a4a4a", bd=1, relief="solid")
         entry_border.grid(row=0, column=0, padx=(0, 0), pady=5)
         entry = Entry(
             entry_border,
@@ -246,45 +307,45 @@ class ModbusUI:
             width=int(7 * SCALE_FACTOR),
             highlightthickness=0,
             bd=0,
-            relief='flat',
-            bg='#2e2e2e',
-            fg='white',
-            insertbackground='white',
-            font=('Helvetica', int(10 * SCALE_FACTOR)),
-            justify='center',
+            relief="flat",
+            bg="#2e2e2e",
+            fg="white",
+            insertbackground="white",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
+            justify="center",
         )
         entry.pack(padx=2, pady=3)
-        placeholder_text = f'{index + 1}. IP를 입력해주세요.'
+        placeholder_text = f"{index + 1}. IP를 입력해주세요."
         if not ip_var.get():
             entry.insert(0, placeholder_text)
-            entry.config(fg='#a9a9a9')
+            entry.config(fg="#a9a9a9")
         else:
-            entry.config(fg='white')
+            entry.config(fg="white")
 
         def on_focus_in(event, e=entry, p=placeholder_text):
-            if e['state'] == 'normal':
+            if e["state"] == "normal":
                 if e.get() == p:
-                    e.delete(0, 'end')
-                    e.config(fg='white')
-                entry_border.config(bg='#1e90ff')
-                e.config(bg='#3a3a3a')
+                    e.delete(0, "end")
+                    e.config(fg="white")
+                entry_border.config(bg="#1e90ff")
+                e.config(bg="#3a3a3a")
 
         def on_focus_out(event, e=entry, p=placeholder_text):
-            if e['state'] == 'normal':
+            if e["state"] == "normal":
                 if not e.get():
                     e.insert(0, p)
-                    e.config(fg='#a9a9a9')
-                entry_border.config(bg='#4a4a4a')
-                e.config(bg='#2e2e2e')
+                    e.config(fg="#a9a9a9")
+                entry_border.config(bg="#4a4a4a")
+                e.config(bg="#2e2e2e")
 
         def on_entry_click(event, e=entry, p=placeholder_text):
-            if e['state'] == 'normal':
+            if e["state"] == "normal":
                 on_focus_in(event, e, p)
                 self.show_virtual_keyboard(e)
 
-        entry.bind('<FocusIn>', on_focus_in)
-        entry.bind('<FocusOut>', on_focus_out)
-        entry.bind('<Button-1>', on_entry_click)
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
+        entry.bind("<Button-1>", on_entry_click)
 
         action_button = Button(
             frame,
@@ -295,10 +356,10 @@ class ModbusUI:
             bd=0,
             highlightthickness=0,
             borderwidth=0,
-            relief='flat',
-            bg='black',
-            activebackground='black',
-            cursor='hand2',
+            relief="flat",
+            bg="black",
+            activebackground="black",
+            cursor="hand2",
         )
         action_button.grid(row=0, column=1)
         self.action_buttons.append(action_button)
@@ -312,8 +373,8 @@ class ModbusUI:
         box_frame = Frame(
             self.parent,
             highlightthickness=3,
-            highlightbackground='#000000',
-            highlightcolor='#000000',
+            highlightbackground="#000000",
+            highlightcolor="#000000",
         )
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
@@ -323,76 +384,83 @@ class ModbusUI:
             width=sx(150),
             height=sy(300),
             highlightthickness=sx(1.5),
-            highlightbackground='#000000',
-            highlightcolor='#000000',
-            bg='#1e1e1e',
+            highlightbackground="#000000",
+            highlightcolor="#000000",
+            bg="#1e1e1e",
         )
         box_canvas.pack()
-        box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill='grey', outline='grey', tags='border')
-        box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill='black', outline='grey', tags='border')
+        box_canvas.create_rectangle(0, 0, sx(160), sy(200), fill="grey", outline="grey", tags="border")
+        box_canvas.create_rectangle(0, sy(200), sx(260), sy(310), fill="black", outline="grey", tags="border")
 
         create_segment_display(box_canvas)
 
         seg_x1, seg_y1 = sx(10), sy(25)
         seg_x2, seg_y2 = sx(150 - 10), sy(90)
         box_canvas.create_rectangle(
-            seg_x1, seg_y1, seg_x2, seg_y2,
-            outline='',
-            fill='',
-            tags='segment_click_area'
+            seg_x1,
+            seg_y1,
+            seg_x2,
+            seg_y2,
+            outline="",
+            fill="",
+            tags="segment_click_area",
         )
 
-        gas_key = self.gas_types.get(f'modbus_box_{index}', 'ORG')
+        gas_key = self.gas_types.get(f"modbus_box_{index}", "ORG")
         gas_type_var = StringVar(value=gas_key)
-        fw_name_var = StringVar(value='(파일 없음)')
+        fw_name_var = StringVar(value="(파일 없음)")
 
         self.box_states.append(
             {
-                'blink_state': False,
-                'blinking_error': False,
-                'previous_value_40011': None,
-                'previous_segment_display': None,
-                'pwr_blink_state': False,
-                'pwr_blinking': False,
-                'gas_type_var': gas_type_var,
-                'gas_type_text_id': None,
-                'full_scale': self.GAS_FULL_SCALE[gas_key],
-                'alarm1_on': False,
-                'alarm2_on': False,
-                'alarm1_blinking': False,
-                'alarm2_blinking': False,
-                'alarm_border_blink': False,
-                'border_blink_state': False,
-                'gms1000_text_id': None,
-                'fw_file_name_var': fw_name_var,
-                'fw_upgrading': False,
-                'alarm_blink_running': False,
-                'segment_click_area': (seg_x1, seg_y1, seg_x2, seg_y2),
-                'last_log_value': None,
-                'last_log_alarm1': None,
-                'last_log_alarm2': None,
-                'last_log_error_reg': None,
-                'version_text_id': None,
-                'last_version_value': None,
-                'last_sensor_model_str': '',
-                'last_sensor_model_poll': 0.0,
-                'alarm_mode': 'none',
-                'error_blink_running': False,
-                'error_blink_state': False,
-                'fw_cmd_inflight': False,                 # FW 버튼 중복 클릭 방지용
-                'fw_status_var': StringVar(value=''),     # 설정창에 상태 표시용
-                'fw_upgrade_btn': None,                   # 설정창 FW 버튼 위젯 참조
+                "blink_state": False,
+                "blinking_error": False,
+                "previous_segment_display": None,
+                "pwr_blink_state": False,
+                "pwr_blinking": False,
+                "gas_type_var": gas_type_var,
+                "gas_type_text_id": None,
+                "full_scale": self.GAS_FULL_SCALE[gas_key],
+                "alarm1_on": False,
+                "alarm2_on": False,
+                "alarm1_blinking": False,
+                "alarm2_blinking": False,
+                "alarm_border_blink": False,
+                "border_blink_state": False,
+                "gms1000_text_id": None,
+                "fw_file_name_var": fw_name_var,
+                "fw_upgrading": False,
+                "alarm_blink_running": False,
+                "segment_click_area": (seg_x1, seg_y1, seg_x2, seg_y2),
+
+                # ✅ 로그 관련
+                "last_log_value": None,
+                "last_log_alarm1": None,
+                "last_log_alarm2": None,
+                "last_log_error_reg": None,
+                "log_initialized": False,        # ✅ 연결 직후 baseline 1회는 저장 안 하려고
+                "log_count_text_id": None,      # ✅ LOG:N 배지 텍스트 id
+
+                "version_text_id": None,
+                "last_version_value": None,
+                "last_sensor_model_str": "",
+                "last_sensor_model_poll": 0.0,
+                "alarm_mode": "none",
+                "error_blink_running": False,
+                "error_blink_state": False,
+                "fw_cmd_inflight": False,
+                "fw_status_var": StringVar(value=""),
+                "fw_upgrade_btn": None,
             }
         )
 
         def _on_segment_click(event, idx=index):
             self.open_segment_popup(idx)
 
-        box_canvas.tag_bind('segment_click_area', '<Button-1>', _on_segment_click)
-        if hasattr(box_canvas, 'segment_canvas'):
-            box_canvas.segment_canvas.bind('<Button-1>', _on_segment_click)
+        box_canvas.tag_bind("segment_click_area", "<Button-1>", _on_segment_click)
+        if hasattr(box_canvas, "segment_canvas"):
+            box_canvas.segment_canvas.bind("<Button-1>", _on_segment_click)
 
-        control_frame = Frame(box_canvas, bg='black')
+        control_frame = Frame(box_canvas, bg="black")
         control_frame.place(x=sx(10), y=sy(210))
 
         ip_var = self.ip_vars[index]
@@ -400,81 +468,67 @@ class ModbusUI:
 
         disconnection_label = Label(
             control_frame,
-            text=f'DC: {self.disconnection_counts[index]}',
-            fg='white',
-            bg='black',
-            font=('Helvetica', int(10 * SCALE_FACTOR)),
+            text=f"DC: {self.disconnection_counts[index]}",
+            fg="white",
+            bg="black",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
         )
         disconnection_label.grid(row=1, column=0, columnspan=2, pady=(2, 0))
         self.disconnection_labels[index] = disconnection_label
 
         reconnect_label = Label(
             control_frame,
-            text='Reconnect: 0/5',
-            fg='yellow',
-            bg='black',
-            font=('Helvetica', int(10 * SCALE_FACTOR)),
+            text="Reconnect: 0/5",
+            fg="yellow",
+            bg="black",
+            font=("Helvetica", int(10 * SCALE_FACTOR)),
         )
         reconnect_label.grid(row=2, column=0, columnspan=2, pady=(2, 0))
         self.reconnect_attempt_labels[index] = reconnect_label
 
         disconnection_label.grid_remove()
         reconnect_label.grid_remove()
+
+        # 램프
         circle_al1 = box_canvas.create_oval(
-            sx(77) - sx(20), sy(200) - sy(32),
-            sx(87) - sx(20), sy(190) - sy(32),
+            sx(77) - sx(20),
+            sy(200) - sy(32),
+            sx(87) - sx(20),
+            sy(190) - sy(32),
             fill=self.LAMP_COLORS_OFF[0],
             outline=self.LAMP_COLORS_OFF[0],
         )
-        box_canvas.create_text(
-            sx(95) - sx(25),
-            sy(222) - sy(40),
-            text='AL1',
-            fill='#cccccc',
-            anchor='e',
-        )
+        box_canvas.create_text(sx(95) - sx(25), sy(222) - sy(40), text="AL1", fill="#cccccc", anchor="e")
 
         circle_al2 = box_canvas.create_oval(
-            sx(133) - sy(30), sy(200) - sy(32),
-            sx(123) - sy(30), sy(190) - sy(32),
+            sx(133) - sy(30),
+            sy(200) - sy(32),
+            sx(123) - sy(30),
+            sy(190) - sy(32),
             fill=self.LAMP_COLORS_OFF[1],
             outline=self.LAMP_COLORS_OFF[1],
         )
-        box_canvas.create_text(
-            sx(140) - sy(35),
-            sy(222) - sy(40),
-            text='AL2',
-            fill='#cccccc',
-            anchor='e',
-        )
+        box_canvas.create_text(sx(140) - sy(35), sy(222) - sy(40), text="AL2", fill="#cccccc", anchor="e")
 
         circle_pwr = box_canvas.create_oval(
-            sx(30) - sx(10), sy(200) - sy(32),
-            sx(40) - sy(10), sy(190) - sy(32),
+            sx(30) - sx(10),
+            sy(200) - sy(32),
+            sx(40) - sy(10),
+            sy(190) - sy(32),
             fill=self.LAMP_COLORS_OFF[2],
             outline=self.LAMP_COLORS_OFF[2],
         )
-        box_canvas.create_text(
-            sx(35) - sx(10),
-            sy(222) - sy(40),
-            text='PWR',
-            fill='#cccccc',
-            anchor='center',
-        )
+        box_canvas.create_text(sx(35) - sx(10), sy(222) - sy(40), text="PWR", fill="#cccccc", anchor="center")
 
         circle_fut = box_canvas.create_oval(
-            sx(171) - sy(40), sy(200) - sy(32),
-            sx(181) - sy(40), sy(190) - sy(32),
+            sx(171) - sy(40),
+            sy(200) - sy(32),
+            sx(181) - sy(40),
+            sy(190) - sy(32),
             fill=self.LAMP_COLORS_OFF[3],
             outline=self.LAMP_COLORS_OFF[3],
         )
-        box_canvas.create_text(
-            sx(175) - sy(40),
-            sy(217) - sy(40),
-            text='FUT',
-            fill='#cccccc',
-            anchor='n',
-        )
+        box_canvas.create_text(sx(175) - sy(40), sy(217) - sy(40), text="FUT", fill="#cccccc", anchor="n")
 
         def _on_lamp_click(event, idx=index):
             self.open_settings_popup(idx)
@@ -488,78 +542,128 @@ class ModbusUI:
         gas_type_text_id = box_canvas.create_text(
             *gas_pos,
             text=gas_type_var.get(),
-            font=('Helvetica', int(16 * SCALE_FACTOR), 'bold'),
-            fill='#cccccc',
-            anchor='center',
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center",
         )
-        self.box_states[index]['gas_type_text_id'] = gas_type_text_id
+        self.box_states[index]["gas_type_text_id"] = gas_type_text_id
 
+        # ✅ 우상단 버전/모델
         version_text_id = box_canvas.create_text(
-            sx(140),
+            sx(145),
             sy(12),
-            text='',
-            font=('Helvetica', int(8 * SCALE_FACTOR), 'bold'),
-            fill='#cccccc',
-            anchor='ne',
+            text="",
+            font=("Helvetica", int(8 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="ne",
         )
-        self.box_states[index]['version_text_id'] = version_text_id
+        self.box_states[index]["version_text_id"] = version_text_id
+
+        # ✅ 좌상단 LOG:N 배지
+        log_count_text_id = box_canvas.create_text(
+            sx(6),
+            sy(12),
+            text="LOG:0",
+            font=("Helvetica", int(8 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="nw",
+        )
+        self.box_states[index]["log_count_text_id"] = log_count_text_id
 
         gms1000_text_id = box_canvas.create_text(
             sx(80),
             sy(270),
-            text='GMS-1000',
-            font=('Helvetica', int(16 * SCALE_FACTOR), 'bold'),
-            fill='#cccccc',
-            anchor='center',
+            text="GMS-1000",
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center",
         )
-        self.box_states[index]['gms1000_text_id'] = gms1000_text_id
+        self.box_states[index]["gms1000_text_id"] = gms1000_text_id
 
         box_canvas.create_text(
             sx(80),
             sy(295),
-            text='GDS ENGINEERING CO.,LTD',
-            font=('Helvetica', int(7 * SCALE_FACTOR), 'bold'),
-            fill='#cccccc',
-            anchor='center',
+            text="GDS ENGINEERING CO.,LTD",
+            font=("Helvetica", int(7 * SCALE_FACTOR), "bold"),
+            fill="#cccccc",
+            anchor="center",
         )
 
-        bar_canvas = Canvas(box_canvas, width=sx(120), height=sy(5), bg='white', highlightthickness=0)
+        # bar
+        bar_canvas = Canvas(box_canvas, width=sx(120), height=sy(5), bg="white", highlightthickness=0)
         bar_canvas.place(x=sx(18.5), y=sy(75))
         bar_image = ImageTk.PhotoImage(self.gradient_bar)
-        bar_item = bar_canvas.create_image(0, 0, anchor='nw', image=bar_image)
+        bar_item = bar_canvas.create_image(0, 0, anchor="nw", image=bar_image)
 
         self.box_frames.append(box_frame)
         self.box_data.append((box_canvas, [circle_al1, circle_al2, circle_pwr, circle_fut], bar_canvas, bar_image, bar_item))
 
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
+        self.set_alarm_lamp(index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
 
-        self.set_alarm_lamp(
-            index,
-            alarm1_on=False, blink1=False,
-            alarm2_on=False, blink2=False,
+        # 초기 배지 갱신
+        self._update_log_badge(index)
+
+    # -------------------------
+    # LogViewer open
+    # -------------------------
+    def open_segment_popup(self, box_index: int):
+        """세그먼트 클릭 시 LogViewer(텍스트+그래프) 표시"""
+        existing = self.log_windows[box_index]
+        if existing is not None and existing.winfo_exists():
+            existing.lift()
+            existing.focus_set()
+            try:
+                existing.refresh()
+            except Exception:
+                pass
+            return
+
+        ip = (self.ip_vars[box_index].get() or "").strip()
+
+        def get_logs():
+            return self.box_logs[box_index]
+
+        def on_clear():
+            self.box_logs[box_index].clear()
+            self._update_log_badge(box_index)
+
+        win = LogViewer(
+            self.parent,
+            box_index=box_index,
+            ip=ip,
+            get_logs_callable=get_logs,
+            on_clear_callable=on_clear,
         )
+        self.log_windows[box_index] = win
 
+        def _on_close():
+            self.log_windows[box_index] = None
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", _on_close)
+
+    # -------------------------
+    # FW per-box
+    # -------------------------
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
-            title='FW 파일 선택', filetypes=[('BIN files', '*.bin'), ('All files', '*.*')]
+            title="FW 파일 선택", filetypes=[("BIN files", "*.bin"), ("All files", "*.*")]
         )
         if not file_path:
             return
         self.fw_file_paths[box_index] = file_path
         basename = os.path.basename(file_path)
-        self.box_states[box_index]['fw_file_name_var'].set(basename)
-        self.console.print(f'[FW] box {box_index} using file: {file_path}')
+        self.box_states[box_index]["fw_file_name_var"].set(basename)
+        self.console.print(f"[FW] box {box_index} using file: {file_path}")
 
-    def update_full_scale(self, gas_type_var, box_index):
-        gas_type = gas_type_var.get()
-        full_scale = self.GAS_FULL_SCALE[gas_type]
-        self.box_states[box_index]['full_scale'] = full_scale
-        box_canvas = self.box_data[box_index][0]
-        position = self.GAS_TYPE_POSITIONS[gas_type]
-        box_canvas.coords(self.box_states[box_index]['gas_type_text_id'], *position)
-        box_canvas.itemconfig(self.box_states[box_index]['gas_type_text_id'], text=gas_type)
-
+    # -------------------------
+    # Segment display / bar
+    # -------------------------
     def update_circle_state(self, states, box_index=0):
         box_canvas, circle_items, _, _, _ = self.box_data[box_index]
         for i, state in enumerate(states):
@@ -568,7 +672,7 @@ class ModbusUI:
             color = self.LAMP_COLORS_ON[i] if state else self.LAMP_COLORS_OFF[i]
             box_canvas.itemconfig(circle_items[i], fill=color, outline=color)
         alarm_active = states[0] or states[1]
-        self.alarm_callback(alarm_active, f'modbus_{box_index}')
+        self.alarm_callback(alarm_active, f"modbus_{box_index}")
 
     def update_segment_display(self, value, box_index=0, blink=False):
         box_canvas = self.box_data[box_index][0]
@@ -576,27 +680,27 @@ class ModbusUI:
         value = str(value)
         value = value.rjust(4)[:4]
 
-        prev_val = self.box_states[box_index]['previous_segment_display']
+        prev_val = self.box_states[box_index]["previous_segment_display"]
         if value != prev_val:
-            self.box_states[box_index]['previous_segment_display'] = value
+            self.box_states[box_index]["previous_segment_display"] = value
 
         leading_zero = True
         for idx, digit in enumerate(value):
-            if digit == ' ':
-                segments = SEGMENTS[' ']
-            elif leading_zero and digit == '0' and idx < 3:
-                segments = SEGMENTS[' ']
+            if digit == " ":
+                segments = SEGMENTS[" "]
+            elif leading_zero and digit == "0" and idx < 3:
+                segments = SEGMENTS[" "]
             else:
-                segments = SEGMENTS.get(digit, SEGMENTS[' '])
+                segments = SEGMENTS.get(digit, SEGMENTS[" "])
                 leading_zero = False
 
-            if blink and self.box_states[box_index]['blink_state']:
-                segments = SEGMENTS[' ']
+            if blink and self.box_states[box_index]["blink_state"]:
+                segments = SEGMENTS[" "]
 
             for j, seg_on in enumerate(segments):
-                color = '#fc0c0c' if seg_on == '1' else '#424242'
-                segment_tag = f'segment_{idx}_{chr(97 + j)}'
-                if hasattr(box_canvas, 'segment_canvas') and box_canvas.segment_canvas.find_withtag(segment_tag):
+                color = "#fc0c0c" if seg_on == "1" else "#424242"
+                segment_tag = f"segment_{idx}_{chr(97 + j)}"
+                if hasattr(box_canvas, "segment_canvas") and box_canvas.segment_canvas.find_withtag(segment_tag):
                     box_canvas.segment_canvas.itemconfig(segment_tag, fill=color)
 
         self.box_states[box_index]['blink_state'] = not self.box_states[box_index]['blink_state']
