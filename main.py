@@ -1,5 +1,3 @@
-# main.py
-
 import json
 import os
 import time
@@ -14,7 +12,6 @@ import signal
 import sys
 import subprocess
 import socket
-from settings import show_settings, prompt_new_password, show_password_prompt, load_settings, save_settings, initialize_globals
 import utils
 import tkinter as tk
 import pygame
@@ -22,28 +19,25 @@ import datetime
 import locale
 import RPi.GPIO as GPIO
 
-os.environ['DISPLAY'] = ':0'
+import settings as settings_ui
 
-locale.setlocale(locale.LC_TIME, 'ko_KR.UTF-8')
+os.environ["DISPLAY"] = ":0"
+locale.setlocale(locale.LC_TIME, "ko_KR.UTF-8")
 
 SETTINGS_FILE = "settings.json"
 
 key = utils.load_key()
 cipher_suite = utils.cipher_suite
 
-# GPIO 설정
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-# 사용할 핀 번호 설정
-RED_PIN = 20  # 빨강 LED에 대응하는 핀
-YELLOW_PIN = 21  # 노랑 LED에 대응하는 핀
+RED_PIN = 20
+YELLOW_PIN = 21
 
-# 출력 핀으로 설정
 GPIO.setup(RED_PIN, GPIO.OUT)
 GPIO.setup(YELLOW_PIN, GPIO.OUT)
 
-# 초기값 설정
 GPIO.output(RED_PIN, GPIO.LOW)
 GPIO.output(YELLOW_PIN, GPIO.LOW)
 
@@ -53,15 +47,13 @@ def encrypt_data(data):
 def decrypt_data(data):
     return utils.decrypt_data(data)
 
-settings = load_settings()
+settings = settings_ui.load_settings()
 admin_password = settings.get("admin_password")
 
 ignore_commit = None
-update_notification_frame = None
 checking_updates = True
 branch_window = None
 
-# 전역 알람 상태 변수
 global_alarm_active = False
 global_fut_active = False
 alarm_blinking = False
@@ -70,7 +62,6 @@ fut_blinking = False
 selected_audio_file = settings.get("audio_file")
 audio_playing = False
 
-# 각 상자의 알람 상태를 저장하는 딕셔너리
 box_alarm_states = {}
 
 pygame.mixer.init()
@@ -78,19 +69,15 @@ pygame.mixer.init()
 def play_alarm_sound():
     global selected_audio_file, audio_playing
     if selected_audio_file is None:
-        print("No audio file selected. Skipping alarm sound.")
         return
-
     if not audio_playing:
         if os.path.isfile(selected_audio_file):
             try:
                 pygame.mixer.music.load(selected_audio_file)
                 pygame.mixer.music.play(loops=-1)
                 audio_playing = True
-            except pygame.error as e:
-                print(f"Pygame error: {e}")
-        else:
-            print(f"File not found: {selected_audio_file}")
+            except pygame.error:
+                pass
 
 def stop_alarm_sound():
     global audio_playing
@@ -100,21 +87,14 @@ def stop_alarm_sound():
 
 def set_alarm_status(active, box_id, fut=False):
     global global_alarm_active, global_fut_active, alarm_blinking, fut_blinking
-    # 이전 상태 저장
-    prev_state = box_alarm_states.get(box_id, {'active': False, 'fut': False})
+
     prev_global_alarm_active = global_alarm_active
     prev_global_fut_active = global_fut_active
 
-    # 새로운 상태 저장
-    box_alarm_states[box_id] = {'active': active, 'fut': fut}
+    box_alarm_states[box_id] = {"active": active, "fut": fut}
 
-    # 전체 알람 상태 업데이트
-    global_alarm_active = any(state['active'] for state in box_alarm_states.values())
-    global_fut_active = any(state['fut'] for state in box_alarm_states.values())
-
-    # 상태 변경 여부 확인
-    state_changed = (prev_state['active'] != active) or (prev_state['fut'] != fut)
-    global_state_changed = (prev_global_alarm_active != global_alarm_active) or (prev_global_fut_active != global_fut_active)
+    global_alarm_active = any(state["active"] for state in box_alarm_states.values())
+    global_fut_active = any(state["fut"] for state in box_alarm_states.values())
 
     if global_fut_active:
         if not prev_global_fut_active:
@@ -161,7 +141,7 @@ def alarm_blink():
             current_color = root.cget("background")
             new_color = "red" if current_color != "red" else default_background
             root.config(background=new_color)
-            GPIO.output(RED_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            GPIO.output(RED_PIN, GPIO.HIGH)
             toggle_color_id = root.after(red_duration if new_color == "red" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
@@ -182,7 +162,7 @@ def fut_blink():
             current_color = root.cget("background")
             new_color = "yellow" if current_color != "yellow" else default_background
             root.config(background=new_color)
-            GPIO.output(YELLOW_PIN, GPIO.HIGH)  # LED를 계속 켜둠
+            GPIO.output(YELLOW_PIN, GPIO.HIGH)
             toggle_color_id = root.after(yellow_duration if new_color == "yellow" else off_duration, toggle_color)
         else:
             root.config(background=default_background)
@@ -198,30 +178,12 @@ def exit_fullscreen(event=None):
 def enter_fullscreen(event=None):
     utils.enter_fullscreen(root, event)
 
-def exit_application():
-    utils.exit_application(root)
-
-def update_system():
-    utils.update_system(root)
-
-def check_for_updates():
-    utils.check_for_updates(root)
-
-def show_update_notification(remote_commit):
-    utils.show_update_notification(root, remote_commit)
-
-def start_update(remote_commit):
-    utils.start_update(root, remote_commit)
-
-def ignore_update(remote_commit):
-    utils.ignore_update(root, remote_commit)
-
 def restart_application():
     utils.restart_application()
 
 def get_system_info():
     try:
-        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+        current_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
     except subprocess.CalledProcessError:
         current_branch = "N/A"
 
@@ -229,7 +191,7 @@ def get_system_info():
         cpu_temp = os.popen("vcgencmd measure_temp").readline().replace("temp=", "").strip()
         cpu_usage = psutil.cpu_percent(interval=1)
         memory_usage = psutil.virtual_memory().percent
-        disk_usage = psutil.disk_usage('/').percent
+        disk_usage = psutil.disk_usage("/").percent
         net_io = psutil.net_io_counters()
         network_info = f"Sent: {net_io.bytes_sent / (1024 * 1024):.2f}MB, Recv: {net_io.bytes_recv / (1024 * 1024):.2f}MB"
         return f"IP: {get_ip_address()} | Branch: {current_branch} | Temp: {cpu_temp} | CPU: {cpu_usage}% | Mem: {memory_usage}% | Disk: {disk_usage}% | Net: {network_info}"
@@ -240,10 +202,10 @@ def get_ip_address():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.settimeout(0)
     try:
-        s.connect(('10.254.254.254', 1))
+        s.connect(("10.254.254.254", 1))
         IP = s.getsockname()[0]
     except Exception:
-        IP = 'N/A'
+        IP = "N/A"
     finally:
         s.close()
     return IP
@@ -262,11 +224,16 @@ def change_branch():
     branch_window.attributes("-topmost", True)
 
     try:
-        current_branch = subprocess.check_output(['git', 'branch', '--show-current']).strip().decode()
+        current_branch = subprocess.check_output(["git", "branch", "--show-current"]).strip().decode()
         Label(branch_window, text=f"현재 브랜치: {current_branch}", font=("Arial", 12)).pack(pady=10)
 
-        branches = subprocess.check_output(['git', 'branch', '-r']).decode().split('\n')
-        branches = [branch.strip().replace('origin/', '') for branch in branches if branch]
+        branches = subprocess.check_output(["git", "branch", "-r"]).decode().split("\n")
+        branches = [branch.strip().replace("origin/", "") for branch in branches if branch.strip()]
+
+        if not branches:
+            settings_ui.toast("원격 브랜치를 찾지 못했습니다.", bg="#7a1f1f")
+            branch_window.destroy()
+            return
 
         selected_branch = StringVar(branch_window)
         selected_branch.set(branches[0])
@@ -275,16 +242,16 @@ def change_branch():
         def switch_branch():
             new_branch = selected_branch.get()
             try:
-                subprocess.check_output(['git', 'checkout', new_branch])
-                messagebox.showinfo("브랜치 변경", f"{new_branch} 브랜치로 변경되었습니다.")
+                subprocess.check_output(["git", "checkout", new_branch])
+                settings_ui.toast(f"{new_branch} 브랜치로 변경되었습니다.", bg="#1f4f1f")
                 branch_window.destroy()
                 restart_application()
             except subprocess.CalledProcessError as e:
-                messagebox.showerror("오류", f"브랜치 변경 중 오류 발생: {e}")
+                settings_ui.toast(f"브랜치 변경 오류: {e}", bg="#7a1f1f")
 
         Button(branch_window, text="브랜치 변경", command=switch_branch).pack(pady=10)
     except Exception as e:
-        messagebox.showerror("오류", f"브랜치 정보를 가져오는 중 오류가 발생했습니다: {e}")
+        settings_ui.toast(f"브랜치 정보 오류: {e}", bg="#7a1f1f")
         branch_window.destroy()
 
 def update_clock_thread(clock_label, date_label, stop_event):
@@ -303,17 +270,16 @@ if __name__ == "__main__":
     default_background = root.cget("background")
 
     def signal_handler(sig, frame):
-        print("Exiting gracefully...")
-        GPIO.cleanup()  # GPIO 핀 초기화
+        GPIO.cleanup()
         root.destroy()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    initialize_globals(root, change_branch)
+    settings_ui.initialize_globals(root, change_branch)
 
     if not admin_password:
-        prompt_new_password()
+        settings_ui.prompt_new_password()
 
     root.attributes("-fullscreen", True)
     root.attributes("-topmost", True)
@@ -323,7 +289,9 @@ if __name__ == "__main__":
 
     root.bind("<Escape>", exit_fullscreen)
 
-    settings = load_settings()
+    settings = settings_ui.load_settings()
+    admin_password = settings.get("admin_password")
+
     modbus_boxes = settings.get("modbus_boxes", [])
     if isinstance(modbus_boxes, int):
         modbus_boxes = [None] * modbus_boxes
@@ -341,9 +309,18 @@ if __name__ == "__main__":
     main_frame = tk.Frame(root)
     main_frame.grid(row=0, column=0, sticky="nsew")
 
-    # 클래스 인스턴스 생성 (프레임 배치 없음)
-    modbus_ui = ModbusUI(main_frame, len(modbus_boxes), settings["modbus_gas_types"], lambda active, idx: set_alarm_status(active, f"modbus_{idx}"))
-    analog_ui = AnalogUI(main_frame, len(analog_boxes), settings["analog_gas_types"], lambda active, idx: set_alarm_status(active, f"analog_{idx}"))
+    modbus_ui = ModbusUI(
+        main_frame,
+        len(modbus_boxes),
+        settings.get("modbus_gas_types", {}),
+        lambda active, idx: set_alarm_status(active, f"modbus_{idx}")
+    )
+    analog_ui = AnalogUI(
+        main_frame,
+        len(analog_boxes),
+        settings.get("analog_gas_types", {}),
+        lambda active, idx: set_alarm_status(active, f"analog_{idx}")
+    )
 
     ups_ui = None
     if settings.get("battery_box_enabled", 0):
@@ -351,7 +328,6 @@ if __name__ == "__main__":
 
     all_boxes = []
 
-    # 클래스에서 프레임 수집
     if ups_ui:
         for i, frame in enumerate(ups_ui.box_frames):
             all_boxes.append((frame, f"ups_{i}"))
@@ -362,75 +338,100 @@ if __name__ == "__main__":
     for i, frame in enumerate(analog_ui.box_frames):
         all_boxes.append((frame, f"analog_{i}"))
 
-    # 각 상자의 알람 상태 초기화
     for _, idx in all_boxes:
-        box_alarm_states[idx] = {'active': False, 'fut': False}
+        box_alarm_states[idx] = {"active": False, "fut": False}
 
-    # 최대 열의 수 설정
     max_columns = 6
-
-    # 총 행의 수 계산
     num_rows = (len(all_boxes) + max_columns - 1) // max_columns
 
-    # 그리드 행과 열의 가중치 설정
-    main_frame.grid_rowconfigure(0, weight=1)  # 상단 여백
-    main_frame.grid_rowconfigure(num_rows + 1, weight=1)  # 하단 여백
-    main_frame.grid_columnconfigure(0, weight=1)  # 좌측 여백
-    main_frame.grid_columnconfigure(max_columns + 1, weight=1)  # 우측 여백
+    main_frame.grid_rowconfigure(0, weight=1)
+    main_frame.grid_rowconfigure(num_rows + 1, weight=1)
+    main_frame.grid_columnconfigure(0, weight=1)
+    main_frame.grid_columnconfigure(max_columns + 1, weight=1)
 
-    # 상자들이 위치하는 행과 열의 가중치를 0으로 설정
     for i in range(1, num_rows + 1):
         main_frame.grid_rowconfigure(i, weight=0)
     for i in range(1, max_columns + 1):
         main_frame.grid_columnconfigure(i, weight=0)
 
-    # 상자 배치 시작 인덱스를 1로 변경
     row_index = 1
     column_index = 1
 
-    # 프레임 배치
     for frame, idx in all_boxes:
         if column_index > max_columns:
             column_index = 1
             row_index += 1
-
         frame.grid(row=row_index, column=column_index, padx=2, pady=2)
         column_index += 1
 
-    settings_button = tk.Button(root, text="⚙", command=lambda: prompt_new_password() if not admin_password else show_password_prompt(show_settings), font=("Arial", 20))
+    def _fw_file_all():
+        try:
+            modbus_ui.select_fw_file_all()
+            settings_ui.toast("FW 파일을 전체 박스에 적용했습니다.", bg="#1f4f1f")
+        except Exception as e:
+            settings_ui.toast(f"실패: {e}", bg="#7a1f1f")
 
-    def on_enter(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
+    def _fw_upgrade_all():
+        try:
+            modbus_ui.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5)
+            settings_ui.toast("전체 FW 업데이트 시작", bg="#1f4f7a")
+        except Exception as e:
+            settings_ui.toast(f"실패: {e}", bg="#7a1f1f")
 
-    def on_leave(event):
-        event.widget.config(background="#b2b2b2", foreground="black")
+    settings_ui.on_fw_file_all = _fw_file_all
+    settings_ui.on_fw_upgrade_all = _fw_upgrade_all
 
-    settings_button.bind("<Enter>", on_enter)
-    settings_button.bind("<Leave>", on_leave)
+    def _open_settings():
+        cur = settings_ui.load_settings()
+        if not cur.get("admin_password"):
+            settings_ui.prompt_new_password()
+            return
+        settings_ui.show_password_prompt(settings_ui.show_settings)
 
-    settings_button.place(relx=1.0, rely=1.0, anchor='se')
+    gear_btn = tk.Button(
+        root,
+        text="⚙",
+        command=_open_settings,
+        font=("Arial", 18),
+        bg="#b2b2b2",
+        fg="black",
+        bd=0,
+        relief="flat",
+        highlightthickness=0,
+        padx=10,
+        pady=6,
+        cursor="hand2",
+        activebackground="#d0d0d0",
+        activeforeground="black",
+    )
+    gear_btn.place(relx=1.0, rely=1.0, anchor="se")
 
     status_label = tk.Label(root, text="", font=("Arial", 10))
-    status_label.place(relx=0.0, rely=1.0, anchor='sw')
+    status_label.place(relx=0.0, rely=1.0, anchor="sw")
 
     total_boxes = len(modbus_ui.box_frames) + len(analog_ui.box_frames) + (len(ups_ui.box_frames) if ups_ui else 0)
 
-    if 0 <= total_boxes <= 6:
-        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor='center', padx=10, pady=10)
-        clock_label.place(relx=0.5, rely=0.1, anchor='n')
+    stop_event = None
+    clock_thread = None
 
-        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor='center', padx=5, pady=5)
-        date_label.place(relx=0.5, rely=0.20, anchor='n')
+    if 0 <= total_boxes <= 6:
+        clock_label = tk.Label(root, font=("Helvetica", 60, "bold"), fg="white", bg="black", anchor="center", padx=10, pady=10)
+        clock_label.place(relx=0.5, rely=0.1, anchor="n")
+
+        date_label = tk.Label(root, font=("Helvetica", 25), fg="white", bg="black", anchor="center", padx=5, pady=5)
+        date_label.place(relx=0.5, rely=0.20, anchor="n")
 
         stop_event = threading.Event()
-        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event))
+        clock_thread = threading.Thread(target=update_clock_thread, args=(clock_label, date_label, stop_event), daemon=True)
         clock_thread.start()
 
     def on_closing():
-        if 0 <= total_boxes <= 4:
-            stop_event.set()
-            clock_thread.join()
-        GPIO.cleanup()
+        try:
+            if stop_event:
+                stop_event.set()
+            GPIO.cleanup()
+        except Exception:
+            pass
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
@@ -452,4 +453,7 @@ if __name__ == "__main__":
     root.mainloop()
 
     for _, client in modbus_ui.clients.items():
-        client.close()
+        try:
+            client.close()
+        except Exception:
+            pass
