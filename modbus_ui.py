@@ -43,7 +43,6 @@ SCALE_FACTOR = 1.65
 DEFAULT_TFTP_IP = get_local_ip()
 TFTP_FW_BASENAME = "ASGD3200E.bin"
 TFTP_ROOT_DIR = "/srv/tftp"
-
 TFTP_DEVICE_SUBDIR = os.path.join("GDS", "ASGD-3200")
 TFTP_DEVICE_FILENAME = "asgd3200.bin"
 
@@ -126,6 +125,7 @@ class ModbusUI:
         self.reconnect_attempt_labels = [None] * num_boxes
 
         self.last_fw_status = [None] * num_boxes
+
         self.settings_popups = [None] * num_boxes
 
         self.log_popups = [None] * num_boxes
@@ -137,9 +137,6 @@ class ModbusUI:
         self.sensor_model_supported = [False] * num_boxes
 
         self._cmd_lock_timeout_sec = 1.0
-
-        self.bulk_fw_path = None
-        self.bulk_fw_name_var = StringVar(value="(공통 파일 없음)")
 
         self.load_ip_settings(num_boxes)
 
@@ -186,117 +183,54 @@ class ModbusUI:
             return False
         return True
 
-    def select_bulk_fw_file(self):
-        file_path = filedialog.askopenfilename(
-            title="공통 FW 파일 선택",
-            filetypes=[("BIN files", "*.bin"), ("All files", "*.*")],
-        )
-        if not file_path:
-            return
-        self.bulk_fw_path = file_path
-        self.bulk_fw_name_var.set(os.path.basename(file_path))
-        self.console.print(f"[FW-ALL] bulk file selected: {file_path}")
-
-    def open_bulk_fw_popup(self):
-        win = Toplevel(self.parent)
-        win.title("Modbus 일괄 FW 업데이트")
-        win.configure(bg="#1e1e1e")
-        win.resizable(False, False)
-        win.attributes("-topmost", True)
-
-        Label(
-            win,
-            text="공통 FW 파일:",
-            fg="white",
-            bg="#1e1e1e",
-            font=("Helvetica", 12, "bold"),
-        ).pack(padx=12, pady=(12, 6))
-
-        Label(
-            win,
-            textvariable=self.bulk_fw_name_var,
-            fg="#cccccc",
-            bg="#1e1e1e",
-            font=("Helvetica", 11),
-        ).pack(padx=12, pady=(0, 10))
-
-        btn_frame = Frame(win, bg="#1e1e1e")
-        btn_frame.pack(padx=12, pady=12)
-
-        Button(
-            btn_frame,
-            text="공통 FW 파일 선택",
-            command=self.select_bulk_fw_file,
-            width=18,
-            bg="#555555",
-            fg="white",
-            bd=1,
-        ).grid(row=0, column=0, padx=6, pady=6)
-
-        Button(
-            btn_frame,
-            text="일괄 업그레이드 시작",
-            command=lambda: self.start_bulk_firmware_upgrade(only_connected=True),
-            width=18,
-            bg="#4444aa",
-            fg="white",
-            bd=1,
-        ).grid(row=0, column=1, padx=6, pady=6)
-
-        Button(
-            win,
-            text="닫기",
-            command=win.destroy,
-            width=10,
-            bg="#333333",
-            fg="white",
-            bd=1,
-        ).pack(pady=(0, 12))
-
-        win.transient(self.parent)
-
-    def start_bulk_firmware_upgrade(self, only_connected: bool = True):
-        if not self.bulk_fw_path or not os.path.isfile(self.bulk_fw_path):
-            self._show_warn("FW ALL", "공통 FW 파일을 먼저 선택해주세요.")
-            return
-
-        for i in range(len(self.fw_file_paths)):
-            self.fw_file_paths[i] = self.bulk_fw_path
-            try:
-                self.box_states[i]["fw_file_name_var"].set(os.path.basename(self.bulk_fw_path))
-            except Exception:
-                pass
-
+    def start_firmware_upgrade_all(self, only_connected=True, delay_sec=0.5):
         targets = []
         for i in range(len(self.ip_vars)):
             ip = (self.ip_vars[i].get() or "").strip()
             if not ip:
                 continue
-            if only_connected and ip not in self.connected_clients:
+            if only_connected and (ip not in self.connected_clients):
+                continue
+            if not self.tftp_supported[i]:
+                continue
+            if self.box_states[i].get("fw_cmd_inflight") or self.box_states[i].get("fw_upgrading"):
+                continue
+            p = self.fw_file_paths[i]
+            if not p or not os.path.isfile(p):
                 continue
             targets.append(i)
 
         if not targets:
-            self._show_warn("FW ALL", "일괄 업데이트 대상(연결된 Modbus 박스)이 없습니다.")
+            messagebox.showinfo("FW", "일괄 업데이트 대상이 없습니다.\n(연결/파일선택/지원여부 확인)")
             return
 
-        self._show_info("FW ALL", f"일괄 업데이트 시작: {len(targets)}대")
+        if not messagebox.askyesno(
+            "FW 일괄 업데이트",
+            f"{len(targets)}개 장치에 FW 업그레이드 명령을 순차 전송합니다.\n진행할까요?",
+        ):
+            return
 
-        def worker():
-            ok_req = 0
-            skipped = 0
-            for idx, box_index in enumerate(targets, start=1):
-                try:
-                    self._ui_call(self._set_fw_ui, box_index, True, f"일괄 전송 대기… ({idx}/{len(targets)})")
-                    self.start_firmware_upgrade(box_index)
-                    ok_req += 1
-                    time.sleep(0.3)
-                except Exception as e:
-                    skipped += 1
-                    self.console.print(f"[FW-ALL] skip box {box_index}: {e}")
-            self._show_info("FW ALL", f"요청 완료: 성공요청 {ok_req}, 스킵/오류 {skipped}")
+        self._run_bg(self._fw_upgrade_all_worker, targets, float(delay_sec))
 
-        threading.Thread(target=worker, daemon=True).start()
+    def _fw_upgrade_all_worker(self, targets, delay_sec):
+        for idx in targets:
+            try:
+                self._ui_call(self.start_firmware_upgrade, idx)
+            except Exception:
+                pass
+            time.sleep(delay_sec)
+
+    def select_fw_file_all(self):
+        file_path = filedialog.askopenfilename(
+            title="FW 파일 선택(전체 적용)",
+            filetypes=[("BIN files", "*.bin"), ("All files", "*.*")],
+        )
+        if not file_path:
+            return
+        for i in range(len(self.fw_file_paths)):
+            self.fw_file_paths[i] = file_path
+            self.box_states[i]["fw_file_name_var"].set(os.path.basename(file_path))
+        messagebox.showinfo("FW", "선택한 FW 파일을 전체 박스에 적용했습니다.")
 
     def load_ip_settings(self, num_boxes):
         if os.path.exists(self.SETTINGS_FILE):
@@ -446,7 +380,15 @@ class ModbusUI:
 
         seg_x1, seg_y1 = sx(10), sy(25)
         seg_x2, seg_y2 = sx(150 - 10), sy(90)
-        box_canvas.create_rectangle(seg_x1, seg_y1, seg_x2, seg_y2, outline="", fill="", tags="segment_click_area")
+        box_canvas.create_rectangle(
+            seg_x1,
+            seg_y1,
+            seg_x2,
+            seg_y2,
+            outline="",
+            fill="",
+            tags="segment_click_area",
+        )
 
         gas_key = self.gas_types.get(f"modbus_box_{index}", "ORG")
         gas_type_var = StringVar(value=gas_key)
@@ -649,7 +591,13 @@ class ModbusUI:
         self.show_bar(index, show=False)
         self.update_circle_state([False, False, False, False], box_index=index)
 
-        self.set_alarm_lamp(index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
+        self.set_alarm_lamp(
+            index,
+            alarm1_on=False,
+            blink1=False,
+            alarm2_on=False,
+            blink2=False,
+        )
 
     def select_fw_file(self, box_index: int):
         file_path = filedialog.askopenfilename(
@@ -683,6 +631,7 @@ class ModbusUI:
 
     def update_segment_display(self, value, box_index=0, blink=False):
         box_canvas = self.box_data[box_index][0]
+
         value = str(value)
         value = value.rjust(4)[:4]
 
@@ -714,8 +663,10 @@ class ModbusUI:
     def update_bar(self, value, box_index):
         _, _, bar_canvas, _, bar_item = self.box_data[box_index]
         percentage = value / 100.0
-        percentage = 0 if percentage < 0 else percentage
-        percentage = 1 if percentage > 1 else percentage
+        if percentage < 0:
+            percentage = 0
+        if percentage > 1:
+            percentage = 1
         bar_length = int(153 * SCALE_FACTOR * percentage)
         cropped_image = self.gradient_bar.crop((0, 0, bar_length, sy(5)))
         bar_image = ImageTk.PhotoImage(cropped_image)
@@ -755,16 +706,19 @@ class ModbusUI:
                 try:
                     self.detect_device_capabilities(ip, i)
                 except Exception as e:
-                    self.console.print(f"[FW] box {i} ({ip}) capability probe failed: {e}")
+                    self.console.print(f"[FW] box {i} ({ip}) capability probe failed (ignore): {e}")
 
                 stop_flag = threading.Event()
                 self.stop_flags[ip] = stop_flag
                 self.clients[ip] = client
                 self.modbus_locks[ip] = threading.Lock()
-                t = threading.Thread(target=self.read_modbus_data, args=(ip, client, stop_flag, i), daemon=True)
+                t = threading.Thread(
+                    target=self.read_modbus_data,
+                    args=(ip, client, stop_flag, i),
+                    daemon=True,
+                )
                 self.connected_clients[ip] = t
                 t.start()
-                self.console.print(f"Started data thread for {ip}")
 
                 box_canvas = self.box_data[i][0]
                 gms1000_id = self.box_states[i]["gms1000_text_id"]
@@ -773,7 +727,14 @@ class ModbusUI:
                 self.disconnection_labels[i].grid()
                 self.reconnect_attempt_labels[i].grid()
 
-                self.parent.after(0, lambda idx=i: self.action_buttons[idx].config(image=self.disconnect_image, relief="flat", borderwidth=0))
+                self.parent.after(
+                    0,
+                    lambda idx=i: self.action_buttons[idx].config(
+                        image=self.disconnect_image,
+                        relief="flat",
+                        borderwidth=0,
+                    ),
+                )
                 self.parent.after(0, lambda idx=i: self.entries[idx].config(state="disabled"))
 
                 self.update_circle_state([False, False, True, False], box_index=i)
@@ -789,7 +750,11 @@ class ModbusUI:
     def disconnect(self, i, manual=False):
         ip = self.ip_vars[i].get()
         if ip in self.connected_clients:
-            threading.Thread(target=self.disconnect_client, args=(ip, i, manual), daemon=True).start()
+            threading.Thread(
+                target=self.disconnect_client,
+                args=(ip, i, manual),
+                daemon=True,
+            ).start()
 
     def disconnect_client(self, ip, i, manual=False):
         stop_flag = self.stop_flags.get(ip)
@@ -881,10 +846,10 @@ class ModbusUI:
 
             rr_base = tmp_client.read_holding_registers(start_address, BASE_REG_COUNT)
             if isinstance(rr_base, ExceptionResponse) or rr_base.isError():
-                raise ModbusIOException(f"Error reading base regs from {ip} during capability probe: {rr_base}")
+                raise ModbusIOException(f"Error reading base regs: {rr_base}")
             regs_base = getattr(rr_base, "registers", []) or []
             if len(regs_base) < BASE_REG_COUNT:
-                raise ModbusIOException(f"Base regs length < {BASE_REG_COUNT} during capability probe (got {len(regs_base)})")
+                raise ModbusIOException("Base regs too short")
 
             rr_ext = tmp_client.read_holding_registers(start_address, 24)
             if isinstance(rr_ext, ExceptionResponse) or rr_ext.isError():
@@ -914,7 +879,6 @@ class ModbusUI:
                 tmp_client.close()
             except Exception:
                 pass
-
         try:
             self.update_topright_label(box_index)
         except Exception:
@@ -932,18 +896,17 @@ class ModbusUI:
                 lock = self.modbus_locks.get(ip)
                 if lock is None:
                     break
-
                 num_registers = 24 if self.fw_status_supported[box_index] else BASE_REG_COUNT
 
                 with lock:
                     response = client.read_holding_registers(start_address, num_registers)
 
                 if isinstance(response, ExceptionResponse) or response.isError():
-                    raise ModbusIOException(f"Error reading from {ip}, address 40001~400{num_registers}")
+                    raise ModbusIOException(f"Error reading from {ip}")
 
                 raw_regs = getattr(response, "registers", []) or []
                 if len(raw_regs) < BASE_REG_COUNT:
-                    raise ModbusIOException(f"Error reading from {ip}: expected at least {BASE_REG_COUNT} regs, got {len(raw_regs)}")
+                    raise ModbusIOException("Too few regs")
 
                 value_40023 = None
                 value_40024 = None
@@ -1001,7 +964,6 @@ class ModbusUI:
                             error_display = BIT_TO_SEGMENT[bit_index]
                             break
                     error_display = error_display.ljust(4)
-
                     if "E" in error_display:
                         if not self.box_states[box_index]["blinking_error"]:
                             self.box_states[box_index]["blinking_error"] = True
@@ -1241,6 +1203,7 @@ class ModbusUI:
                 win.after(1000, _auto_refresh)
 
         win.after(1000, _auto_refresh)
+
         win.transient(self.parent)
 
         def _safe_grab():
@@ -1248,8 +1211,8 @@ class ModbusUI:
                 if win.winfo_exists() and win.winfo_viewable():
                     win.grab_set()
                     win.focus_set()
-            except Exception as e:
-                self.console.print(f"[UI] segment popup grab_set skipped: {e}")
+            except Exception:
+                pass
 
         win.after(50, _safe_grab)
 
@@ -1410,11 +1373,9 @@ class ModbusUI:
             state["alarm_blink_running"] = False
 
             self.set_alarm_lamp(box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
-            box_frame = self.box_frames[box_index]
-            box_frame.config(highlightbackground="#000000")
+            self.box_frames[box_index].config(highlightbackground="#000000")
             state["border_blink_state"] = False
             return
-
         if new_mode == prev_mode and state.get("alarm_blink_running", False):
             return
 
@@ -1583,39 +1544,9 @@ class ModbusUI:
             else:
                 self._set_fw_ui(box_index, False, "")
 
-    def load_tftp_ip_from_device(self, box_index: int):
-        if not self.tftp_supported[box_index]:
-            return
-
-        ip = self.ip_vars[box_index].get()
-        client = self.clients.get(ip)
-        lock = self.modbus_locks.get(ip)
-        if client is None or lock is None:
-            return
-
-        addr_ip1 = self.reg_addr(40088)
-        try:
-            with lock:
-                rr = client.read_holding_registers(addr_ip1, 2)
-
-            if isinstance(rr, ExceptionResponse) or rr.isError():
-                self.tftp_supported[box_index] = False
-                return
-
-            w1, w2 = rr.registers
-            a = (w1 >> 8) & 0xFF
-            b = w1 & 0xFF
-            c = (w2 >> 8) & 0xFF
-            d = w2 & 0xFF
-            tftp_ip = f"{a}.{b}.{c}.{d}"
-            self.tftp_ip_vars[box_index].set(tftp_ip)
-        except Exception:
-            self.tftp_supported[box_index] = False
-
     def _set_fw_ui(self, box_index: int, inflight: bool, msg: str = ""):
         st = self.box_states[box_index]
         st["fw_status_var"].set(msg)
-
         btn = st.get("fw_upgrade_btn")
         if btn is not None and btn.winfo_exists():
             if inflight:
@@ -1625,7 +1556,7 @@ class ModbusUI:
 
     def start_firmware_upgrade(self, box_index: int):
         if not self.tftp_supported[box_index]:
-            self._show_warn("FW", "이 장치는 TFTP/FW 기능을 지원하지 않는 것으로 판단되어,\nFW 업그레이드를 수행하지 않습니다.")
+            self._show_warn("FW", "이 장치는 TFTP/FW 기능을 지원하지 않아 FW 업그레이드를 수행하지 않습니다.")
             return
 
         st = self.box_states[box_index]
@@ -1733,7 +1664,7 @@ class ModbusUI:
 
     def _zero_calibration_worker(self, box_index: int):
         if not self.tftp_supported[box_index]:
-            self._show_warn("ZERO", "이 장치는 ZERO 명령(40092)을 지원하지 않는 것으로 판단되어,\nZERO 기능을 수행하지 않습니다.")
+            self._show_warn("ZERO", "이 장치는 ZERO 명령을 지원하지 않아 수행하지 않습니다.")
             return
 
         ip = self.ip_vars[box_index].get()
@@ -1768,7 +1699,7 @@ class ModbusUI:
 
     def _reboot_device_worker(self, box_index: int):
         if not self.tftp_supported[box_index]:
-            self._show_warn("RST", "이 장치는 재부팅 명령(40093)을 지원하지 않는 것으로 판단되어,\nRST 기능을 수행하지 않습니다.")
+            self._show_warn("RST", "이 장치는 재부팅 명령을 지원하지 않아 수행하지 않습니다.")
             return
 
         ip = self.ip_vars[box_index].get()
@@ -1782,7 +1713,7 @@ class ModbusUI:
         addr = self.reg_addr(40093)
 
         def _treat_as_ok(msg: str):
-            self._show_info("RST", "재부팅 명령을 전송했습니다.\n장비가 재부팅되는 동안 잠시 통신 오류가 발생할 수 있습니다.")
+            self._show_info("RST", "재부팅 명령을 전송했습니다.\n재부팅 중 통신 오류가 발생할 수 있습니다.")
 
         try:
             if not self._try_acquire_lock(lock, "RST", "통신이 바쁩니다. 잠시 후 다시 시도해주세요."):
@@ -1804,6 +1735,7 @@ class ModbusUI:
                 return
 
             self._show_info("RST", "재부팅 명령을 전송했습니다.")
+
         except Exception as e:
             msg = str(e)
             if "No response received" in msg or "Invalid Message" in msg:
@@ -1887,60 +1819,31 @@ class ModbusUI:
 
         win.protocol("WM_DELETE_WINDOW", on_close)
 
-        Label(
-            win,
-            text=f"IP: {self.ip_vars[box_index].get()}",
-            fg="white",
-            bg="#1e1e1e",
-            font=("Helvetica", 12, "bold"),
-        ).pack(padx=10, pady=(10, 5))
+        Label(win, text=f"IP: {self.ip_vars[box_index].get()}", fg="white", bg="#1e1e1e", font=("Helvetica", 12, "bold")).pack(padx=10, pady=(10, 5))
 
         Label(win, text="현재 FW 파일:", fg="white", bg="#1e1e1e", font=("Helvetica", 10)).pack(padx=10, pady=(5, 0))
-        Label(
-            win,
-            textvariable=self.box_states[box_index]["fw_file_name_var"],
-            fg="#cccccc",
-            bg="#1e1e1e",
-            font=("Helvetica", 10),
-        ).pack(padx=10, pady=(0, 10))
 
-        Label(
-            win,
-            textvariable=self.box_states[box_index]["fw_status_var"],
-            fg="#ffd966",
-            bg="#1e1e1e",
-            font=("Helvetica", 10, "bold"),
-        ).pack(padx=10, pady=(0, 8))
+        Label(win, textvariable=self.box_states[box_index]["fw_file_name_var"], fg="#cccccc", bg="#1e1e1e", font=("Helvetica", 10)).pack(padx=10, pady=(0, 10))
+
+        Label(win, textvariable=self.box_states[box_index]["fw_status_var"], fg="#ffd966", bg="#1e1e1e", font=("Helvetica", 10, "bold")).pack(padx=10, pady=(0, 8))
 
         btn_frame = Frame(win, bg="#1e1e1e")
         btn_frame.pack(padx=10, pady=10)
 
-        Button(
-            btn_frame,
-            text="FW 파일 선택",
-            command=lambda idx=box_index: self.select_fw_file(idx),
-            width=18,
-            bg="#555555",
-            fg="white",
-            relief="raised",
-            bd=1,
-        ).grid(row=0, column=0, padx=5, pady=5)
+        Button(btn_frame, text="FW 파일 선택", command=lambda idx=box_index: self.select_fw_file(idx), width=18, bg="#555555", fg="white", relief="raised", bd=1).grid(row=0, column=0, padx=5, pady=5)
 
-        upgrade_btn = Button(
-            btn_frame,
-            text="FW 업그레이드 시작",
-            command=lambda idx=box_index: self.start_firmware_upgrade(idx),
-            width=18,
-            bg="#4444aa",
-            fg="white",
-            relief="raised",
-            bd=1,
-        )
+        upgrade_btn = Button(btn_frame, text="FW 업그레이드 시작", command=lambda idx=box_index: self.start_firmware_upgrade(idx), width=18, bg="#4444aa", fg="white", relief="raised", bd=1)
         upgrade_btn.grid(row=0, column=1, padx=5, pady=5)
         self.box_states[box_index]["fw_upgrade_btn"] = upgrade_btn
 
         Button(btn_frame, text="ZERO", command=lambda idx=box_index: self.zero_calibration(idx), width=18, bg="#444444", fg="white", relief="raised", bd=1).grid(row=1, column=0, padx=5, pady=5)
         Button(btn_frame, text="RST", command=lambda idx=box_index: self.reboot_device(idx), width=18, bg="#aa4444", fg="white", relief="raised", bd=1).grid(row=1, column=1, padx=5, pady=5)
+
+        bulk_frame = Frame(win, bg="#1e1e1e")
+        bulk_frame.pack(padx=10, pady=(0, 10))
+
+        Button(bulk_frame, text="FW 파일 전체 적용", command=self.select_fw_file_all, width=18, bg="#444444", fg="white", relief="raised", bd=1).grid(row=0, column=0, padx=5, pady=5)
+        Button(bulk_frame, text="전체 FW 업데이트", command=lambda: self.start_firmware_upgrade_all(only_connected=True, delay_sec=0.5), width=18, bg="#222222", fg="white", relief="raised", bd=1).grid(row=0, column=1, padx=5, pady=5)
 
         Label(win, text="모델 변경:", fg="white", bg="#1e1e1e", font=("Helvetica", 10, "bold")).pack(padx=10, pady=(5, 0))
 
@@ -1994,7 +1897,7 @@ class ModbusUI:
 def main():
     root = Tk()
     root.title("Modbus UI")
-    root.geometry("1200x650")
+    root.geometry("1200x600")
     root.configure(bg="#1e1e1e")
 
     num_boxes = 4
@@ -2006,32 +1909,27 @@ def main():
     }
 
     def alarm_callback(active, box_id):
-        pass
+        if active:
+            print(f"[Callback] Alarm active in {box_id}")
+        else:
+            print(f"[Callback] Alarm cleared in {box_id}")
 
     modbus_ui = ModbusUI(root, num_boxes, gas_types, alarm_callback)
 
-    top_bar = Frame(root, bg="#1e1e1e")
-    top_bar.pack(fill="x", padx=10, pady=10)
+    top = Frame(root, bg="#1e1e1e")
+    top.pack(fill="x", padx=10, pady=10)
 
-    Button(
-        top_bar,
-        text="FW ALL",
-        command=modbus_ui.open_bulk_fw_popup,
-        width=10,
-        bg="#4444aa",
-        fg="white",
-        relief="raised",
-        bd=1,
-    ).pack(side="right")
+    Button(top, text="FW 파일 전체 적용", command=modbus_ui.select_fw_file_all, width=20, bg="#444444", fg="white").pack(side="left", padx=5)
+    Button(top, text="전체 FW 업데이트", command=lambda: modbus_ui.start_firmware_upgrade_all(True, 0.5), width=20, bg="#222222", fg="white").pack(side="left", padx=5)
 
-    grid_frame = Frame(root, bg="#1e1e1e")
-    grid_frame.pack(fill="both", expand=True)
+    grid = Frame(root, bg="#1e1e1e")
+    grid.pack(fill="both", expand=True)
 
     row = 0
     col = 0
     max_col = 2
     for frame in modbus_ui.box_frames:
-        frame.grid(row=row, column=col, padx=10, pady=10)
+        frame.grid(in_=grid, row=row, column=col, padx=10, pady=10)
         col += 1
         if col >= max_col:
             col = 0
