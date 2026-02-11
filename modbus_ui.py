@@ -1,4 +1,3 @@
-# modbus_ui.py
 import json
 import os
 import time
@@ -188,16 +187,17 @@ class ModbusUI:
     def _cancel_after(self, box_index: int, key: str):
         st = self.box_states[box_index]
         aid = st.get(key)
-        if aid is not None:
+        if aid:
             try:
                 self.parent.after_cancel(aid)
             except Exception:
                 pass
-            st[key] = None
+        st[key] = None
 
     def update_log_badge(self, box_index: int):
         st = self.box_states[box_index]
         box_canvas = self.box_data[box_index][0]
+
         bg_id = st.get("log_badge_bg")
         tx_id = st.get("log_badge_text")
         if bg_id is None or tx_id is None:
@@ -213,6 +213,7 @@ class ModbusUI:
 
         label = f"LOG {unread}"
         box_canvas.itemconfig(tx_id, text=label, state="normal")
+
         box_canvas.update_idletasks()
         x1, y1, x2, y2 = box_canvas.bbox(tx_id)
         pad_x, pad_y = sx(4), sy(2)
@@ -468,9 +469,9 @@ class ModbusUI:
                 "fw_upgrade_btn": None,
                 "log_badge_bg": None,
                 "log_badge_text": None,
+                "pwr_after_id": None,
                 "alarm_after_id": None,
                 "error_after_id": None,
-                "pwr_after_id": None,
             }
         )
 
@@ -873,7 +874,6 @@ class ModbusUI:
     def _after_disconnect(self, i, manual):
         self.box_states[i]["fw_upgrading"] = False
         self.last_fw_status[i] = None
-
         self.reset_ui_elements(i)
         self.action_buttons[i].config(image=self.connect_image, relief="flat", borderwidth=0)
         self.entries[i].config(state="normal")
@@ -886,9 +886,9 @@ class ModbusUI:
             self.reconnect_attempt_labels[i].grid_remove()
 
     def reset_ui_elements(self, box_index):
+        self._cancel_after(box_index, "pwr_after_id")
         self._cancel_after(box_index, "alarm_after_id")
         self._cancel_after(box_index, "error_after_id")
-        self._cancel_after(box_index, "pwr_after_id")
 
         state = self.box_states[box_index]
 
@@ -900,9 +900,10 @@ class ModbusUI:
         state["alarm_blink_running"] = False
         state["border_blink_state"] = False
         state["alarm_mode"] = "none"
+
+        state["blinking_error"] = False
         state["error_blink_running"] = False
         state["error_blink_state"] = False
-        state["blinking_error"] = False
 
         try:
             self.set_alarm_lamp(box_index, alarm1_on=False, blink1=False, alarm2_on=False, blink2=False)
@@ -920,6 +921,12 @@ class ModbusUI:
         state["last_sensor_model_str"] = ""
         state["last_sensor_model_poll"] = 0.0
         self.update_topright_label(box_index)
+
+        box_canvas, circle_items, *_ = self.box_data[box_index]
+        box_canvas.itemconfig(circle_items[0], fill=self.LAMP_COLORS_OFF[0], outline=self.LAMP_COLORS_OFF[0])
+        box_canvas.itemconfig(circle_items[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
+        box_canvas.itemconfig(circle_items[2], fill=self.LAMP_COLORS_OFF[2], outline=self.LAMP_COLORS_OFF[2])
+        box_canvas.itemconfig(circle_items[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
 
     def cleanup_client(self, ip):
         self.connected_clients.pop(ip, None)
@@ -946,13 +953,13 @@ class ModbusUI:
                 return
 
             start_address = self.reg_addr(40001)
-            base_count = 22
+            BASE_REG_COUNT = 22
 
-            rr_base = tmp_client.read_holding_registers(start_address, base_count)
+            rr_base = tmp_client.read_holding_registers(start_address, BASE_REG_COUNT)
             if isinstance(rr_base, ExceptionResponse) or rr_base.isError():
                 raise ModbusIOException(f"Error reading base regs: {rr_base}")
             regs_base = getattr(rr_base, "registers", []) or []
-            if len(regs_base) < base_count:
+            if len(regs_base) < BASE_REG_COUNT:
                 raise ModbusIOException("Base regs too short")
 
             rr_ext = tmp_client.read_holding_registers(start_address, 24)
@@ -990,7 +997,7 @@ class ModbusUI:
 
     def read_modbus_data(self, ip, client, stop_flag, box_index):
         start_address = self.reg_addr(40001)
-        base_count = 22
+        BASE_REG_COUNT = 22
 
         while not stop_flag.is_set():
             try:
@@ -1000,7 +1007,7 @@ class ModbusUI:
                 lock = self.modbus_locks.get(ip)
                 if lock is None:
                     break
-                num_registers = 24 if self.fw_status_supported[box_index] else base_count
+                num_registers = 24 if self.fw_status_supported[box_index] else BASE_REG_COUNT
 
                 with lock:
                     response = client.read_holding_registers(start_address, num_registers)
@@ -1009,7 +1016,7 @@ class ModbusUI:
                     raise ModbusIOException(f"Error reading from {ip}")
 
                 raw_regs = getattr(response, "registers", []) or []
-                if len(raw_regs) < base_count:
+                if len(raw_regs) < BASE_REG_COUNT:
                     raise ModbusIOException("Too few regs")
 
                 value_40023 = None
@@ -1094,7 +1101,7 @@ class ModbusUI:
                     self.ui_update_queue.put(("bar", box_index, 0))
                     self.ui_update_queue.put(("segment_display", box_index, "    ", False))
                 else:
-                    self.handle_disconnection(box_index, ip=ip)
+                    self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
@@ -1122,11 +1129,11 @@ class ModbusUI:
                         self.ui_update_queue.put(("bar", box_index, 0))
                         self.ui_update_queue.put(("segment_display", box_index, "    ", False))
                     else:
-                        self.handle_disconnection(box_index, ip=ip)
+                        self.handle_disconnection(box_index)
                     self.reconnect(ip, client, stop_flag, box_index)
                     break
 
-                self.handle_disconnection(box_index, ip=ip)
+                self.handle_disconnection(box_index)
                 self.reconnect(ip, client, stop_flag, box_index)
                 break
 
@@ -1208,13 +1215,10 @@ class ModbusUI:
 
         self.schedule_ui_update()
 
-    def handle_disconnection(self, box_index, ip=None):
+    def handle_disconnection(self, box_index):
         self.disconnection_counts[box_index] += 1
         count = self.disconnection_counts[box_index]
         self.parent.after(0, lambda idx=box_index, c=count: self.disconnection_labels[idx].config(text=f"DC: {c}"))
-
-        if ip:
-            self.connected_clients.pop(ip, None)
 
         self.box_states[box_index]["fw_upgrading"] = False
         self.last_fw_status[box_index] = None
@@ -1303,8 +1307,7 @@ class ModbusUI:
             if not state["pwr_blinking"]:
                 return
 
-            ip = (self.ip_vars[idx].get() or "").strip()
-            if ip not in self.connected_clients:
+            if self.ip_vars[idx].get() not in self.connected_clients:
                 box_canvas = self.box_data[idx][0]
                 circle_items = self.box_data[idx][1]
                 box_canvas.itemconfig(circle_items[2], fill="#e0fbba", outline="#e0fbba")
@@ -1321,7 +1324,8 @@ class ModbusUI:
                 box_canvas.itemconfig(circle_items[2], fill="green", outline="green")
             state["pwr_blink_state"] = not state["pwr_blink_state"]
 
-            state["pwr_after_id"] = self.parent.after(self.blink_interval, toggle_color)
+            if self.ip_vars[idx].get() in self.connected_clients:
+                state["pwr_after_id"] = self.parent.after(self.blink_interval, toggle_color)
 
         toggle_color()
 
@@ -1395,19 +1399,19 @@ class ModbusUI:
         box_canvas, circle_items, *_ = self.box_data[box_index]
         if alarm1_on:
             if blink1:
-                box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
+                box_canvas.itemconfig(circle_items[0], fill=self.LAMP_COLORS_OFF[0], outline=self.LAMP_COLORS_OFF[0])
             else:
                 box_canvas.itemconfig(circle_items[0], fill="red", outline="red")
         else:
-            box_canvas.itemconfig(circle_items[0], fill="#fdc8c8", outline="#fdc8c8")
+            box_canvas.itemconfig(circle_items[0], fill=self.LAMP_COLORS_OFF[0], outline=self.LAMP_COLORS_OFF[0])
 
         if alarm2_on:
             if blink2:
-                box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
+                box_canvas.itemconfig(circle_items[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
             else:
                 box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
         else:
-            box_canvas.itemconfig(circle_items[1], fill="#fdc8c8", outline="#fdc8c8")
+            box_canvas.itemconfig(circle_items[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
 
     def blink_alarms(self, box_index):
         state = self.box_states[box_index]
@@ -1417,16 +1421,15 @@ class ModbusUI:
 
         def _blink():
             st = self.box_states[box_index]
-            ip = (self.ip_vars[box_index].get() or "").strip()
 
-            if ip not in self.connected_clients:
+            if self.ip_vars[box_index].get() not in self.connected_clients:
                 self.set_alarm_lamp(box_index, False, False, False, False)
                 st["alarm_blink_running"] = False
                 st["alarm1_blinking"] = False
                 st["alarm2_blinking"] = False
                 st["alarm_border_blink"] = False
-                self.box_frames[box_index].config(highlightbackground="#000000")
                 self._cancel_after(box_index, "alarm_after_id")
+                self.box_frames[box_index].config(highlightbackground="#000000")
                 return
 
             if not (st["alarm1_blinking"] or st["alarm2_blinking"] or st["alarm_border_blink"]):
@@ -1441,24 +1444,22 @@ class ModbusUI:
             st["border_blink_state"] = not border_state
 
             if st["alarm_border_blink"]:
-                box_frame.config(
-                    highlightbackground="#000000" if border_state else "#ff0000"
-                )
+                box_frame.config(highlightbackground="#000000" if border_state else "#ff0000")
 
             if st["alarm1_blinking"]:
                 fill_now = box_canvas.itemcget(circle_items[0], "fill")
                 box_canvas.itemconfig(
                     circle_items[0],
-                    fill="#fdc8c8" if fill_now == "red" else "red",
-                    outline="#fdc8c8" if fill_now == "red" else "red",
+                    fill=self.LAMP_COLORS_OFF[0] if fill_now == "red" else "red",
+                    outline=self.LAMP_COLORS_OFF[0] if fill_now == "red" else "red",
                 )
 
             if st["alarm2_blinking"]:
                 fill_now = box_canvas.itemcget(circle_items[1], "fill")
                 box_canvas.itemconfig(
                     circle_items[1],
-                    fill="#fdc8c8" if fill_now == "red" else "red",
-                    outline="#fdc8c8" if fill_now == "red" else "red",
+                    fill=self.LAMP_COLORS_OFF[1] if fill_now == "red" else "red",
+                    outline=self.LAMP_COLORS_OFF[1] if fill_now == "red" else "red",
                 )
 
             st["alarm_after_id"] = self.parent.after(self.alarm_blink_interval, _blink)
@@ -1470,7 +1471,7 @@ class ModbusUI:
         if state.get("error_blink_running"):
             return
 
-        self._cancel_after(box_index, "alarm_after_id")
+        self._cancel_after(box_index, "error_after_id")
 
         state["error_blink_running"] = True
         state["error_blink_state"] = False
@@ -1480,10 +1481,10 @@ class ModbusUI:
         state["alarm_border_blink"] = False
         state["alarm_blink_running"] = False
         state["alarm_mode"] = "none"
+        self._cancel_after(box_index, "alarm_after_id")
+        self.box_frames[box_index].config(highlightbackground="#000000")
 
         box_canvas, circle_items, *_ = self.box_data[box_index]
-        box_canvas.itemconfig(circle_items[0], fill="red", outline="red")
-        box_canvas.itemconfig(circle_items[1], fill="red", outline="red")
         box_canvas.itemconfig(circle_items[3], fill="yellow", outline="yellow")
 
         def _blink():
@@ -1492,24 +1493,23 @@ class ModbusUI:
                 self._cancel_after(box_index, "error_after_id")
                 return
 
-            ip = (self.ip_vars[box_index].get() or "").strip()
-            if ip not in self.connected_clients:
+            if self.ip_vars[box_index].get() not in self.connected_clients:
                 st["error_blink_running"] = False
                 st["error_blink_state"] = False
-                self.set_alarm_lamp(box_index, False, False, False, False)
-                box_canvas2, circle_items2, *_ = self.box_data[box_index]
-                box_canvas2.itemconfig(circle_items2[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
                 self._cancel_after(box_index, "error_after_id")
+                try:
+                    box_canvas2, circle_items2, *_ = self.box_data[box_index]
+                    box_canvas2.itemconfig(circle_items2[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
+                except Exception:
+                    pass
                 return
 
             box_canvas2, circle_items2, *_ = self.box_data[box_index]
             st["error_blink_state"] = not st["error_blink_state"]
 
             if st["error_blink_state"]:
-                box_canvas2.itemconfig(circle_items2[1], fill="red", outline="red")
                 box_canvas2.itemconfig(circle_items2[3], fill="yellow", outline="yellow")
             else:
-                box_canvas2.itemconfig(circle_items2[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
                 box_canvas2.itemconfig(circle_items2[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
 
             st["error_after_id"] = self.parent.after(self.alarm_blink_interval, _blink)
@@ -1523,8 +1523,6 @@ class ModbusUI:
         self._cancel_after(box_index, "error_after_id")
 
         box_canvas, circle_items, *_ = self.box_data[box_index]
-        box_canvas.itemconfig(circle_items[0], fill=self.LAMP_COLORS_OFF[0], outline=self.LAMP_COLORS_OFF[0])
-        box_canvas.itemconfig(circle_items[1], fill=self.LAMP_COLORS_OFF[1], outline=self.LAMP_COLORS_OFF[1])
         box_canvas.itemconfig(circle_items[3], fill=self.LAMP_COLORS_OFF[3], outline=self.LAMP_COLORS_OFF[3])
 
     def update_fw_status(self, box_index, v_40022, v_40023, v_40024):
@@ -1614,7 +1612,8 @@ class ModbusUI:
             if isinstance(rr, ExceptionResponse) or rr.isError():
                 self.console.print(f"[FW] read 40088/40089 error: {rr}")
                 self.console.print(
-                    f"[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 오류 발생 → 이후 이 박스에 대해서는 자동 TFTP 기능 비활성화."
+                    f"[FW] box {box_index} ({ip}) : TFTP IP 레지스터 접근 오류 발생 → "
+                    f"이후 이 박스에 대해서는 자동 TFTP 기능 비활성화."
                 )
                 self.tftp_supported[box_index] = False
                 return
@@ -1631,7 +1630,8 @@ class ModbusUI:
             msg = str(e)
             if "No response received" in msg:
                 self.console.print(
-                    f"[FW] box {box_index} ({ip}) TFTP IP read: device not ready (No response). 해당 장비에 대해서는 자동 TFTP 기능을 비활성화합니다."
+                    f"[FW] box {box_index} ({ip}) TFTP IP read: device not ready (No response). "
+                    f"해당 장비에 대해서는 자동 TFTP 기능을 비활성화합니다."
                 )
                 self.tftp_supported[box_index] = False
             else:
@@ -1739,7 +1739,8 @@ class ModbusUI:
             keep_disabled = True
             final_msg = "명령 전송 완료. (업그레이드 진행중…)"
             self.console.print(
-                f"[FW] Upgrade start command sent for box {box_index} ({ip}) via TFTP IP='{tftp_ip_str}', file={dst_path}"
+                f"[FW] Upgrade start command sent for box {box_index} ({ip}) via "
+                f"TFTP IP='{tftp_ip_str}', file={dst_path}"
             )
             self._show_info("FW", "FW 업그레이드 명령을 전송했습니다.")
 
@@ -1808,7 +1809,6 @@ class ModbusUI:
                 self._show_error("ZERO", f"ZERO 명령 전송 실패.\n{r}")
                 return
             self.console.print("[ZERO] write 40092 = 1 OK")
-            self.console.print(f"[ZERO] Zero calibration command sent for box {box_index} ({ip})")
             self._show_info("ZERO", "ZERO 명령을 전송했습니다.")
         except Exception as e:
             self.console.print(f"[ZERO] Error on zero calibration for {ip}: {e}")
@@ -1862,12 +1862,9 @@ class ModbusUI:
                 if "No response received" in msg or "Invalid Message" in msg:
                     _treat_as_ok(msg)
                     return
-
-                self.console.print(f"[RST] write 40093=1 error: {msg}")
                 self._show_error("RST", f"RST 명령 전송 실패.\n{msg}")
                 return
 
-            self.console.print("[RST] write 40093 = 1 OK")
             self._show_info("RST", "재부팅 명령을 전송했습니다.")
 
         except Exception as e:
@@ -1875,7 +1872,6 @@ class ModbusUI:
             if "No response received" in msg or "Invalid Message" in msg:
                 _treat_as_ok(msg)
             else:
-                self.console.print(f"[RST] Error on reboot for {ip}: {e}")
                 self._show_error("RST", f"재부팅 중 오류가 발생했습니다.\n{e}")
 
     def change_device_model(self, box_index: int, model_value: int):
@@ -1888,10 +1884,7 @@ class ModbusUI:
 
         model_name = self.MODEL_VALUE_TO_NAME.get(int(model_value), str(model_value))
 
-        if not messagebox.askyesno(
-            "모델 변경",
-            f"장치 모델을 {model_name} 로 변경합니다.\n진행할까요?",
-        ):
+        if not messagebox.askyesno("모델 변경", f"장치 모델을 {model_name} 로 변경합니다.\n진행할까요?"):
             return
 
         self._run_bg(self._change_device_model_worker, box_index, int(model_value), model_name)
@@ -2015,7 +2008,6 @@ class ModbusUI:
             bd=1,
         )
         upgrade_btn.grid(row=0, column=1, padx=5, pady=5)
-
         self.box_states[box_index]["fw_upgrade_btn"] = upgrade_btn
 
         Button(
