@@ -130,7 +130,7 @@ class AnalogUI:
 
     def _make_log_tuple(self, ts, value_str, alarm1, alarm2, extra_event):
         """
-        ModbusUI의 로그 뷰어가 tuple 형태를 기대할 수 있으므로 비슷하게 맞춤.
+        LogViewer가 tuple 구조를 기대하는 경우에 맞춤.
         (timestamp, value, alarm1, alarm2, extra)
         """
         return (ts, value_str, alarm1, alarm2, extra_event)
@@ -164,7 +164,6 @@ class AnalogUI:
         if not changed:
             return
 
-        # 이벤트명 자동 구성
         if not event:
             reasons = []
             if prev_display is None:
@@ -188,7 +187,6 @@ class AnalogUI:
 
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
 
-        # 메모리 로그 (LogViewer용)
         mem_entry = self._make_log_tuple(
             ts=ts,
             value_str=f"{display_value_str} ({raw_mA:.3f}mA, {gas_type}, PWR={'ON' if pwr_on else 'OFF'})",
@@ -198,7 +196,6 @@ class AnalogUI:
         )
         self._append_memory_log(box_index, mem_entry)
 
-        # CSV 저장
         csv_row = [
             ts,
             box_index + 1,
@@ -257,7 +254,12 @@ class AnalogUI:
         existing = self.log_viewers[box_index]
         if existing is not None and existing.winfo_exists():
             existing.lift()
-            existing.focus_set()
+            try:
+                existing.attributes("-topmost", True)
+                existing.focus_force()
+                existing.after(200, lambda: existing.attributes("-topmost", False))
+            except Exception:
+                pass
             return
 
         box_name = f"ANALOG BOX {box_index + 1}"
@@ -278,6 +280,25 @@ class AnalogUI:
             on_clear_callable=_clear_logs,
         )
         self.log_viewers[box_index] = win
+
+        try:
+            win.transient(self.parent)
+            win.lift()
+            win.attributes("-topmost", True)
+            win.focus_force()
+            win.after(200, lambda: win.attributes("-topmost", False))
+        except Exception as e:
+            print(f"[UI] log viewer topmost failed: {e}")
+
+        def _safe_grab():
+            try:
+                if win.winfo_exists() and win.winfo_viewable():
+                    win.grab_set()
+                    win.focus_force()
+            except Exception as e:
+                print(f"[UI] log viewer grab_set skipped: {e}")
+
+        win.after(50, _safe_grab)
 
         def _on_close():
             self.log_viewers[box_index] = None
@@ -324,7 +345,6 @@ class AnalogUI:
 
         create_segment_display(box_canvas)
 
-        # 세그먼트 클릭 영역
         seg_x1, seg_y1 = int(10 * SCALE_FACTOR), int(25 * SCALE_FACTOR)
         seg_x2, seg_y2 = int((150 - 10) * SCALE_FACTOR), int(90 * SCALE_FACTOR)
         box_canvas.create_rectangle(
@@ -394,13 +414,14 @@ class AnalogUI:
             "segment_click_area": (seg_x1, seg_y1, seg_x2, seg_y2),
             "log_badge_bg": badge_bg,
             "log_badge_text": badge_text,
+            "segment_queue": None,
+            "segment_updating": False,
         })
 
         self.update_segment_display("    ", box_canvas, box_index=index)
 
         circle_items = []
 
-        # AL1 lamp
         circle_items.append(
             box_canvas.create_oval(
                 int(77 * SCALE_FACTOR) - int(20 * SCALE_FACTOR),
@@ -417,7 +438,6 @@ class AnalogUI:
             anchor="e"
         )
 
-        # AL2 lamp
         circle_items.append(
             box_canvas.create_oval(
                 int(133 * SCALE_FACTOR) - int(30 * SCALE_FACTOR),
@@ -434,7 +454,6 @@ class AnalogUI:
             anchor="e"
         )
 
-        # PWR lamp
         circle_items.append(
             box_canvas.create_oval(
                 int(30 * SCALE_FACTOR) - int(10 * SCALE_FACTOR),
@@ -451,7 +470,6 @@ class AnalogUI:
             anchor="center"
         )
 
-        # FUT lamp
         circle_items.append(
             box_canvas.create_oval(
                 int(171 * SCALE_FACTOR) - int(40 * SCALE_FACTOR),
@@ -810,7 +828,6 @@ class AnalogUI:
             fill=milliamp_color
         )
 
-        # 마지막 단계에서만 기록
         if step == total_steps - 1:
             self.maybe_log_event(
                 box_index=box_index,
