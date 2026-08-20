@@ -1,236 +1,315 @@
-from tkinter import Frame, Canvas, Button
-import time
+from __future__ import annotations
+
+import queue
 import threading
+import time
+from tkinter import Button, Canvas, Frame
+from typing import Any
 
-# Adafruit INA219 라이브러리 임포트
-from adafruit_ina219 import INA219
-from busio import I2C
-import board
+try:
+    import board
+    from adafruit_ina219 import INA219
+    from busio import I2C
+except (ImportError, RuntimeError):
+    board = None
+    INA219 = None
+    I2C = None
 
-# 배터리 보정값 (0 ~ 100 범위로 설정)
-BATTERY_ADJUSTMENT = 0  # 여기서 값을 수정하여 보정
-
-# 스케일 팩터로 20% 확대
+BATTERY_ADJUSTMENT = 0
+BATTERY_CELLS = 6
 SCALE_FACTOR = 1.65
 
 
 class UPSMonitorUI:
-    def __init__(self, parent, num_boxes):
+    """INA219 UPS display with all Tk updates kept on the main thread."""
+
+    def __init__(self, parent: Any, num_boxes: int) -> None:
         self.parent = parent
-        self.box_frames = []
-        self.box_data = []
-        self.ina219_available = False  # INA219 사용 가능 여부 플래그 추가
+        self.box_frames: list[Frame] = []
+        self.box_data: list[dict[str, Any]] = []
+        self.ina219_available = False
         self.last_battery_level = 0
         self.last_voltage = 0.0
+        self._stop_event = threading.Event()
+        self._updates: queue.Queue[tuple[int, float, str | None]] = queue.Queue(maxsize=4)
+        self._after_id: str | None = None
+        self.ina219 = None
 
-        # I2C 통신 설정
-        i2c_bus = I2C(board.SCL, board.SDA)
+        if INA219 is not None and I2C is not None and board is not None:
+            try:
+                self.ina219 = INA219(I2C(board.SCL, board.SDA))
+                # Trigger one read so missing hardware is detected immediately.
+                _ = float(self.ina219.bus_voltage)
+                self.ina219_available = True
+                print("INA219 센서가 성공적으로 초기화되었습니다.")
+            except Exception as exc:
+                print(f"INA219 센서를 사용할 수 없습니다: {exc}")
+                self.ina219 = None
 
-        # INA219 인스턴스 생성 시도
-        try:
-            self.ina219 = INA219(i2c_bus)
-            self.ina219_available = True
-            print("INA219 센서가 성공적으로 초기화되었습니다.")
-        except ValueError as e:
-            print(f"INA219 센서를 찾을 수 없습니다: {e}")
-            self.ina219_available = False
+        for index in range(max(0, int(num_boxes))):
+            self.create_ups_box(index)
 
-        for i in range(num_boxes):
-            self.create_ups_box(i)
-
-        # 주기적으로 업데이트하는 쓰레드 시작
-        self.running = True
-        self.update_thread = threading.Thread(target=self.update_loop)
+        self._schedule_updates()
+        self.update_thread = threading.Thread(target=self.update_loop, daemon=True)
         self.update_thread.start()
 
-    def create_ups_box(self, index):
+    def create_ups_box(self, index: int) -> None:
         box_frame = Frame(self.parent, highlightthickness=int(7 * SCALE_FACTOR))
-
         inner_frame = Frame(box_frame)
         inner_frame.pack(padx=0, pady=0)
 
-        box_canvas = Canvas(inner_frame, width=int(150 * SCALE_FACTOR), height=int(300 * SCALE_FACTOR),
-                            highlightthickness=int(3 * SCALE_FACTOR), highlightbackground="#000000",
-                            highlightcolor="#000000")
+        box_canvas = Canvas(
+            inner_frame,
+            width=int(150 * SCALE_FACTOR),
+            height=int(300 * SCALE_FACTOR),
+            highlightthickness=int(3 * SCALE_FACTOR),
+            highlightbackground="#000000",
+            highlightcolor="#000000",
+            bg="#4B4B4B",
+        )
         box_canvas.pack()
+        box_canvas.create_rectangle(
+            0,
+            0,
+            int(160 * SCALE_FACTOR),
+            int(200 * SCALE_FACTOR),
+            fill="#4B4B4B",
+            outline="black",
+            tags="border",
+        )
+        box_canvas.create_rectangle(
+            0,
+            int(200 * SCALE_FACTOR),
+            int(160 * SCALE_FACTOR),
+            int(310 * SCALE_FACTOR),
+            fill="black",
+            outline="black",
+            tags="border",
+        )
 
-        # 상단 영역 (진한 회색)
-        box_canvas.create_rectangle(0, 0, int(160 * SCALE_FACTOR), int(250 * SCALE_FACTOR), fill='#4B4B4B',
-                                     outline='black', tags='border')
-        # 하단 영역 (검정색)
-        box_canvas.create_rectangle(0, int(310 * SCALE_FACTOR), int(160 * SCALE_FACTOR), int(200 * SCALE_FACTOR),
-                                     fill='black', outline='black', tags='border')
+        box_canvas.create_rectangle(
+            int(15 * SCALE_FACTOR),
+            int(20 * SCALE_FACTOR),
+            int(135 * SCALE_FACTOR),
+            int(60 * SCALE_FACTOR),
+            fill="#4B4B4B",
+            outline="black",
+            width=int(3 * SCALE_FACTOR),
+        )
+        box_canvas.create_rectangle(
+            int(135 * SCALE_FACTOR),
+            int(30 * SCALE_FACTOR),
+            int(145 * SCALE_FACTOR),
+            int(50 * SCALE_FACTOR),
+            fill="#4B4B4B",
+            outline="black",
+            width=int(2 * SCALE_FACTOR),
+        )
+        battery_level_bar = box_canvas.create_rectangle(
+            int(20 * SCALE_FACTOR),
+            int(25 * SCALE_FACTOR),
+            int(20 * SCALE_FACTOR),
+            int(55 * SCALE_FACTOR),
+            fill="#00AA00",
+            outline="",
+        )
+        battery_percentage_text = box_canvas.create_text(
+            int(75 * SCALE_FACTOR),
+            int(40 * SCALE_FACTOR),
+            text="0%",
+            font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
+            fill="#FFFFFF",
+            anchor="center",
+        )
+        voltage_text_id = box_canvas.create_text(
+            int(75 * SCALE_FACTOR),
+            int(80 * SCALE_FACTOR),
+            text="0.00V",
+            font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
+            fill="#FFFFFF",
+            anchor="center",
+        )
+        mode_text_id = box_canvas.create_text(
+            int(75 * SCALE_FACTOR),
+            int(105 * SCALE_FACTOR),
+            text="상시 모드",
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#00FF00",
+            anchor="center",
+        )
+        status_text_id = box_canvas.create_text(
+            int(75 * SCALE_FACTOR),
+            int(125 * SCALE_FACTOR),
+            text="",
+            font=("Helvetica", int(8 * SCALE_FACTOR)),
+            fill="#FFD966",
+            anchor="center",
+        )
+        toggle_button = Button(box_canvas, text="모드 전환", command=lambda idx=index: self.toggle_mode(idx))
+        box_canvas.create_window(int(75 * SCALE_FACTOR), int(155 * SCALE_FACTOR), window=toggle_button)
 
-        # 배터리 모양으로 잔량 표시
-        # 배터리 외곽
-        box_canvas.create_rectangle(int(15 * SCALE_FACTOR), int(20 * SCALE_FACTOR), int(135 * SCALE_FACTOR),
-                                     int(60 * SCALE_FACTOR), fill='#4B4B4B', outline='black',
-                                     width=int(3 * SCALE_FACTOR))
-        # 배터리 양극 단자
-        box_canvas.create_rectangle(int(135 * SCALE_FACTOR), int(30 * SCALE_FACTOR), int(145 * SCALE_FACTOR),
-                                     int(50 * SCALE_FACTOR), fill='#4B4B4B', outline='black',
-                                     width=int(2 * SCALE_FACTOR))
-        # 배터리 잔량 바
-        battery_level_bar = box_canvas.create_rectangle(int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
-                                                        int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR),
-                                                        fill='#00AA00', outline='')
-        # 배터리 퍼센트 텍스트
-        battery_percentage_text = box_canvas.create_text(int(75 * SCALE_FACTOR), int(40 * SCALE_FACTOR), text="0%",
-                                                         font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
-                                                         fill="#FFFFFF", anchor="center")
+        box_canvas.create_text(
+            int(75 * SCALE_FACTOR),
+            int(270 * SCALE_FACTOR),
+            text="UPS Monitor",
+            font=("Helvetica", int(16 * SCALE_FACTOR), "bold"),
+            fill="#FFFFFF",
+            anchor="center",
+        )
+        box_canvas.create_text(
+            int(75 * SCALE_FACTOR),
+            int(295 * SCALE_FACTOR),
+            text="GDS ENGINEERING CO.,LTD",
+            font=("Helvetica", int(7 * SCALE_FACTOR), "bold"),
+            fill="#999999",
+            anchor="center",
+        )
 
-        # 전압 표시 텍스트 추가 (예쁘게 가운데 정렬, 하얀색)
-        voltage_text_id = box_canvas.create_text(int(75 * SCALE_FACTOR), int(80 * SCALE_FACTOR), text="0.00V",
-                                                 font=("Helvetica", int(12 * SCALE_FACTOR), "bold"),
-                                                 fill="#FFFFFF", anchor="center")
-
-        # UPS 모드 표시
-        mode_text_id = box_canvas.create_text(int(75 * SCALE_FACTOR), int(100 * SCALE_FACTOR), text="상시 모드",
-                                              font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#00FF00",
-                                              anchor="center")
-
-        # 모드 전환 버튼
-        toggle_button = Button(box_canvas, text="모드 전환", command=lambda: self.toggle_mode(box_canvas))
-        box_canvas.create_window(int(75 * SCALE_FACTOR), int(140 * SCALE_FACTOR), window=toggle_button)
-
-        # UPS 및 제조사 정보
-        box_canvas.create_text(int(75 * SCALE_FACTOR), int(270 * SCALE_FACTOR), text="UPS Monitor",
-                               font=("Helvetica", int(16 * SCALE_FACTOR), "bold"), fill="#FFFFFF", anchor="center")
-        box_canvas.create_text(int(75 * SCALE_FACTOR), int(295 * SCALE_FACTOR), text="GDS ENGINEERING CO.,LTD",
-                               font=("Helvetica", int(7 * SCALE_FACTOR), "bold"), fill="#999999", anchor="center")
-
-        # 필요한 데이터 저장
         self.box_frames.append(box_frame)
-        self.box_data.append({
-            "box_canvas": box_canvas,
-            "battery_level_bar": battery_level_bar,
-            "battery_percentage_text": battery_percentage_text,
-            "mode_text_id": mode_text_id,
-            "mode": "상시 모드",  # 초기 모드 설정
-            "voltage_text_id": voltage_text_id
-        })
+        self.box_data.append(
+            {
+                "box_canvas": box_canvas,
+                "battery_level_bar": battery_level_bar,
+                "battery_percentage_text": battery_percentage_text,
+                "mode_text_id": mode_text_id,
+                "status_text_id": status_text_id,
+                "mode": "상시 모드",
+                "voltage_text_id": voltage_text_id,
+            }
+        )
+        # Geometry is intentionally controlled by main.py (grid); do not pack here.
 
-        # 프레임을 부모 위젯에 추가
-        box_frame.pack(side="left", padx=10, pady=10)
-
-    def update_battery_status(self, index, battery_level, mode, voltage=0.0):
-        """
-        배터리 상태, 모드, 전압을 업데이트하는 함수
-        :param index: 박스 인덱스
-        :param battery_level: 배터리 잔량 (0 ~ 100)
-        :param mode: 현재 UPS 모드 ("상시 모드" 또는 "배터리 모드")
-        :param voltage: 현재 측정된 전압 값
-        """
-        # 배터리 레벨에 보정값 추가
-        adjusted_battery_level = min(max(battery_level + BATTERY_ADJUSTMENT, 0), 100)  # 0~100 범위 제한
-        data = self.box_data[index]
-        canvas = data["box_canvas"]
-        battery_level_bar = data["battery_level_bar"]
-        battery_percentage_text = data["battery_percentage_text"]
-        mode_text_id = data["mode_text_id"]
-        voltage_text_id = data["voltage_text_id"]
-
-        if self.ina219_available:
-            # 배터리 잔량 바 업데이트
-            battery_width = int(110 * SCALE_FACTOR * (adjusted_battery_level / 100))  # 0% ~ 100%에 따라 바의 길이 조정
-            canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
-                          int(20 * SCALE_FACTOR) + battery_width, int(55 * SCALE_FACTOR))
-
-            # 배터리 퍼센트 텍스트 업데이트
-            canvas.itemconfig(battery_percentage_text, text=f"{adjusted_battery_level}%")
-
-            # 전압 텍스트 업데이트 (소수점 둘째자리까지 표시)
-            canvas.itemconfig(voltage_text_id, text=f"{voltage:.2f}V")
-        else:
-            # 센서가 없을 경우, 배터리 잔량 바를 비우고 텍스트를 "연결되지 않음"으로 표시
-            canvas.coords(battery_level_bar, int(20 * SCALE_FACTOR), int(25 * SCALE_FACTOR),
-                          int(20 * SCALE_FACTOR), int(55 * SCALE_FACTOR))
-            canvas.itemconfig(battery_percentage_text, text="연결되지 않음")
-            canvas.itemconfig(voltage_text_id, text="N/A")
-
-        # UPS 모드 텍스트 및 색상 업데이트
-        if mode == "상시 모드":
-            canvas.itemconfig(mode_text_id, text="상시 모드", fill="#00AA00")
-        else:
-            canvas.itemconfig(mode_text_id, text="배터리 모드", fill="#AA0000")
-
-    def toggle_mode(self, canvas):
-        """
-        모드를 전환하는 함수 (상시 모드 <-> 배터리 모드)
-        """
-        # 해당 박스의 인덱스를 찾습니다.
-        index = None
-        for i, data in enumerate(self.box_data):
-            if data["box_canvas"] == canvas:
-                index = i
-                break
-
-        if index is None:
+    def update_battery_status(
+        self,
+        index: int,
+        battery_level: int,
+        mode: str,
+        voltage: float = 0.0,
+        error: str | None = None,
+    ) -> None:
+        if not 0 <= index < len(self.box_data):
             return
-
+        adjusted = min(max(int(battery_level) + BATTERY_ADJUSTMENT, 0), 100)
         data = self.box_data[index]
+        canvas: Canvas = data["box_canvas"]
 
-        # 현재 모드 전환
-        current_mode = data["mode"]
-        new_mode = "배터리 모드" if current_mode == "상시 모드" else "상시 모드"
-        data["mode"] = new_mode
+        if self.ina219_available and error is None:
+            width = int(110 * SCALE_FACTOR * (adjusted / 100.0))
+            canvas.coords(
+                data["battery_level_bar"],
+                int(20 * SCALE_FACTOR),
+                int(25 * SCALE_FACTOR),
+                int(20 * SCALE_FACTOR) + width,
+                int(55 * SCALE_FACTOR),
+            )
+            canvas.itemconfig(data["battery_percentage_text"], text=f"{adjusted}%")
+            canvas.itemconfig(data["voltage_text_id"], text=f"{voltage:.2f}V")
+            canvas.itemconfig(data["status_text_id"], text="")
+        else:
+            canvas.coords(
+                data["battery_level_bar"],
+                int(20 * SCALE_FACTOR),
+                int(25 * SCALE_FACTOR),
+                int(20 * SCALE_FACTOR),
+                int(55 * SCALE_FACTOR),
+            )
+            canvas.itemconfig(data["battery_percentage_text"], text="연결되지 않음")
+            canvas.itemconfig(data["voltage_text_id"], text="N/A")
+            canvas.itemconfig(data["status_text_id"], text=(error or "INA219 없음")[:28])
 
-        # 상태 업데이트 (배터리 레벨, 전압은 마지막 측정값 사용)
-        self.update_battery_status(index, battery_level=self.last_battery_level, mode=new_mode, voltage=self.last_voltage)
+        if mode == "상시 모드":
+            canvas.itemconfig(data["mode_text_id"], text=mode, fill="#00AA00")
+        else:
+            canvas.itemconfig(data["mode_text_id"], text="배터리 모드", fill="#AA0000")
 
-    def calculate_battery_percentage(self, voltage):
-        """
-        배터리 전압을 잔량 퍼센트로 변환하는 함수
-        :param voltage: 측정된 전체 전압
-        :return: 잔량 퍼센트 (0 ~ 100)
-        """
-        cell_voltage = voltage / 6  # 6셀 배터리로 가정
-        # 리튬 배터리 전압에 따른 대략적인 잔량 계산
+    def toggle_mode(self, index: int) -> None:
+        if not 0 <= index < len(self.box_data):
+            return
+        data = self.box_data[index]
+        data["mode"] = "배터리 모드" if data["mode"] == "상시 모드" else "상시 모드"
+        self.update_battery_status(
+            index,
+            self.last_battery_level,
+            data["mode"],
+            self.last_voltage,
+            None if self.ina219_available else "INA219 없음",
+        )
+
+    @staticmethod
+    def calculate_battery_percentage(voltage: float) -> int:
+        cell_voltage = max(0.0, float(voltage)) / BATTERY_CELLS
         if cell_voltage >= 4.2:
             return 100
-        elif cell_voltage > 3.7:
-            return int((cell_voltage - 3.7) / (4.2 - 3.7) * 50 + 50)
-        elif cell_voltage > 3.0:
-            return int((cell_voltage - 3.0) / (3.7 - 3.0) * 50)
-        else:
-            return 0
+        if cell_voltage > 3.7:
+            return int((cell_voltage - 3.7) / 0.5 * 50 + 50)
+        if cell_voltage > 3.0:
+            return int((cell_voltage - 3.0) / 0.7 * 50)
+        return 0
 
-    def update_loop(self):
-        """
-        주기적으로 배터리 상태를 업데이트하는 함수
-        """
-        while self.running:
+    def _publish(self, level: int, voltage: float, error: str | None) -> None:
+        item = (level, voltage, error)
+        try:
+            self._updates.put_nowait(item)
+        except queue.Full:
             try:
-                if self.ina219_available:
-                    # INA219에서 전압 측정
-                    bus_voltage = self.ina219.bus_voltage  # 전압 (V)
-                    shunt_voltage = self.ina219.shunt_voltage  # 션트 전압 (mV)
-                    voltage = bus_voltage + (shunt_voltage / 1000)  # 전체 전압 계산
+                self._updates.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._updates.put_nowait(item)
+            except queue.Full:
+                pass
 
-                    # 배터리 잔량 계산
-                    battery_level = self.calculate_battery_percentage(voltage)
-                    self.last_battery_level = battery_level
-                    self.last_voltage = voltage
-                else:
-                    # 센서가 없을 경우
-                    battery_level = 0
-                    voltage = 0.0
-                    self.last_battery_level = battery_level
-                    self.last_voltage = voltage
+    def update_loop(self) -> None:
+        while not self._stop_event.is_set():
+            error = None
+            try:
+                if self.ina219 is None:
+                    raise RuntimeError("INA219 없음")
+                bus_voltage = float(self.ina219.bus_voltage)
+                shunt_voltage = float(self.ina219.shunt_voltage)
+                voltage = bus_voltage + (shunt_voltage / 1000.0)
+                level = self.calculate_battery_percentage(voltage)
+                self.ina219_available = True
+            except Exception as exc:
+                voltage = 0.0
+                level = 0
+                error = str(exc)
+                self.ina219_available = False
 
-                # 각 박스에 대해 업데이트
-                for index, data in enumerate(self.box_data):
-                    self.update_battery_status(index, battery_level=battery_level, mode=data["mode"], voltage=voltage)
+            self.last_battery_level = level
+            self.last_voltage = voltage
+            self._publish(level, voltage, error)
+            self._stop_event.wait(1.0)
 
-                # 1초마다 업데이트
-                time.sleep(1)
-            except Exception as e:
-                print(f"업데이트 중 오류 발생: {e}")
-                time.sleep(1)
+    def _schedule_updates(self) -> None:
+        try:
+            if not self._stop_event.is_set() and self.parent.winfo_exists():
+                self._after_id = self.parent.after(200, self._drain_updates)
+        except Exception:
+            self._after_id = None
 
-    def stop(self):
-        """
-        쓰레드를 중지하는 함수
-        """
-        self.running = False
-        self.update_thread.join()
+    def _drain_updates(self) -> None:
+        self._after_id = None
+        latest = None
+        while True:
+            try:
+                latest = self._updates.get_nowait()
+            except queue.Empty:
+                break
+        if latest is not None:
+            level, voltage, error = latest
+            for index, data in enumerate(self.box_data):
+                self.update_battery_status(index, level, data["mode"], voltage, error)
+        self._schedule_updates()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._after_id is not None:
+            try:
+                self.parent.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
+        if self.update_thread.is_alive() and self.update_thread is not threading.current_thread():
+            self.update_thread.join(timeout=2.0)

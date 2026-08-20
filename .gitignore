@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+myenv/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Runtime secrets and local state
+secret.key
+settings.json
+settings.broken-*.json
+modbus_settings.json
+ignore_commit.txt
+ignore_branch.txt
+synced_branches.txt
+analog_logs/
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
