@@ -27,14 +27,18 @@ class SourceContracts(unittest.TestCase):
         for name in ("modbus_ui.py", "test1.py"):
             tree = ast.parse((ROOT / name).read_text(encoding="utf-8"), filename=name)
             for node in ast.walk(tree):
-                if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                if not isinstance(node, ast.Call) or not isinstance(
+                    node.func, ast.Attribute
+                ):
                     continue
                 if node.func.attr != "read_holding_registers":
                     continue
                 keywords = {kw.arg for kw in node.keywords}
                 self.assertIn("address", keywords, f"{name}:{node.lineno}")
                 self.assertIn("count", keywords, f"{name}:{node.lineno}")
-                self.assertEqual(node.args, [], f"{name}:{node.lineno} has positional args")
+                self.assertEqual(
+                    node.args, [], f"{name}:{node.lineno} has positional args"
+                )
 
     def test_modbus_register_access_is_not_hardcoded_to_wrong_index(self):
         source = (ROOT / "modbus_ui.py").read_text(encoding="utf-8")

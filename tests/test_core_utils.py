@@ -22,6 +22,7 @@ class CoreUtilsTest(unittest.TestCase):
         self.assertEqual(decode_error_register(1 << 2), "E-12")
         self.assertEqual(decode_error_register((1 << 3) | 1), "E-10")
         self.assertEqual(decode_error_register(1 << 4), "")
+        self.assertEqual(decode_error_register(1 << 5), "Err")
 
     def test_log_values_accept_numbers_and_decorated_text(self):
         self.assertEqual(numeric_from_log_value("264.0 (18.080mA, HMDS)"), 264.0)
@@ -33,11 +34,16 @@ class CoreUtilsTest(unittest.TestCase):
         words = ip_to_register_words("192.168.0.10")
         self.assertEqual(words, (0xC0A8, 0x000A))
         self.assertEqual(registers_to_ipv4(words), "192.168.0.10")
+        with self.assertRaises(ValueError):
+            registers_to_ipv4((0x1_0000, 0))
 
     def test_battery_percentage_is_clamped(self):
         self.assertEqual(battery_percentage(25.2), 100)
         self.assertEqual(battery_percentage(22.2), 50)
         self.assertEqual(battery_percentage(18.0), 0)
+        for invalid in (float("nan"), float("inf"), -0.1, 27.0):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                battery_percentage(invalid)
 
 
 if __name__ == "__main__":

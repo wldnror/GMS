@@ -4,6 +4,9 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
+*.cover
 .venv/
 venv/
 myenv/
@@ -15,9 +18,17 @@ myenv/
 
 # Runtime secrets and local state
 secret.key
+secret.key.tmp
+secret.broken-*.key
+secret.key.broken-*
+.secret-key.*
+.gms-instance.lock
 settings.json
 settings.broken-*.json
+.settings.*
 modbus_settings.json
+.modbus_settings.*
+.gms-state/
 ignore_commit.txt
 ignore_branch.txt
 synced_branches.txt

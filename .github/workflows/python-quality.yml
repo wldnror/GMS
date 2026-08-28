@@ -11,12 +11,105 @@ permissions:
 jobs:
   source-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
+      - name: Install portable test dependencies
+        run: >-
+          python -m pip install
+          "Pillow>=8.1.2"
+          "psutil>=5.8.0"
+          "cryptography>=3.3.2"
+          "pymodbus==3.8.6; python_version == '3.9'"
+          "pymodbus==3.15.0; python_version >= '3.10'"
       - name: Compile sources
         run: python -m compileall -q .
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install quality tools
+        run: python -m pip install ruff==0.16.5 bandit==1.9.4
+      - name: Check imports and Python errors
+        run: ruff check . --select E,F,I --ignore E501
+      - name: Check formatting
+        run: ruff format --check .
+      - name: Reject medium and high severity security findings
+        run: >-
+          bandit -q -ll -r .
+          -x ./tests,./test.py,./test1.py,./test2.py
+
+  production-import-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.9"
+            pillow-version: "8.1.2"
+            pymodbus-version: "3.8.6"
+          - python-version: "3.11"
+            pillow-version: "9.4.0"
+            pymodbus-version: "3.15.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install portable smoke dependencies
+        run: >-
+          python -m pip install
+          "Pillow==${{ matrix.pillow-version }}"
+          "pymodbus==${{ matrix.pymodbus-version }}"
+          "psutil>=5.8.0"
+          "cryptography>=3.3.2"
+      - name: Verify dependency consistency
+        run: python -m pip check
+      - name: Exercise encrypted state storage
+        env:
+          GMS_STATE_DIR: ${{ runner.temp }}/storage-test-state
+        run: python -m unittest discover -s tests -p 'test_storage.py' -v
+      - name: Exercise production runtime safety gates
+        env:
+          GMS_STATE_DIR: ${{ runner.temp }}/runtime-safety-state
+        run: python -m unittest discover -s tests -p 'test_*safety.py' -v
+      - name: Import production modules without hardware packages
+        env:
+          GMS_STATE_DIR: ${{ runner.temp }}/gms-state
+        run: |
+          mkdir -p "$GMS_STATE_DIR"
+          python - <<'PY'
+          import importlib
+
+          modules = (
+              "gms_core",
+              "core_utils",
+              "common",
+              "virtual_keyboard",
+              "log_viewer",
+              "utils",
+              "settings",
+              "analog_ui",
+              "modbus_ui",
+              "ups_monitor_ui",
+              "main",
+          )
+          for module in modules:
+              importlib.import_module(module)
+              print(f"imported {module}")
+          PY

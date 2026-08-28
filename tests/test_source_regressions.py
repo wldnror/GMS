@@ -1,6 +1,6 @@
 import ast
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,11 +18,15 @@ class SourceRegressionTest(unittest.TestCase):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         bad_calls = []
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            if not isinstance(node, ast.Call) or not isinstance(
+                node.func, ast.Attribute
+            ):
                 continue
             if node.func.attr == "read_holding_registers" and len(node.args) > 1:
                 bad_calls.append(node.lineno)
-        self.assertEqual(bad_calls, [], f"count must be keyword-only at lines {bad_calls}")
+        self.assertEqual(
+            bad_calls, [], f"count must be keyword-only at lines {bad_calls}"
+        )
 
     def test_documented_40007_register_is_not_shifted(self):
         source = (ROOT / "modbus_ui.py").read_text(encoding="utf-8")
@@ -45,6 +49,23 @@ class SourceRegressionTest(unittest.TestCase):
         source = (ROOT / "analog_ui.py").read_text(encoding="utf-8")
         self.assertIn("box_index = slot * 4 + channel", source)
         self.assertIn("def stop(self)", source)
+
+    def test_kiosk_escape_and_window_close_are_admin_gated(self):
+        source = (ROOT / "main.py").read_text(encoding="utf-8")
+        self.assertIn('root.bind("<Escape>", request_fullscreen_exit)', source)
+        self.assertIn('root.protocol("WM_DELETE_WINDOW", request_user_exit)', source)
+
+    def test_update_is_fast_forward_only_and_does_not_install_dependencies(self):
+        source = (ROOT / "utils.py").read_text(encoding="utf-8")
+        self.assertIn('"merge", "--ff-only", remote', source)
+        self.assertIn('"requirements.txt"', source)
+        self.assertNotIn("pip install", source)
+
+    def test_branch_switch_refuses_dependency_changes(self):
+        source = (ROOT / "main.py").read_text(encoding="utf-8")
+        self.assertIn('f"origin/{target}"', source)
+        self.assertIn('"requirements.txt"', source)
+        self.assertIn('"check-ref-format", "--branch", target', source)
 
 
 if __name__ == "__main__":

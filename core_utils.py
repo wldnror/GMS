@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -11,8 +12,10 @@ from gms_core import (
     engineering_value,
     parse_numeric,
     register_offset,
-    register_value as _register_value,
     validate_ipv4,
+)
+from gms_core import (
+    register_value as _register_value,
 )
 
 ERROR_BIT_TO_DISPLAY = {
@@ -36,6 +39,10 @@ def decode_error_register(value: int) -> str:
     for bit, label in ERROR_BIT_TO_DISPLAY.items():
         if raw & (1 << bit):
             return label
+    # Bit 4 is the documented decimal-point flag.  Any other future/unknown
+    # status bit must remain fail-safe instead of looking like a healthy box.
+    if raw & ~0x001F:
+        return "Err"
     return ""
 
 
@@ -82,7 +89,9 @@ def registers_to_ipv4(registers: Iterable[int]) -> str:
     values = list(registers)
     if len(values) != 2:
         raise ValueError("IPv4 conversion requires exactly two registers")
-    word1, word2 = (int(values[0]) & 0xFFFF, int(values[1]) & 0xFFFF)
+    word1, word2 = int(values[0]), int(values[1])
+    if not 0 <= word1 <= 0xFFFF or not 0 <= word2 <= 0xFFFF:
+        raise ValueError("IPv4 register words must be in the range 0..65535")
     return str(
         ipaddress.IPv4Address(
             bytes(
@@ -98,9 +107,15 @@ def registers_to_ipv4(registers: Iterable[int]) -> str:
 
 
 def battery_percentage(voltage: float, cell_count: int = 6) -> int:
-    if int(cell_count) <= 0:
+    cells = int(cell_count)
+    if cells <= 0:
         raise ValueError("cell_count must be positive")
-    cell_voltage = max(0.0, float(voltage)) / int(cell_count)
+    total_voltage = float(voltage)
+    if not math.isfinite(total_voltage) or total_voltage < 0:
+        raise ValueError("battery voltage must be a finite non-negative number")
+    cell_voltage = total_voltage / cells
+    if cell_voltage > 4.4:
+        raise ValueError("battery voltage is above the supported per-cell range")
     if cell_voltage >= 4.2:
         return 100
     if cell_voltage > 3.7:
